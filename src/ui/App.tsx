@@ -1,10 +1,12 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
   type ChangeEvent,
 } from 'react'
 import { importTravelPackageToLibrary } from '../application/importTravelPackageToLibrary'
+import { systemClock, type Clock } from '../application/travelConsultation'
 import type { ImportIssue } from '../import/errors'
 import { openIndexedDbTravelRepository } from '../persistence/indexedDbTravelRepository'
 import type { PersistedTravel, TravelLibraryEntry } from '../persistence/model'
@@ -13,6 +15,14 @@ import type {
   TravelLibraryRepository,
   TravelRepositoryFactory,
 } from '../persistence/repository'
+import {
+  TravelConsultation,
+  type TravelView,
+} from './travel/TravelConsultation'
+import {
+  readTravelLocation,
+  writeTravelLocation,
+} from './travel/navigation'
 
 const principles = [
   {
@@ -60,10 +70,18 @@ function issueContext(error: ImportIssue | PersistenceIssue) {
 
 interface AppProps {
   repositoryFactory?: TravelRepositoryFactory
+  clock?: Clock
 }
+
+type ConsultationUiState =
+  | { status: 'library' }
+  | { status: 'loading' }
+  | { status: 'ready'; persistedTravel: PersistedTravel; view: TravelView }
+  | { status: 'error'; error: PersistenceIssue }
 
 export function App({
   repositoryFactory = openIndexedDbTravelRepository,
+  clock = systemClock,
 }: AppProps) {
   const repositoryRef = useRef<TravelLibraryRepository | null>(null)
   const [libraryState, setLibraryState] = useState<LibraryUiState>({
@@ -71,7 +89,9 @@ export function App({
   })
   const [importState, setImportState] = useState<ImportUiState>({ status: 'idle' })
   const [actionState, setActionState] = useState<ActionUiState>({ status: 'idle' })
-  const [selectedTravel, setSelectedTravel] = useState<PersistedTravel>()
+  const [consultationState, setConsultationState] = useState<ConsultationUiState>({
+    status: 'library',
+  })
 
   async function refreshLibrary(repository: TravelLibraryRepository) {
     const listed = await repository.listTravels()
@@ -81,6 +101,20 @@ export function App({
         : { status: 'error', error: listed.error },
     )
   }
+
+  const loadTravel = useCallback(async (
+    repository: TravelLibraryRepository,
+    travelId: string,
+    view: TravelView,
+  ) => {
+    setConsultationState({ status: 'loading' })
+    const result = await repository.getTravel(travelId)
+    setConsultationState(
+      result.ok
+        ? { status: 'ready', persistedTravel: result.value, view }
+        : { status: 'error', error: result.error },
+    )
+  }, [])
 
   useEffect(() => {
     let disposed = false
@@ -104,15 +138,32 @@ export function App({
           ? { status: 'ready', entries: listed.value }
           : { status: 'error', error: listed.error },
       )
+
+      const location = readTravelLocation(window.location.search)
+      if (location) {
+        await loadTravel(opened.value, location.travelId, location.view)
+      }
+    }
+
+    function handleHistoryChange() {
+      const repository = repositoryRef.current
+      const location = readTravelLocation(window.location.search)
+      if (!location) {
+        setConsultationState({ status: 'library' })
+      } else if (repository) {
+        void loadTravel(repository, location.travelId, location.view)
+      }
     }
 
     void initializeLibrary()
+    window.addEventListener('popstate', handleHistoryChange)
     return () => {
       disposed = true
+      window.removeEventListener('popstate', handleHistoryChange)
       repositoryRef.current?.close()
       repositoryRef.current = null
     }
-  }, [repositoryFactory])
+  }, [loadTravel, repositoryFactory])
 
   async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
@@ -168,14 +219,24 @@ export function App({
   async function openTravel(travelId: string) {
     const repository = repositoryRef.current
     if (!repository) return
-    setActionState({ status: 'processing', message: 'Ouverture du voyage…' })
-    const result = await repository.getTravel(travelId)
-    if (result.ok) {
-      setSelectedTravel(result.value)
-      setActionState({ status: 'idle' })
-    } else {
-      setActionState({ status: 'error', error: result.error })
-    }
+    const view: TravelView = { kind: 'summary' }
+    writeTravelLocation({ travelId, view })
+    await loadTravel(repository, travelId, view)
+  }
+
+  function navigateTravel(view: TravelView) {
+    if (consultationState.status !== 'ready') return
+    writeTravelLocation({
+      travelId: consultationState.persistedTravel.travel.id,
+      view,
+    })
+    setConsultationState({ ...consultationState, view })
+  }
+
+  function backToLibrary() {
+    writeTravelLocation(undefined)
+    setConsultationState({ status: 'library' })
+    setActionState({ status: 'idle' })
   }
 
   async function deleteTravel(entry: TravelLibraryEntry) {
@@ -216,37 +277,34 @@ export function App({
       </header>
 
       <main id="contenu-principal" tabIndex={-1}>
-        {selectedTravel ? (
-          <section className="foundation travel-preview" aria-labelledby="preview-title">
-            <button
-              className="secondary-button back-button"
-              type="button"
-              onClick={() => {
-                setSelectedTravel(undefined)
-                setActionState({ status: 'idle' })
-              }}
-            >
+        {consultationState.status === 'loading' && (
+          <section className="foundation consultation-state" aria-live="polite">
+            <p role="status">Chargement du voyage…</p>
+          </section>
+        )}
+        {consultationState.status === 'error' && (
+          <section className="foundation consultation-state" aria-labelledby="travel-error-title">
+            <p className="section-label">Voyage indisponible</p>
+            <h2 id="travel-error-title">Impossible d’ouvrir ce voyage</h2>
+            <p className="action-message action-error" role="alert">
+              <strong>{consultationState.error.message}</strong>{' '}
+              {consultationState.error.hint}
+            </p>
+            <button className="secondary-button" type="button" onClick={backToLibrary}>
               Retour à la bibliothèque
             </button>
-            <p className="section-label">Aperçu local</p>
-            <h2 id="preview-title">{selectedTravel.travel.title}</h2>
-            <p className="preview-destination">
-              {selectedTravel.travel.destination.label} ·{' '}
-              <time dateTime={selectedTravel.travel.period.start}>
-                {selectedTravel.travel.period.start}
-              </time>{' '}
-              au{' '}
-              <time dateTime={selectedTravel.travel.period.end}>
-                {selectedTravel.travel.period.end}
-              </time>
-            </p>
-            <p className="foundation-copy">{selectedTravel.travel.summary}</p>
-            <p className="result-note">
-              Cet aperçu confirme le voyage retrouvé. La consultation détaillée
-              sera ajoutée à l’étape 5.
-            </p>
           </section>
-        ) : (
+        )}
+        {consultationState.status === 'ready' && (
+          <TravelConsultation
+            persistedTravel={consultationState.persistedTravel}
+            view={consultationState.view}
+            clock={clock}
+            onNavigate={navigateTravel}
+            onBackToLibrary={backToLibrary}
+          />
+        )}
+        {consultationState.status === 'library' && (
           <section className="foundation" aria-labelledby="library-title">
             <p className="section-label">Stockage local</p>
             <h2 id="library-title">Ma bibliothèque</h2>

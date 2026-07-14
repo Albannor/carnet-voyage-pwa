@@ -53,6 +53,7 @@ let repository: TravelLibraryRepository
 let repositoryFactory: TravelRepositoryFactory
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/')
   importToLibraryMock.mockReset()
   repository = {
     importPackage: vi.fn(),
@@ -65,7 +66,10 @@ beforeEach(() => {
   repositoryFactory = vi.fn().mockResolvedValue({ ok: true, value: repository })
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  window.history.replaceState(null, '', '/')
+})
 
 describe('App', () => {
   it('charge une bibliothèque vide et présente un sélecteur ZIP accessible', async () => {
@@ -193,7 +197,7 @@ describe('App', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Supprimez explicitement')
   })
 
-  it('ouvre un aperçu minimal puis revient à la bibliothèque', async () => {
+  it('ouvre la synthèse d’un voyage depuis la bibliothèque puis y revient', async () => {
     vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
     vi.mocked(repository.getTravel).mockResolvedValue({
       ok: true,
@@ -207,13 +211,91 @@ describe('App', () => {
     fireEvent.click(openButton)
 
     expect(await screen.findByText(travel.summary)).toBeInTheDocument()
-    expect(screen.getByText(/consultation détaillée.*étape 5/i)).toBeInTheDocument()
+    expect(screen.getByText('Vue active : Synthèse du voyage')).toBeInTheDocument()
+    expect(window.location.search).toContain('travel=travel-alpha')
     fireEvent.click(
       screen.getByRole('button', { name: 'Retour à la bibliothèque' }),
     )
     expect(
       screen.getByRole('heading', { level: 2, name: 'Ma bibliothèque' }),
     ).toBeInTheDocument()
+    expect(window.location.search).toBe('')
+  })
+
+  it('retrouve au rechargement un voyage identifié dans l’URL', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?travel=travel-alpha&view=summary',
+    )
+    vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: { metadata: entry, travel },
+    })
+
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    expect(await screen.findByText(travel.summary)).toBeInTheDocument()
+    expect(repository.getTravel).toHaveBeenCalledWith('travel-alpha')
+  })
+
+  it('affiche un voyage introuvable tout en permettant le retour', async () => {
+    window.history.replaceState(null, '', '/?travel=missing&view=summary')
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'TRAVEL_NOT_FOUND',
+        message: 'Ce voyage est introuvable.',
+        hint: 'Revenez à la bibliothèque.',
+        travelId: 'missing',
+      },
+    })
+
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ce voyage est introuvable.')
+    fireEvent.click(screen.getByRole('button', { name: 'Retour à la bibliothèque' }))
+    expect(await screen.findByRole('heading', { name: 'Ma bibliothèque' })).toBeInTheDocument()
+  })
+
+  it('présente une erreur de lecture IndexedDB sans exposer de trace', async () => {
+    window.history.replaceState(null, '', '/?travel=travel-alpha&view=summary')
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'READ_FAILED',
+        message: 'Le voyage ne peut pas être lu.',
+        hint: 'Réessayez depuis la bibliothèque.',
+        travelId: 'travel-alpha',
+      },
+    })
+
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Le voyage ne peut pas être lu.')
+    expect(alert).not.toHaveTextContent('stack')
+  })
+
+  it('charge uniquement le voyage sélectionné parmi plusieurs entrées', async () => {
+    const secondEntry = { ...entry, travelId: 'travel-beta', title: 'Voyage bêta' }
+    const secondTravel = { ...travel, id: 'travel-beta', title: 'Voyage bêta' }
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [entry, secondEntry],
+    })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: { metadata: secondEntry, travel: secondTravel },
+    })
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ouvrir Voyage bêta' }))
+
+    expect(await screen.findByRole('heading', { name: 'Voyage bêta' })).toBeInTheDocument()
+    expect(repository.getTravel).toHaveBeenCalledWith('travel-beta')
+    expect(screen.queryByRole('heading', { name: 'Voyage alpha' })).not.toBeInTheDocument()
   })
 
   it('demande une confirmation nommant le voyage avant suppression', async () => {

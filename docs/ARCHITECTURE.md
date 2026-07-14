@@ -56,6 +56,8 @@ Un échec à n'importe quelle étape annule l'import et produit une erreur compr
 
 Depuis l'étape 4, l'orchestration transmet le paquet complet normalisé au dépôt IndexedDB. Une seule transaction écrit métadonnées, contenu et ressources ; la bibliothèque n'est actualisée qu'après sa validation. Les limites et contrôles ZIP sont détaillés dans `IMPORT.md`, et le modèle de base dans `PERSISTENCE.md`.
 
+Depuis l’étape 5, la consultation relit toujours le modèle normalisé par l’interface de dépôt avant de le rendre. Les composants de voyage reçoivent ce modèle déjà chargé et ne connaissent ni IndexedDB, ni l’archive d’origine. L’identifiant du voyage et la vue active peuvent être reflétés dans l’URL pour permettre un rechargement ; ce contexte de navigation ne contient aucun contenu métier et n’est pas stocké dans `localStorage`. Les règles de date, de fuseau et de sélection d’hébergement sont indépendantes de React et décrites dans `CONSULTATION.md`.
+
 ## Stockage local
 
 IndexedDB est la source de vérité locale pour :

@@ -1,10 +1,10 @@
 # Carnet de voyage PWA
 
-Carnet de voyage PWA est une future application web progressive, statique et local-first destinée à conserver et consulter une bibliothèque personnelle de voyages. Elle permettra d'importer des dossiers structurés produits avec ChatGPT, puis d'accéder hors connexion à leur synthèse, à leur programme quotidien et aux informations utiles sur place.
+Carnet de voyage PWA est une application web progressive en construction, statique et local-first, destinée à conserver et consulter une bibliothèque personnelle de voyages. Elle importe des dossiers structurés produits avec ChatGPT puis rend leur contenu dans une interface commune contrôlée par l’application.
 
 ## État du projet
 
-Le dépôt contient désormais la persistance et la bibliothèque locale de l'étape 4. L'application valide intégralement un paquet ZIP, normalise son voyage, l'enregistre atomiquement avec ses ressources dans IndexedDB, puis permet de le lister, d'ouvrir un aperçu minimal et de le supprimer explicitement.
+Le dépôt contient désormais la consultation commune de l’étape 5. Après validation et enregistrement atomique d’un paquet ZIP dans IndexedDB, l’application permet de retrouver un voyage, d’ouvrir sa synthèse, d’utiliser la vue « Aujourd’hui », de naviguer entre ses journées et de lire leur chronologie. La suppression explicite et l’isolation entre voyages restent assurées par la bibliothèque locale.
 
 ## Prérequis
 
@@ -67,6 +67,7 @@ npm run build
 - [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : périmètre, formats, politiques de validation et limites du premier sous-ensemble.
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
+- [Consultation](docs/CONSULTATION.md) : parcours, vue « Aujourd’hui », fuseaux horaires, chronologie, hébergements et états vides.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
@@ -108,6 +109,7 @@ npm run build
 ├── vite.config.ts
 ├── docs/
 │   ├── ARCHITECTURE.md
+│   ├── CONSULTATION.md
 │   ├── GUIDE-FORMAT.md
 │   ├── IMPORT.md
 │   ├── PERSISTENCE.md
@@ -128,4 +130,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Les contrats `1.0.0` restent de premiers sous-ensembles, pas le format définitif complet. La bibliothèque fournit seulement un aperçu du voyage : la consultation détaillée appartient à l'étape 5. Réservations, associations de documents aux entités, checklist et notes restent absentes ; l'espace des futurs états personnels est seulement séparé dans IndexedDB. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne supplémentaire n'est implémenté avant l'étape 8.
+Les contrats `1.0.0` restent de premiers sous-ensembles, pas le format définitif complet. La consultation n’expose encore ni les actions contextuelles et variantes de l’étape 6, ni les checklists et notes de l’étape 7. Réservations et associations de documents aux entités restent absentes. Le manifest web prépare l’identité installable de l’application, mais aucun service worker ou fonctionnement hors ligne complet n’est implémenté avant l’étape 8.
