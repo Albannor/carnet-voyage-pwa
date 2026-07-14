@@ -1,0 +1,32 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "outside-day-trip",
+  "title": "Journée hors période",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-14",
+  "summary": "Une journée dépasse la fin du voyage.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-14"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-late",
+      "date": "2026-11-15",
+      "title": "Journée trop tardive",
+      "steps": []
+    }
+  ],
+  "variants": []
+}

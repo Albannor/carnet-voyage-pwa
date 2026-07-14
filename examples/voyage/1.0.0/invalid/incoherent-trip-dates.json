@@ -1,0 +1,32 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "incoherent-dates-trip",
+  "title": "Dates incohérentes",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-15",
+  "endDate": "2026-11-13",
+  "summary": "La fin précède le début.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-15"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-one",
+      "date": "2026-11-14",
+      "title": "Journée",
+      "steps": []
+    }
+  ],
+  "variants": []
+}

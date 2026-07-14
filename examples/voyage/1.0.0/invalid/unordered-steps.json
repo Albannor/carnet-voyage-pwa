@@ -1,0 +1,35 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "step-order-trip",
+  "title": "Étapes désordonnées",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Les étapes horaires ne sont pas chronologiques.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-one",
+      "date": "2026-11-13",
+      "title": "Journée",
+      "steps": [
+        { "id": "step-late", "title": "Après-midi", "startTime": "14:00", "links": [] },
+        { "id": "step-early", "title": "Matin", "startTime": "09:00", "links": [] }
+      ]
+    }
+  ],
+  "variants": []
+}

@@ -1,0 +1,33 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "duplicate-id-trip",
+  "title": "Identifiant dupliqué",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Deux lieux utilisent le même identifiant.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Premier lieu", "links": [] },
+    { "id": "place-main", "name": "Second lieu", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-one",
+      "date": "2026-11-13",
+      "title": "Journée",
+      "steps": []
+    }
+  ],
+  "variants": []
+}

@@ -1,0 +1,27 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "invalid-time-zone-trip",
+  "title": "Fuseau inconnu",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Atlantis",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Le fuseau respecte la forme attendue mais n'existe pas.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    { "id": "day-one", "date": "2026-11-13", "title": "Journée", "steps": [] }
+  ],
+  "variants": []
+}

@@ -1,0 +1,32 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "invalid-date-trip",
+  "title": "Date impossible",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-02-30",
+  "endDate": "2026-03-01",
+  "summary": "Le 30 février n'existe pas.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-03-01",
+      "endDate": "2026-03-01"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-one",
+      "date": "2026-03-01",
+      "title": "Journée",
+      "steps": []
+    }
+  ],
+  "variants": []
+}

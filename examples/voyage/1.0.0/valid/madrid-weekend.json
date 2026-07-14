@@ -1,0 +1,145 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "madrid-weekend-2026",
+  "title": "Madrid à pied",
+  "destination": {
+    "name": "Madrid",
+    "countryCode": "ES"
+  },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-15",
+  "summary": "Un séjour court organisé autour d'un hébergement central, de journées chronologiques et de solutions de repli.",
+  "accommodations": [
+    {
+      "id": "stay-central",
+      "name": "Hébergement central",
+      "placeId": "place-base",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-15"
+    }
+  ],
+  "places": [
+    {
+      "id": "place-base",
+      "name": "Hébergement central",
+      "address": "Centre de Madrid, Espagne",
+      "links": [
+        {
+          "id": "link-base-map",
+          "label": "Voir l'hébergement sur la carte",
+          "url": "https://www.google.com/maps/search/?api=1&query=centre+Madrid"
+        }
+      ]
+    },
+    {
+      "id": "place-sol",
+      "name": "Puerta del Sol",
+      "links": [
+        {
+          "id": "link-sol-map",
+          "label": "Voir Puerta del Sol sur la carte",
+          "url": "https://www.google.com/maps/search/?api=1&query=Puerta+del+Sol+Madrid"
+        }
+      ]
+    },
+    {
+      "id": "place-retiro",
+      "name": "Parc du Retiro",
+      "links": [
+        {
+          "id": "link-retiro-map",
+          "label": "Voir le Retiro sur la carte",
+          "url": "https://www.google.com/maps/search/?api=1&query=Retiro+Madrid"
+        }
+      ]
+    }
+  ],
+  "days": [
+    {
+      "id": "day-arrival",
+      "date": "2026-11-13",
+      "title": "Arrivée et première soirée",
+      "summary": "Installation puis courte promenade depuis l'hébergement.",
+      "steps": [
+        {
+          "id": "step-check-in",
+          "title": "S'installer",
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "placeId": "place-base",
+          "accommodationId": "stay-central",
+          "links": []
+        },
+        {
+          "id": "step-evening-walk",
+          "title": "Découvrir le centre",
+          "startTime": "20:30",
+          "placeId": "place-sol",
+          "links": [
+            {
+              "id": "link-evening-route",
+              "label": "Ouvrir l'itinéraire de la soirée",
+              "url": "https://www.google.com/maps/dir/?api=1&destination=Puerta+del+Sol+Madrid"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "day-main",
+      "date": "2026-11-14",
+      "title": "Journée principale",
+      "steps": [
+        {
+          "id": "step-historic-centre",
+          "title": "Parcourir le centre historique",
+          "startTime": "09:00",
+          "placeId": "place-sol",
+          "links": []
+        },
+        {
+          "id": "step-park",
+          "title": "Marcher dans le parc",
+          "startTime": "14:00",
+          "placeId": "place-retiro",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "day-departure",
+      "date": "2026-11-15",
+      "title": "Dernière matinée",
+      "steps": [
+        {
+          "id": "step-departure",
+          "title": "Préparer le départ",
+          "startTime": "10:00",
+          "placeId": "place-base",
+          "accommodationId": "stay-central",
+          "links": []
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "id": "variant-rain",
+      "kind": "rain",
+      "label": "Option pluie",
+      "description": "Réduire les portions extérieures et privilégier des étapes abritées.",
+      "targetType": "day",
+      "targetId": "day-main"
+    },
+    {
+      "id": "variant-low-walking",
+      "kind": "low-walking",
+      "label": "Option économe en marche",
+      "description": "Raccourcir la promenade et prévoir un trajet motorisé explicite.",
+      "targetType": "step",
+      "targetId": "step-park"
+    }
+  ]
+}

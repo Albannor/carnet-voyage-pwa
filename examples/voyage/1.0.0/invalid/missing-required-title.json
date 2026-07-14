@@ -1,0 +1,26 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "missing-title-trip",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Le titre obligatoire est absent.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    { "id": "day-one", "date": "2026-11-13", "title": "Journée", "steps": [] }
+  ],
+  "variants": []
+}

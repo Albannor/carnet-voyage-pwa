@@ -1,0 +1,40 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "presentation-code-trip",
+  "title": "Tentative de code actif",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Une étape tente d'imposer un composant et un script.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-one",
+      "date": "2026-11-13",
+      "title": "Journée",
+      "steps": [
+        {
+          "id": "step-one",
+          "title": "Étape",
+          "links": [],
+          "component": "DangerousHtml",
+          "script": "alert('exécution interdite')"
+        }
+      ]
+    }
+  ],
+  "variants": []
+}

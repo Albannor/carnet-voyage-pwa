@@ -4,7 +4,7 @@ Carnet de voyage PWA est une future application web progressive, statique et loc
 
 ## État du projet
 
-Le dépôt contient le cadrage du produit, les décisions d'architecture, les règles UX, la référence Madrid et le socle applicatif de l'étape 1. Une page d'accueil minimale React est disponible ; les fonctionnalités métier seront ajoutées dans les prochaines étapes de la feuille de route.
+Le dépôt contient le cadrage du produit, les décisions d'architecture, les règles UX, la référence Madrid et le socle applicatif React. L'étape 2 ajoute un premier modèle métier indépendant de l'interface et un contrat `voyage.json` versionné `1.0.0`, accompagnés d'exemples et de validations automatisées. Aucun import de fichier, stockage local ou écran de voyage n'est encore implémenté.
 
 ## Prérequis
 
@@ -64,6 +64,7 @@ npm run build
 - [Produit](docs/PRODUCT.md) : vision, utilisateurs, périmètre du MVP et critères de réussite.
 - [Architecture](docs/ARCHITECTURE.md) : modèle local-first, sécurité, stockage, hors ligne et futures couches techniques.
 - [Format des guides](docs/GUIDE-FORMAT.md) : structure conceptuelle du paquet de voyage et règles de versionnement.
+- [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : périmètre, formats, politiques de validation et limites du premier sous-ensemble.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
@@ -76,6 +77,10 @@ npm run build
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
+├── contracts/
+│   └── voyage/1.0.0/   # schéma JSON versionné et documentation du contrat
+├── examples/
+│   └── voyage/1.0.0/   # exemple valide et fixtures invalides
 ├── index.html
 ├── package-lock.json
 ├── package.json
@@ -84,8 +89,10 @@ npm run build
 │   │   └── carnet.svg
 │   └── manifest.webmanifest
 ├── src/
-│   ├── domain/          # futur modèle métier
-│   ├── import/          # future frontière d'import et de validation
+│   ├── application/     # orchestration de validation en mémoire
+│   ├── contracts/       # types externes, validation du schéma et conversion
+│   ├── domain/          # modèle métier et invariants indépendants de React
+│   ├── import/          # future frontière d'import de fichiers
 │   ├── persistence/     # futurs dépôts de stockage local
 │   ├── services/        # futurs adaptateurs techniques et hors ligne
 │   ├── test/            # configuration commune des tests
@@ -116,4 +123,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Le socle ne contient encore ni import de voyage, ni schéma JSON définitif, ni IndexedDB, ni checklist, ni notes. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne n'est encore implémenté.
+Le contrat `1.0.0` est un premier sous-ensemble représentatif, pas le format définitif complet. Le projet ne contient encore ni import de fichiers ou d'archives, ni IndexedDB, ni réservation, document, ressource de paquet, checklist, note ou migration réelle. Le voyage n'est pas rendu dans React. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne n'est encore implémenté.

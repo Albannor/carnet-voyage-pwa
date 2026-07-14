@@ -1,0 +1,36 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "missing-variant-target-trip",
+  "title": "Cible de variante absente",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "La variante cible une journée inconnue.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    { "id": "day-one", "date": "2026-11-13", "title": "Journée", "steps": [] }
+  ],
+  "variants": [
+    {
+      "id": "variant-rain",
+      "kind": "rain",
+      "label": "Pluie",
+      "description": "Alternative prévue en cas de pluie.",
+      "targetType": "day",
+      "targetId": "day-unknown"
+    }
+  ]
+}

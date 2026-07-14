@@ -1,0 +1,28 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "unknown-property-trip",
+  "title": "Propriété inconnue",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Une propriété non autorisée est présente.",
+  "theme": "touristique",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    { "id": "place-main", "name": "Lieu", "links": [] }
+  ],
+  "days": [
+    { "id": "day-one", "date": "2026-11-13", "title": "Journée", "steps": [] }
+  ],
+  "variants": []
+}

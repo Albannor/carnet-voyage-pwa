@@ -2,7 +2,7 @@
 
 ## Objet du document
 
-Ce document décrit le futur paquet de voyage, les responsabilités de ses éléments et les règles d'évolution. Il ne constitue pas encore un schéma JSON définitif et ne fixe pas tous les noms de champs.
+Ce document décrit le futur paquet de voyage, les responsabilités de ses éléments et les règles d'évolution. Un premier sous-ensemble de `voyage.json` est désormais contractualisé pour l'étape 2 ; il ne constitue pas le format définitif du produit et ne fixe pas encore tous les champs du paquet.
 
 ## Structure proposée
 
@@ -142,15 +142,12 @@ Un lecteur :
 
 Les champs inconnus ne sont tolérés que si la version et le futur schéma les déclarent compatibles. Aucun comportement ne doit être deviné silencieusement.
 
-## Évolution vers un schéma JSON
+## Contrat initial de `voyage.json`
 
-La définition du schéma définitif interviendra dans une étape distincte. Elle devra :
+Le premier contrat de contenu est la version `1.0.0`. Son schéma JSON Schema Draft 2020-12 se trouve dans [`contracts/voyage/1.0.0/schema.json`](../contracts/voyage/1.0.0/schema.json). Sa documentation détaillée et ses politiques de validation figurent dans le [`README` du contrat](../contracts/voyage/1.0.0/README.md).
 
-- transformer les entités ci-dessus en contrats précis ;
-- préciser les champs obligatoires et optionnels ;
-- fixer les formats d'identifiants, dates, URL et chemins ;
-- définir les limites de taille et de cardinalité ;
-- fournir des exemples valides et invalides ;
-- être couverte par des tests de validation et de migration.
+Ce sous-ensemble couvre l'identité et la période du voyage, la destination, la langue, le fuseau horaire, les hébergements, les lieux, les journées, leurs étapes, les liens externes et trois catégories de variantes. Les réservations, ressources du paquet, documents, checklists, notes et migrations réelles restent volontairement absents.
 
-La référence Madrid peut fournir des cas d'usage et des fixtures éditoriales, mais son HTML et son manifest PWA ne doivent pas servir de schéma implicite.
+Le contrat externe décrit la forme acceptée à la frontière de l'application. Le modèle interne TypeScript, situé dans `src/domain/voyage/`, décrit les concepts utilisés par le domaine et leurs invariants sans dépendre de JSON Schema, de React ou du stockage. Une conversion explicite relie les deux ; leur ressemblance actuelle n'en fait pas une seule couche.
+
+La politique initiale refuse toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.

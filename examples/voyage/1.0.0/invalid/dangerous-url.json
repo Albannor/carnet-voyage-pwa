@@ -1,0 +1,37 @@
+{
+  "contentModelVersion": "1.0.0",
+  "id": "dangerous-url-trip",
+  "title": "URL dangereuse",
+  "destination": { "name": "Madrid", "countryCode": "ES" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Madrid",
+  "startDate": "2026-11-13",
+  "endDate": "2026-11-13",
+  "summary": "Un lien utilise un protocole actif.",
+  "accommodations": [
+    {
+      "id": "stay-main",
+      "name": "Hébergement",
+      "placeId": "place-main",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13"
+    }
+  ],
+  "places": [
+    {
+      "id": "place-main",
+      "name": "Lieu",
+      "links": [
+        {
+          "id": "link-dangerous",
+          "label": "Lien dangereux",
+          "url": "javascript:alert(1)"
+        }
+      ]
+    }
+  ],
+  "days": [
+    { "id": "day-one", "date": "2026-11-13", "title": "Journée", "steps": [] }
+  ],
+  "variants": []
+}
