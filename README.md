@@ -4,7 +4,7 @@ Carnet de voyage PWA est une future application web progressive, statique et loc
 
 ## État du projet
 
-Le dépôt contient désormais une démonstration de l'import sécurisé de l'étape 3. L'application peut sélectionner un paquet ZIP, contrôler sa structure, valider son manifest et `voyage.json`, vérifier ses ressources puis produire le modèle interne normalisé. Le résultat reste uniquement en mémoire : aucun stockage local ou écran de consultation n'est encore implémenté.
+Le dépôt contient désormais la persistance et la bibliothèque locale de l'étape 4. L'application valide intégralement un paquet ZIP, normalise son voyage, l'enregistre atomiquement avec ses ressources dans IndexedDB, puis permet de le lister, d'ouvrir un aperçu minimal et de le supprimer explicitement.
 
 ## Prérequis
 
@@ -66,6 +66,7 @@ npm run build
 - [Format des guides](docs/GUIDE-FORMAT.md) : structure conceptuelle du paquet de voyage et règles de versionnement.
 - [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : périmètre, formats, politiques de validation et limites du premier sous-ensemble.
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
+- [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
@@ -91,11 +92,11 @@ npm run build
 │   │   └── carnet.svg
 │   └── manifest.webmanifest
 ├── src/
-│   ├── application/     # orchestration de validation en mémoire
+│   ├── application/     # cas d'usage entre import, persistance et interface
 │   ├── contracts/       # types externes, validation du schéma et conversion
 │   ├── domain/          # modèle métier et invariants indépendants de React
 │   ├── import/          # lecture ZIP, sécurité, ressources et migrations
-│   ├── persistence/     # futurs dépôts de stockage local
+│   ├── persistence/     # dépôt IndexedDB, modèles stockés et erreurs
 │   ├── services/        # futurs adaptateurs techniques et hors ligne
 │   ├── test/            # configuration commune des tests
 │   ├── ui/              # interface React, styles et tests de rendu
@@ -109,6 +110,7 @@ npm run build
 │   ├── ARCHITECTURE.md
 │   ├── GUIDE-FORMAT.md
 │   ├── IMPORT.md
+│   ├── PERSISTENCE.md
 │   ├── PRODUCT.md
 │   ├── ROADMAP.md
 │   └── UX-RULES.md
@@ -126,4 +128,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Les contrats `1.0.0` restent de premiers sous-ensembles, pas le format définitif complet. L'import ne persiste rien : IndexedDB, bibliothèque de voyages et transactions appartiennent à l'étape 4. Réservations, associations de documents aux entités, checklist, notes et rendu détaillé du voyage restent absents. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne supplémentaire n'est implémenté.
+Les contrats `1.0.0` restent de premiers sous-ensembles, pas le format définitif complet. La bibliothèque fournit seulement un aperçu du voyage : la consultation détaillée appartient à l'étape 5. Réservations, associations de documents aux entités, checklist et notes restent absentes ; l'espace des futurs états personnels est seulement séparé dans IndexedDB. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne supplémentaire n'est implémenté avant l'étape 8.

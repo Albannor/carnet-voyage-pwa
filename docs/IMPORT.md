@@ -2,9 +2,11 @@
 
 ## Statut
 
-L'étape 3 accepte et valide un paquet ZIP dans le navigateur. Un paquet valide reste uniquement en mémoire ; aucune donnée métier ni ressource n'est enregistrée dans IndexedDB ou `localStorage`.
+L'étape 3 accepte et valide un paquet ZIP dans le navigateur. Cette frontière retourne toujours le paquet validé en mémoire, sans connaître IndexedDB. Depuis l'étape 4, une orchestration distincte transmet ensuite ce résultat complet au dépôt local ; un échec d'import ne déclenche aucune écriture.
 
 Le code de la frontière d'import se trouve dans `src/import/`. Il est indépendant de React et de la persistance. L'interface appelle cette frontière sans accéder directement au contenu de l'archive.
+
+L'enregistrement atomique, la politique de doublon et la bibliothèque sont documentés dans [`docs/PERSISTENCE.md`](PERSISTENCE.md). Ni le ZIP brut ni `guide-standalone.html` ne sont persistés.
 
 ## Format et versions prises en charge
 

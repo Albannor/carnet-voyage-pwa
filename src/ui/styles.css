@@ -30,6 +30,10 @@ select {
   font: inherit;
 }
 
+button {
+  min-height: 2.75rem;
+}
+
 a {
   color: inherit;
 }
@@ -166,12 +170,150 @@ h3 {
   line-height: 1.3;
 }
 
+h4 {
+  margin-top: 0;
+  margin-bottom: 0.4rem;
+  color: #143642;
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+
 .foundation-copy {
   max-width: 44rem;
   margin-bottom: 2rem;
   color: #455b62;
   font-size: 1.02rem;
   line-height: 1.7;
+}
+
+.library-panel {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.library-panel > h3,
+.library-panel > p,
+.travel-card p {
+  margin-bottom: 0;
+}
+
+.empty-library,
+.library-error {
+  padding: 1rem;
+  border: 0.0625rem dashed #9aacaa;
+  border-radius: 0.75rem;
+  color: #455b62;
+  background: #f3f8f6;
+  line-height: 1.55;
+}
+
+.library-error {
+  display: grid;
+  gap: 0.35rem;
+  border-style: solid;
+  border-color: #c37056;
+  color: #5f3022;
+  background: #fff0e9;
+}
+
+.travel-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.travel-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 0.0625rem solid #b9c8c6;
+  border-radius: 0.9rem;
+  background: #f8fbf9;
+}
+
+.travel-card p {
+  color: #455b62;
+  line-height: 1.5;
+}
+
+.travel-dates {
+  font-size: 0.92rem;
+}
+
+.travel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 0.9rem;
+  border: 0.0625rem solid transparent;
+  border-radius: 0.65rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+}
+
+.primary-button {
+  color: #fffdf8;
+  background: #143642;
+}
+
+.secondary-button {
+  border-color: #698085;
+  color: #143642;
+  background: #fffdf8;
+}
+
+.danger-button {
+  border-color: #a94b2b;
+  color: #842f16;
+  background: #fff6f1;
+}
+
+.primary-button:hover,
+.primary-button:active {
+  background: #0d2933;
+}
+
+.secondary-button:hover,
+.secondary-button:active {
+  background: #edf3f1;
+}
+
+.danger-button:hover,
+.danger-button:active {
+  background: #ffe7dc;
+}
+
+.action-message {
+  margin-bottom: 1.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.7rem;
+  color: #143642;
+  background: #edf3f1;
+  line-height: 1.5;
+}
+
+.action-success {
+  border: 0.0625rem solid #78a791;
+  background: #e8f4ed;
+}
+
+.action-error {
+  border: 0.0625rem solid #c37056;
+  color: #5f3022;
+  background: #fff0e9;
 }
 
 .import-panel {
@@ -303,6 +445,21 @@ h3 {
   line-height: 1.55;
 }
 
+.travel-preview {
+  display: block;
+}
+
+.back-button {
+  margin-bottom: 2rem;
+}
+
+.preview-destination {
+  margin-bottom: 1rem;
+  color: #455b62;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 footer {
   padding: 1.5rem 1.25rem;
   color: #dfe8e4;
@@ -331,6 +488,15 @@ footer p {
 
   .principles {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .travel-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .travel-actions {
+    justify-content: flex-end;
   }
 
   footer {

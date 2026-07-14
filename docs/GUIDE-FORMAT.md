@@ -154,4 +154,6 @@ La politique initiale refuse toute propriété inconnue. Une extension du conten
 
 ## Import implémenté
 
-La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte uniquement les versions de paquet et de contenu `1.0.0` et ne persiste encore aucun résultat.
+La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte uniquement les versions de paquet et de contenu `1.0.0`.
+
+Après validation complète, l'étape 4 conserve le modèle normalisé et les ressources passives dans des espaces IndexedDB isolés par voyage. Le ZIP brut et `guide-standalone.html` ne sont pas stockés. Cette persistance est documentée dans [`docs/PERSISTENCE.md`](PERSISTENCE.md).

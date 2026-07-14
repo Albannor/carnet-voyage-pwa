@@ -54,7 +54,7 @@ Paquet non fiable
 
 Un échec à n'importe quelle étape annule l'import et produit une erreur compréhensible. Un voyage partiellement validé ne doit pas devenir visible dans la bibliothèque.
 
-À l'étape 3, la chaîne s'arrête après la normalisation et retourne un paquet complet uniquement en mémoire. L'enregistrement atomique dans IndexedDB reste une responsabilité future de l'étape 4. Les limites et contrôles ZIP effectivement implémentés sont détaillés dans `IMPORT.md`.
+Depuis l'étape 4, l'orchestration transmet le paquet complet normalisé au dépôt IndexedDB. Une seule transaction écrit métadonnées, contenu et ressources ; la bibliothèque n'est actualisée qu'après sa validation. Les limites et contrôles ZIP sont détaillés dans `IMPORT.md`, et le modèle de base dans `PERSISTENCE.md`.
 
 ## Stockage local
 
@@ -69,6 +69,8 @@ IndexedDB est la source de vérité locale pour :
 Le contenu importé et l'état personnel sont séparés logiquement. Une mise à jour ou une réimportation ne doit pas écraser silencieusement les notes ou les cases cochées. Les identifiants stables permettent de rattacher ces états au bon voyage et au bon élément.
 
 Les écritures importantes sont transactionnelles. La suppression d'un voyage efface son contenu et ses états associés uniquement après une action explicite de l'utilisateur.
+
+La base IndexedDB initiale porte la version `1` et sépare quatre object stores : `travelMetadata`, `travelContents`, `travelResources` et `personalStates`. Les ressources et états personnels sont indexés par `travelId` ; leurs clés composites commencent par cet identifiant. La politique initiale refuse tout doublon au lieu d'écraser un voyage existant. Le détail des clés, transactions et erreurs figure dans `PERSISTENCE.md`.
 
 Le `localStorage` n'est pas la base métier. Il peut, si nécessaire, conserver des préférences simples et non sensibles de l'interface, sans devenir une dépendance du modèle de voyage.
 
