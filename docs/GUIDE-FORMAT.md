@@ -2,7 +2,7 @@
 
 ## Objet du document
 
-Ce document décrit le futur paquet de voyage, les responsabilités de ses éléments et les règles d'évolution. Un premier sous-ensemble de `voyage.json` est désormais contractualisé pour l'étape 2 ; il ne constitue pas le format définitif du produit et ne fixe pas encore tous les champs du paquet.
+Ce document décrit le paquet de voyage, les responsabilités de ses éléments et les règles d'évolution. Les premiers contrats de `manifest.json` et `voyage.json` sont désormais versionnés ; ils ne constituent pas le format définitif du produit et ne fixent pas encore tous les champs futurs.
 
 ## Structure proposée
 
@@ -15,7 +15,7 @@ paquet-voyage/
 └── guide-standalone.html
 ```
 
-Le paquet forme une unité d'import. Les fichiers JSON sont les seules sources structurées interprétées par l'application.
+Le paquet transportable est une archive ZIP dont ces éléments se trouvent directement à la racine. Les fichiers JSON sont les seules sources structurées interprétées par l'application.
 
 ## Responsabilité de chaque élément
 
@@ -32,7 +32,7 @@ Il est destiné à porter :
 - l'inventaire des ressources, leurs types, tailles et empreintes ;
 - les métadonnées techniques nécessaires au contrôle d'intégrité.
 
-Ce fichier n'est pas dérivé d'un Web App Manifest et ne contient pas la configuration d'installation de l'application.
+La première version prise en charge est `1.0.0`, définie dans [`contracts/package/1.0.0/schema.json`](../contracts/package/1.0.0/schema.json). Elle impose un inventaire fermé, une taille et une empreinte SHA-256 pour chaque ressource. Ce fichier n'est pas dérivé d'un Web App Manifest et ne contient pas la configuration d'installation de l'application.
 
 ### `voyage.json`
 
@@ -151,3 +151,7 @@ Ce sous-ensemble couvre l'identité et la période du voyage, la destination, la
 Le contrat externe décrit la forme acceptée à la frontière de l'application. Le modèle interne TypeScript, situé dans `src/domain/voyage/`, décrit les concepts utilisés par le domaine et leurs invariants sans dépendre de JSON Schema, de React ou du stockage. Une conversion explicite relie les deux ; leur ressemblance actuelle n'en fait pas une seule couche.
 
 La politique initiale refuse toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
+
+## Import implémenté
+
+La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte uniquement les versions de paquet et de contenu `1.0.0` et ne persiste encore aucun résultat.

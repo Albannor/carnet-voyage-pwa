@@ -4,7 +4,7 @@ Carnet de voyage PWA est une future application web progressive, statique et loc
 
 ## État du projet
 
-Le dépôt contient le cadrage du produit, les décisions d'architecture, les règles UX, la référence Madrid et le socle applicatif React. L'étape 2 ajoute un premier modèle métier indépendant de l'interface et un contrat `voyage.json` versionné `1.0.0`, accompagnés d'exemples et de validations automatisées. Aucun import de fichier, stockage local ou écran de voyage n'est encore implémenté.
+Le dépôt contient désormais une démonstration de l'import sécurisé de l'étape 3. L'application peut sélectionner un paquet ZIP, contrôler sa structure, valider son manifest et `voyage.json`, vérifier ses ressources puis produire le modèle interne normalisé. Le résultat reste uniquement en mémoire : aucun stockage local ou écran de consultation n'est encore implémenté.
 
 ## Prérequis
 
@@ -65,6 +65,7 @@ npm run build
 - [Architecture](docs/ARCHITECTURE.md) : modèle local-first, sécurité, stockage, hors ligne et futures couches techniques.
 - [Format des guides](docs/GUIDE-FORMAT.md) : structure conceptuelle du paquet de voyage et règles de versionnement.
 - [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : périmètre, formats, politiques de validation et limites du premier sous-ensemble.
+- [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
@@ -78,7 +79,8 @@ npm run build
 ├── AGENTS.md
 ├── README.md
 ├── contracts/
-│   └── voyage/1.0.0/   # schéma JSON versionné et documentation du contrat
+│   ├── package/1.0.0/  # schéma versionné de manifest.json
+│   └── voyage/1.0.0/   # schéma JSON versionné du contenu
 ├── examples/
 │   └── voyage/1.0.0/   # exemple valide et fixtures invalides
 ├── index.html
@@ -92,7 +94,7 @@ npm run build
 │   ├── application/     # orchestration de validation en mémoire
 │   ├── contracts/       # types externes, validation du schéma et conversion
 │   ├── domain/          # modèle métier et invariants indépendants de React
-│   ├── import/          # future frontière d'import de fichiers
+│   ├── import/          # lecture ZIP, sécurité, ressources et migrations
 │   ├── persistence/     # futurs dépôts de stockage local
 │   ├── services/        # futurs adaptateurs techniques et hors ligne
 │   ├── test/            # configuration commune des tests
@@ -106,6 +108,7 @@ npm run build
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── GUIDE-FORMAT.md
+│   ├── IMPORT.md
 │   ├── PRODUCT.md
 │   ├── ROADMAP.md
 │   └── UX-RULES.md
@@ -123,4 +126,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Le contrat `1.0.0` est un premier sous-ensemble représentatif, pas le format définitif complet. Le projet ne contient encore ni import de fichiers ou d'archives, ni IndexedDB, ni réservation, document, ressource de paquet, checklist, note ou migration réelle. Le voyage n'est pas rendu dans React. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne n'est encore implémenté.
+Les contrats `1.0.0` restent de premiers sous-ensembles, pas le format définitif complet. L'import ne persiste rien : IndexedDB, bibliothèque de voyages et transactions appartiennent à l'étape 4. Réservations, associations de documents aux entités, checklist, notes et rendu détaillé du voyage restent absents. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne supplémentaire n'est implémenté.

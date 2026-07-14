@@ -52,4 +52,4 @@ AJV 8 compile le schéma Draft 2020-12 et `ajv-formats` apporte notamment la val
 
 ## Limites volontaires
 
-Cette version ne définit ni le `manifest.json` du paquet, ni les répertoires `assets/` et `documents/`, ni l'archive d'import. Elle n'implémente aucune migration ; le champ de version et l'emplacement versionné préparent seulement cette évolution. Elle ne lit aucun fichier, ne persiste aucune donnée et ne rend aucun voyage dans l'interface.
+Ce contrat de contenu ne définit ni le `manifest.json` du paquet, ni les répertoires `assets/` et `documents/`. Ces responsabilités appartiennent au [contrat de paquet](../../package/1.0.0/README.md) et à la [chaîne d'import](../../../docs/IMPORT.md). Il ne contient pas encore d'association entre une entité métier et une ressource. L'import normalise cette version vers le modèle interne mais ne persiste aucune donnée et ne rend aucun voyage détaillé dans l'interface.

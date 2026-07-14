@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:carnet-voyage:schema:package-manifest:1.0.0",
+  "title": "Contrat manifest.json de paquet 1.0.0",
+  "description": "Manifest technique d'un paquet ZIP de voyage, distinct du Web App Manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packageFormatVersion",
+    "id",
+    "travelModelVersion",
+    "travelPath",
+    "allowUndeclaredFiles",
+    "resources"
+  ],
+  "properties": {
+    "packageFormatVersion": {
+      "const": "1.0.0"
+    },
+    "id": {
+      "$ref": "#/$defs/stableId"
+    },
+    "travelModelVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "travelPath": {
+      "const": "voyage.json"
+    },
+    "allowUndeclaredFiles": {
+      "const": false
+    },
+    "resources": {
+      "type": "array",
+      "maxItems": 116,
+      "items": {
+        "$ref": "#/$defs/resource"
+      }
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "resourcePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180,
+      "pattern": "^(?:assets|documents)/(?:[A-Za-z0-9][A-Za-z0-9._-]*/)*[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "mediaType", "size", "sha256"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "path": {
+          "$ref": "#/$defs/resourcePath"
+        },
+        "mediaType": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "application/pdf"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20971520
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

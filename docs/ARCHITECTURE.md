@@ -54,6 +54,8 @@ Paquet non fiable
 
 Un échec à n'importe quelle étape annule l'import et produit une erreur compréhensible. Un voyage partiellement validé ne doit pas devenir visible dans la bibliothèque.
 
+À l'étape 3, la chaîne s'arrête après la normalisation et retourne un paquet complet uniquement en mémoire. L'enregistrement atomique dans IndexedDB reste une responsabilité future de l'étape 4. Les limites et contrôles ZIP effectivement implémentés sont détaillés dans `IMPORT.md`.
+
 ## Stockage local
 
 IndexedDB est la source de vérité locale pour :
