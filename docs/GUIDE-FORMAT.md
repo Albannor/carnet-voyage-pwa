@@ -1,0 +1,156 @@
+# Format conceptuel des guides
+
+## Objet du document
+
+Ce document décrit le futur paquet de voyage, les responsabilités de ses éléments et les règles d'évolution. Il ne constitue pas encore un schéma JSON définitif et ne fixe pas tous les noms de champs.
+
+## Structure proposée
+
+```text
+paquet-voyage/
+├── manifest.json
+├── voyage.json
+├── assets/
+├── documents/
+└── guide-standalone.html
+```
+
+Le paquet forme une unité d'import. Les fichiers JSON sont les seules sources structurées interprétées par l'application.
+
+## Responsabilité de chaque élément
+
+### `manifest.json`
+
+Le manifest décrit le paquet, pas la PWA. Il permet de décider si le paquet peut être ouvert avant d'interpréter son contenu métier.
+
+Il est destiné à porter :
+
+- l'identifiant stable du paquet ou du voyage ;
+- la version du format de paquet ;
+- la version minimale ou la plage de compatibilité attendue du lecteur ;
+- l'emplacement et l'empreinte éventuelle du fichier `voyage.json` ;
+- l'inventaire des ressources, leurs types, tailles et empreintes ;
+- les métadonnées techniques nécessaires au contrôle d'intégrité.
+
+Ce fichier n'est pas dérivé d'un Web App Manifest et ne contient pas la configuration d'installation de l'application.
+
+### `voyage.json`
+
+Ce fichier porte le contenu métier structuré du voyage. Il décrit ce que l'utilisateur consulte, indépendamment de la manière dont l'application l'affiche.
+
+Il est destiné à représenter les entités conceptuelles suivantes :
+
+- **Voyage** : identité, titre, destination, période, fuseau horaire, langue et résumé ;
+- **Participants ou contexte** : informations éditoriales strictement utiles au déroulement, sans créer de comptes ;
+- **Hébergement** : un ou plusieurs points d'ancrage avec période, adresse et références de lieu ;
+- **Journée** : date locale, titre, résumé, priorités et ordre de consultation ;
+- **Étape** : heure ou plage horaire, durée, description, importance, lieu et ressources associées ;
+- **Lieu** : nom, adresse et liens externes explicites ;
+- **Itinéraire** : origine, destination, étapes intermédiaires, mode de déplacement et lien vers un service externe ;
+- **Variante ou plan B** : adaptation standard, économe en marche, pluie ou autre alternative explicitement décrite ;
+- **Réservation** : référence utile, horaire, statut éditorial et document associé, sans fonction de paiement ;
+- **Document** : métadonnées et référence vers un fichier passif du répertoire `documents/` ;
+- **Checklist** : définition d'éléments à cocher ;
+- **Lien utile** : libellé, destination, contexte et indication qu'une connexion peut être nécessaire.
+
+Le contenu utilise des identifiants stables et uniques dans le paquet. Les relations sont exprimées par ces identifiants plutôt que par la position visuelle ou le nom d'un élément.
+
+### `assets/`
+
+Ce répertoire contient les ressources de présentation passives nécessaires à la consultation, par exemple des images. Les ressources :
+
+- sont déclarées dans le manifest ;
+- utilisent des chemins relatifs normalisés ;
+- ont un type et une taille autorisés ;
+- ne contiennent aucun comportement attendu par l'application ;
+- restent optionnelles lorsque leur absence ne nuit pas à l'information essentielle.
+
+Le rendu et les styles appartiennent toujours à l'application. Une ressource ne peut pas remplacer un composant d'interface.
+
+### `documents/`
+
+Ce répertoire contient les documents utiles au voyage, par exemple une confirmation ou un billet dans un format passif accepté. Chaque document est déclaré et relié à une entité de `voyage.json`.
+
+L'application contrôle leur ouverture ou leur téléchargement. Elle refuse les formats exécutables et ne suit jamais un chemin situé hors du paquet.
+
+### `guide-standalone.html`
+
+Ce fichier est une représentation autonome optionnelle destinée à un usage extérieur à l'application, à l'archivage ou à la compatibilité avec un processus de génération existant.
+
+Il n'est jamais :
+
+- la source de vérité du contenu ;
+- analysé pour reconstruire `voyage.json` ;
+- rendu dans l'application ;
+- chargé dans une iframe ou une vue web ;
+- autorisé à exécuter ses scripts dans le contexte de l'application.
+
+L'import doit pouvoir réussir sans ce fichier. S'il est présent, il est traité comme une pièce opaque non exécutable ou ignoré selon la politique retenue.
+
+## Données importées et état personnel
+
+Le paquet décrit le voyage préparé ; l'application conserve séparément les interactions personnelles.
+
+Relèvent du paquet :
+
+- le texte d'une étape ;
+- la définition d'un élément de checklist ;
+- une suggestion de note ou un document associé ;
+- les variantes et liens préparés.
+
+Relèvent de l'état local de l'application :
+
+- le fait qu'une case soit cochée ;
+- le texte des notes personnelles ;
+- les préférences de consultation ;
+- la dernière journée ouverte.
+
+Cette séparation évite qu'une réimportation remplace silencieusement les données personnelles. Les identifiants stables servent à réconcilier l'état lorsque le contenu évolue.
+
+## Règles conceptuelles de données
+
+- Les dates et heures utilisent des formats non ambigus et sont interprétées avec le fuseau horaire du voyage.
+- L'ordre chronologique est porté par les données, pas déduit de la mise en page.
+- Toute référence à une ressource ou une autre entité doit pouvoir être résolue dans le paquet.
+- Les textes sont du texte, pas du HTML à injecter.
+- Les URL externes sont explicites, étiquetées et soumises à une liste de protocoles autorisés ; les URL actives telles que `javascript:` sont interdites.
+- Les chemins sont relatifs, sans remontée de répertoire, encodage ambigu ou collision de casse.
+- Les éléments essentiels restent compréhensibles sans image ni service externe.
+- L'absence d'une variante, d'une réservation ou d'un document est valide lorsqu'elle est cohérente avec le contenu.
+- Le format transporte des données et des relations, jamais des règles de rendu ou du code.
+
+## Versionnement
+
+Deux versions externes sont distinguées :
+
+- la **version du format de paquet**, déclarée par `manifest.json`, couvre l'organisation, l'intégrité et les types de fichiers ;
+- la **version du modèle de contenu**, déclarée par `voyage.json`, couvre les entités, champs et relations métier.
+
+Le principe de versionnement suit `MAJEUR.MINEUR.CORRECTIF` :
+
+- `MAJEUR` change lorsqu'un lecteur existant ne peut plus interpréter correctement le format ;
+- `MINEUR` change lors d'un ajout rétrocompatible, principalement par champs ou entités optionnels ;
+- `CORRECTIF` change lors d'une correction ou clarification sans modification de contrat.
+
+Un lecteur :
+
+1. vérifie d'abord la version et l'intégrité du paquet ;
+2. vérifie ensuite la version du contenu ;
+3. valide le schéma correspondant ;
+4. applique, si elle existe, une chaîne de migrations explicites vers son modèle interne courant ;
+5. refuse proprement toute version inconnue ou non migrable.
+
+Les champs inconnus ne sont tolérés que si la version et le futur schéma les déclarent compatibles. Aucun comportement ne doit être deviné silencieusement.
+
+## Évolution vers un schéma JSON
+
+La définition du schéma définitif interviendra dans une étape distincte. Elle devra :
+
+- transformer les entités ci-dessus en contrats précis ;
+- préciser les champs obligatoires et optionnels ;
+- fixer les formats d'identifiants, dates, URL et chemins ;
+- définir les limites de taille et de cardinalité ;
+- fournir des exemples valides et invalides ;
+- être couverte par des tests de validation et de migration.
+
+La référence Madrid peut fournir des cas d'usage et des fixtures éditoriales, mais son HTML et son manifest PWA ne doivent pas servir de schéma implicite.
