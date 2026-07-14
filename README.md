@@ -4,9 +4,50 @@ Carnet de voyage PWA est une future application web progressive, statique et loc
 
 ## État du projet
 
-Le dépôt contient actuellement le cadrage du produit, les décisions d'architecture, les règles UX et la référence Madrid. Aucun code applicatif, serveur ou dépendance n'a encore été ajouté.
+Le dépôt contient le cadrage du produit, les décisions d'architecture, les règles UX, la référence Madrid et le socle applicatif de l'étape 1. Une page d'accueil minimale React est disponible ; les fonctionnalités métier seront ajoutées dans les prochaines étapes de la feuille de route.
 
-La prochaine étape prévue est l'initialisation contrôlée du socle React, TypeScript et Vite décrite dans la feuille de route. Cette étape ne fait pas partie du présent état du dépôt.
+## Prérequis
+
+- Node.js `^20.19.0` ou `>=22.12.0` ;
+- npm, fourni avec Node.js.
+
+## Installation
+
+Depuis la racine du dépôt :
+
+```bash
+npm install
+```
+
+Cette commande installe les versions verrouillées dans `package-lock.json`.
+
+## Lancement local
+
+```bash
+npm run dev
+```
+
+Vite affiche l'adresse locale à ouvrir dans un navigateur. Le serveur lancé par cette commande sert uniquement au développement de l'application statique ; il ne constitue pas un backend.
+
+Pour prévisualiser le build de production après `npm run build` :
+
+```bash
+npm run preview
+```
+
+## Commandes de vérification
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+- `lint` contrôle les fichiers TypeScript et React avec ESLint.
+- `typecheck` vérifie les contrats TypeScript sans produire de fichiers.
+- `test` exécute les tests Vitest une fois.
+- `build` vérifie TypeScript puis produit l'application statique dans `dist/`.
 
 ## Principes directeurs
 
@@ -28,12 +69,33 @@ La prochaine étape prévue est l'initialisation contrôlée du socle React, Typ
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
 - [Référence Madrid](references/madrid/README.md) : provenance, rôle et limites du guide HTML de référence.
 
-## Structure actuelle
+## Structure applicative
 
 ```text
 .
+├── .gitignore
 ├── AGENTS.md
 ├── README.md
+├── index.html
+├── package-lock.json
+├── package.json
+├── public/
+│   ├── icons/
+│   │   └── carnet.svg
+│   └── manifest.webmanifest
+├── src/
+│   ├── domain/          # futur modèle métier
+│   ├── import/          # future frontière d'import et de validation
+│   ├── persistence/     # futurs dépôts de stockage local
+│   ├── services/        # futurs adaptateurs techniques et hors ligne
+│   ├── test/            # configuration commune des tests
+│   ├── ui/              # interface React, styles et tests de rendu
+│   └── main.tsx         # point de composition de l'application
+├── eslint.config.js
+├── tsconfig.json
+├── tsconfig.app.json
+├── tsconfig.node.json
+├── vite.config.ts
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── GUIDE-FORMAT.md
@@ -54,4 +116,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Il n'existe à ce stade ni application exécutable, ni commande d'installation, ni commande de test ou de build. Les commandes de qualité seront documentées lorsqu'elles auront réellement été introduites dans le projet.
+Le socle ne contient encore ni import de voyage, ni schéma JSON définitif, ni IndexedDB, ni checklist, ni notes. Le manifest web prépare l'identité installable de l'application, mais aucun service worker ou comportement hors ligne n'est encore implémenté.
