@@ -1,0 +1,33 @@
+{
+  "contentModelVersion": "1.1.0",
+  "id": "unknown-reservation-trip",
+  "title": "Voyage avec réservation inconnue",
+  "destination": { "name": "Ville exemple", "countryCode": "FR" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-09-10",
+  "endDate": "2026-09-10",
+  "summary": "Fixture invalide pour la résolution des réservations.",
+  "accommodations": [{
+    "id": "stay-example",
+    "name": "Hébergement exemple",
+    "placeId": "place-example",
+    "startDate": "2026-09-10",
+    "endDate": "2026-09-10"
+  }],
+  "places": [{
+    "id": "place-example",
+    "name": "Lieu exemple",
+    "links": []
+  }],
+  "days": [{
+    "id": "day-one",
+    "date": "2026-09-10",
+    "title": "Journée unique",
+    "steps": [],
+    "reservationIds": ["reservation-absent"]
+  }],
+  "variants": [],
+  "documents": [],
+  "reservations": []
+}

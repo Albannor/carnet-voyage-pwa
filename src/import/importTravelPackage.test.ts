@@ -5,7 +5,9 @@ import duplicateId from '../../examples/voyage/1.0.0/invalid/duplicate-id.json'
 import missingReferences from '../../examples/voyage/1.0.0/invalid/missing-references.json'
 import missingTitle from '../../examples/voyage/1.0.0/invalid/missing-required-title.json'
 import validTravel from '../../examples/voyage/1.0.0/valid/madrid-weekend.json'
+import validTravelV1_1 from '../../examples/voyage/1.1.0/valid/coastal-trip.json'
 import type { TravelDocumentV1 } from '../contracts/voyage/v1/document'
+import type { TravelDocumentV1_1 } from '../contracts/voyage/v1_1/document'
 import { IMPORT_LIMITS } from './limits'
 import { importTravelPackage } from './importTravelPackage'
 import { normalizeTravelDocument } from './migrations/registry'
@@ -13,6 +15,7 @@ import { sha256Hex } from './sha256'
 import {
   createPackageArchive,
   selectedPackageFile,
+  TEST_PDF_BYTES,
   TEST_PNG_BYTES,
 } from './test/packageFixtures'
 import { readZipArchive } from './zipArchive'
@@ -72,6 +75,39 @@ describe('import sécurisé d’un paquet ZIP', () => {
       contentVersion: '1.0.0',
     })
     expect(result.package.resources).toHaveLength(1)
+    expect(result.package.travel.documents).toEqual([])
+    expect(result.package.travel.reservations).toEqual([])
+  })
+
+  it('importe et normalise un voyage 1.1.0 avec son document PDF', async () => {
+    const pdfHash = await sha256Hex(TEST_PDF_BYTES)
+    const result = await importTravelPackage(selectedPackageFile(
+      await createPackageArchive({
+        travel: validTravelV1_1,
+        includeDefaultResource: false,
+        manifest: {
+          id: validTravelV1_1.id,
+          travelModelVersion: '1.1.0',
+          resources: [{
+            id: 'pdf-ferry-ticket',
+            path: 'documents/booking.pdf',
+            mediaType: 'application/pdf',
+            size: TEST_PDF_BYTES.length,
+            sha256: pdfHash,
+          }],
+        },
+        extraFiles: { 'documents/booking.pdf': TEST_PDF_BYTES },
+      }),
+    ))
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(JSON.stringify(result.errors))
+    expect(result.package.travel).toMatchObject({
+      contentVersion: '1.1.0',
+      documents: [{ id: 'document-ticket', resourceId: 'pdf-ferry-ticket' }],
+      reservations: [{ id: 'reservation-ferry' }],
+    })
+    expect(result.package.resources[0]?.mediaType).toBe('application/pdf')
   })
 
   it('refuse une archive corrompue', async () => {
@@ -148,6 +184,50 @@ describe('import sécurisé d’un paquet ZIP', () => {
         code: 'TRAVEL_VERSION_MISMATCH',
         file: 'voyage.json',
         field: '/contentModelVersion',
+      },
+    )
+  })
+
+  it('refuse un document qui référence une ressource inconnue du manifest', async () => {
+    await expectImportIssue(
+      await createPackageArchive({
+        travel: validTravelV1_1,
+        includeDefaultResource: false,
+        manifest: {
+          id: validTravelV1_1.id,
+          travelModelVersion: '1.1.0',
+          resources: [],
+        },
+      }),
+      {
+        code: 'DOCUMENT_RESOURCE_UNKNOWN',
+        file: 'voyage.json',
+        field: '/documents/0/resourceId',
+      },
+    )
+  })
+
+  it('refuse un document qui référence une ressource non PDF', async () => {
+    const pngHash = await sha256Hex(TEST_PNG_BYTES)
+    await expectImportIssue(
+      await createPackageArchive({
+        travel: validTravelV1_1,
+        manifest: {
+          id: validTravelV1_1.id,
+          travelModelVersion: '1.1.0',
+          resources: [{
+            id: 'pdf-ferry-ticket',
+            path: 'assets/cover.png',
+            mediaType: 'image/png',
+            size: TEST_PNG_BYTES.length,
+            sha256: pngHash,
+          }],
+        },
+      }),
+      {
+        code: 'DOCUMENT_RESOURCE_NOT_PDF',
+        file: 'voyage.json',
+        field: '/documents/0/resourceId',
       },
     )
   })
@@ -397,6 +477,22 @@ describe('import sécurisé d’un paquet ZIP', () => {
     expect(result).toMatchObject({
       ok: true,
       travel: { id: 'madrid-weekend-2026', contentVersion: '1.0.0' },
+    })
+  })
+
+  it('normalise explicitement la version externe 1.1.0', () => {
+    const result = normalizeTravelDocument(
+      '1.1.0',
+      validTravelV1_1 as TravelDocumentV1_1,
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      travel: {
+        id: 'coastal-trip-2026',
+        contentVersion: '1.1.0',
+        documents: [{ id: 'document-ticket' }],
+      },
     })
   })
 

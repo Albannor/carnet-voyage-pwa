@@ -1,5 +1,4 @@
-import { validateTravelDocumentSchema } from '../contracts/voyage/v1/schemaValidation'
-import { toTravel } from '../contracts/voyage/v1/toTravel'
+import { validateTravelDocumentForVersion } from '../contracts/voyage/registry'
 import type { Travel } from '../domain/voyage/model'
 import { validateTravel } from '../domain/voyage/validation'
 import { importIssue, type ImportFailureKind, type ImportIssue } from './errors'
@@ -19,6 +18,7 @@ import {
   type ImportedResource,
 } from './resourceValidation'
 import { readZipArchive } from './zipArchive'
+import { validateTravelResourceReferences } from './travelResourceReferences'
 
 const ACCEPTED_ZIP_MEDIA_TYPES = new Set([
   '',
@@ -272,7 +272,7 @@ export async function importTravelPackage(
         {
           file: 'manifest.json',
           field: '/travelModelVersion',
-          hint: 'Utilisez voyage.json 1.0.0.',
+          hint: 'Utilisez voyage.json 1.0.0 ou 1.1.0.',
         },
       ),
     ])
@@ -304,7 +304,10 @@ export async function importTravelPackage(
     ])
   }
 
-  const contractResult = validateTravelDocumentSchema(parsedTravel.value)
+  const contractResult = validateTravelDocumentForVersion(
+    manifest.travelModelVersion,
+    parsedTravel.value,
+  )
   if (!contractResult.valid) {
     return failure(mapTravelIssues(contractResult.issues))
   }
@@ -324,22 +327,30 @@ export async function importTravelPackage(
     ])
   }
 
-  const semanticIssues = validateTravel(toTravel(contractResult.document))
-  if (semanticIssues.length > 0) {
-    return failure(mapTravelIssues(semanticIssues))
-  }
-
-  const resourceResult = await validatePackageResources(manifest, archive.files)
-  if (!resourceResult.valid) {
-    return failure(resourceResult.issues)
-  }
-
   const normalization = normalizeTravelDocument(
     manifest.travelModelVersion,
     contractResult.document,
   )
   if (!normalization.ok) {
     return failure([normalization.issue])
+  }
+
+  const semanticIssues = validateTravel(normalization.travel)
+  if (semanticIssues.length > 0) {
+    return failure(mapTravelIssues(semanticIssues))
+  }
+
+  const resourceReferenceIssues = validateTravelResourceReferences(
+    normalization.travel,
+    manifest,
+  )
+  if (resourceReferenceIssues.length > 0) {
+    return failure(resourceReferenceIssues)
+  }
+
+  const resourceResult = await validatePackageResources(manifest, archive.files)
+  if (!resourceResult.valid) {
+    return failure(resourceResult.issues)
   }
 
   return {

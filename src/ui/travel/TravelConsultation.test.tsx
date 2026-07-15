@@ -16,11 +16,17 @@ function ConsultationHarness({
   initialView = { kind: 'summary' },
   instant = '2026-07-15T10:00:00Z',
   onBack = vi.fn(),
+  online = true,
+  onCopyAddress = vi.fn(),
+  onOpenDocument = vi.fn(),
 }: {
   travel?: PersistedTravel
   initialView?: TravelView
   instant?: string
   onBack?: () => void
+  online?: boolean
+  onCopyAddress?: (address: string, label: string) => void
+  onOpenDocument?: (document: typeof consultationTravel.documents[number]) => void
 }) {
   const [view, setView] = useState<TravelView>(initialView)
   return (
@@ -28,8 +34,11 @@ function ConsultationHarness({
       persistedTravel={travel}
       view={view}
       clock={fixedClock(instant)}
+      online={online}
       onNavigate={setView}
       onBackToLibrary={onBack}
+      onCopyAddress={onCopyAddress}
+      onOpenDocument={onOpenDocument}
     />
   )
 }
@@ -226,5 +235,97 @@ describe('accessibilité de consultation', () => {
 
     expect(source.default).not.toMatch(/dangerouslySetInnerHTML|innerHTML|<iframe|\beval\s*\(|\bFunction\s*\(/)
     expect(source.default).not.toContain('guide-standalone.html')
+  })
+})
+
+describe('actions contextuelles', () => {
+  it('distingue la copie locale, le document local et le service externe', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    expect(screen.getByRole('button', { name: /Action locale · Copier l’adresse de Marché central/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Document local · Ouvrir Confirmation d’hébergement/ }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: /Service externe · Ouvrir l’itinéraire vers le marché/ })).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getAllByText(/Connexion requise/).length).toBeGreaterThan(0)
+  })
+
+  it('déclenche la copie de l’adresse avec son contexte explicite', () => {
+    const onCopyAddress = vi.fn()
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} onCopyAddress={onCopyAddress} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Copier l’adresse de Marché central/ }))
+    expect(onCopyAddress).toHaveBeenCalledWith('Place du Marché', 'Marché central')
+  })
+
+  it('ouvre une réservation et ses documents par leurs associations explicites', () => {
+    const onOpenDocument = vi.fn()
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} onOpenDocument={onOpenDocument} />)
+
+    expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })).toBeInTheDocument()
+    expect(screen.getByText('PORT-2026')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: /Ouvrir Confirmation d’hébergement/ })[0]!)
+    expect(onOpenDocument).toHaveBeenCalledWith(consultationTravel.documents[0])
+  })
+
+  it('neutralise défensivement une URL dangereuse', () => {
+    const dangerous = persistedWith({
+      days: [{
+        ...consultationTravel.days[0],
+        steps: [{
+          ...consultationTravel.days[0]!.steps[0],
+          links: [{ id: 'bad-link', label: 'Itinéraire compromis', href: 'javascript:alert(1)' }],
+        }],
+      }],
+    })
+    render(<ConsultationHarness travel={dangerous} initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    expect(screen.getByText('Lien refusé · Itinéraire compromis')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Itinéraire compromis/ })).not.toBeInTheDocument()
+  })
+
+  it('désactive les services externes hors connexion sans bloquer le contenu local', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} online={false} />)
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Arrivée au port' })).toBeInTheDocument()
+    expect(screen.getAllByText('Indisponible hors connexion').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /itinéraire vers le marché/i })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Document local · Ouvrir Confirmation/ }).length).toBeGreaterThan(0)
+  })
+})
+
+describe('variantes contextuelles', () => {
+  it('affiche uniquement les modes réellement disponibles en plus du standard', () => {
+    render(<ConsultationHarness />)
+
+    expect(screen.getByRole('button', { name: 'Standard' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Économe en marche' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pluie' })).toBeInTheDocument()
+  })
+
+  it('change de variante sans perdre la journée ni son étape courante', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pluie' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Arrivée au port' })).toBeInTheDocument()
+    expect(screen.getByText('Accueil couvert')).toBeInTheDocument()
+    expect(screen.getByText('Passage au marché')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Économe en marche' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Arrivée au port' })).toBeInTheDocument()
+    expect(screen.getByText('Marché sans détour')).toBeInTheDocument()
+  })
+
+  it('explique l’absence d’adaptation pour la journée sans masquer le standard', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-island' }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pluie' }))
+
+    expect(screen.getByText(/Aucune adaptation « Pluie »/)).toBeInTheDocument()
+    expect(screen.getByText('Prendre le bateau')).toBeInTheDocument()
+  })
+
+  it('gère un voyage qui ne propose aucune variante', () => {
+    render(<ConsultationHarness travel={persistedWith({ variants: [] })} />)
+
+    expect(screen.getByText(/Aucune variante n’est proposée/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pluie' })).not.toBeInTheDocument()
   })
 })

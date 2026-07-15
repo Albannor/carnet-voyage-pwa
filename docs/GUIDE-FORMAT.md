@@ -142,18 +142,18 @@ Un lecteur :
 
 Les champs inconnus ne sont tolérés que si la version et le futur schéma les déclarent compatibles. Aucun comportement ne doit être deviné silencieusement.
 
-## Contrat initial de `voyage.json`
+## Contrats de `voyage.json`
 
-Le premier contrat de contenu est la version `1.0.0`. Son schéma JSON Schema Draft 2020-12 se trouve dans [`contracts/voyage/1.0.0/schema.json`](../contracts/voyage/1.0.0/schema.json). Sa documentation détaillée et ses politiques de validation figurent dans le [`README` du contrat](../contracts/voyage/1.0.0/README.md).
+Le contrat initial `1.0.0` reste pris en charge sans modification. Son schéma JSON Schema Draft 2020-12 se trouve dans [`contracts/voyage/1.0.0/schema.json`](../contracts/voyage/1.0.0/schema.json). Sa documentation détaillée figure dans le [`README` du contrat](../contracts/voyage/1.0.0/README.md).
 
-Ce sous-ensemble couvre l'identité et la période du voyage, la destination, la langue, le fuseau horaire, les hébergements, les lieux, les journées, leurs étapes, les liens externes et trois catégories de variantes. Les réservations, ressources du paquet, documents, checklists, notes et migrations réelles restent volontairement absents.
+La version mineure `1.1.0`, documentée dans [`contracts/voyage/1.1.0/README.md`](../contracts/voyage/1.1.0/README.md), ajoute des documents PDF, des réservations et leurs associations explicites aux journées ou étapes. Ces collections restent optionnelles ; un voyage `1.0.0` est normalisé avec des collections vides. Checklists et notes restent absentes.
 
 Le contrat externe décrit la forme acceptée à la frontière de l'application. Le modèle interne TypeScript, situé dans `src/domain/voyage/`, décrit les concepts utilisés par le domaine et leurs invariants sans dépendre de JSON Schema, de React ou du stockage. Une conversion explicite relie les deux ; leur ressemblance actuelle n'en fait pas une seule couche.
 
-La politique initiale refuse toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
+Les deux contrats refusent toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
 
 ## Import implémenté
 
-La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte uniquement les versions de paquet et de contenu `1.0.0`.
+La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte le paquet `1.0.0` et les contenus `voyage.json` `1.0.0` ou `1.1.0`.
 
 Après validation complète, l'étape 4 conserve le modèle normalisé et les ressources passives dans des espaces IndexedDB isolés par voyage. Le ZIP brut et `guide-standalone.html` ne sont pas stockés. Cette persistance est documentée dans [`docs/PERSISTENCE.md`](PERSISTENCE.md).

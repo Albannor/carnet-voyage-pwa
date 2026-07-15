@@ -8,6 +8,7 @@ import {
 import { importTravelPackageToLibrary } from '../application/importTravelPackageToLibrary'
 import { systemClock, type Clock } from '../application/travelConsultation'
 import type { ImportIssue } from '../import/errors'
+import type { TravelDocument } from '../domain/voyage/model'
 import { openIndexedDbTravelRepository } from '../persistence/indexedDbTravelRepository'
 import type { PersistedTravel, TravelLibraryEntry } from '../persistence/model'
 import type {
@@ -17,8 +18,13 @@ import type {
 } from '../persistence/repository'
 import {
   TravelConsultation,
+  type ContextActionFeedback,
   type TravelView,
 } from './travel/TravelConsultation'
+import {
+  browserTravelPlatformActions,
+  type TravelPlatformActions,
+} from '../services/travelActions'
 import {
   readTravelLocation,
   writeTravelLocation,
@@ -71,6 +77,7 @@ function issueContext(error: ImportIssue | PersistenceIssue) {
 interface AppProps {
   repositoryFactory?: TravelRepositoryFactory
   clock?: Clock
+  platformActions?: TravelPlatformActions
 }
 
 type ConsultationUiState =
@@ -82,6 +89,7 @@ type ConsultationUiState =
 export function App({
   repositoryFactory = openIndexedDbTravelRepository,
   clock = systemClock,
+  platformActions = browserTravelPlatformActions,
 }: AppProps) {
   const repositoryRef = useRef<TravelLibraryRepository | null>(null)
   const [libraryState, setLibraryState] = useState<LibraryUiState>({
@@ -92,6 +100,8 @@ export function App({
   const [consultationState, setConsultationState] = useState<ConsultationUiState>({
     status: 'library',
   })
+  const [contextActionFeedback, setContextActionFeedback] = useState<ContextActionFeedback>()
+  const [online, setOnline] = useState(() => navigator.onLine)
 
   async function refreshLibrary(repository: TravelLibraryRepository) {
     const listed = await repository.listTravels()
@@ -165,6 +175,16 @@ export function App({
     }
   }, [loadTravel, repositoryFactory])
 
+  useEffect(() => {
+    const updateNetworkState = () => setOnline(navigator.onLine)
+    window.addEventListener('online', updateNetworkState)
+    window.addEventListener('offline', updateNetworkState)
+    return () => {
+      window.removeEventListener('online', updateNetworkState)
+      window.removeEventListener('offline', updateNetworkState)
+    }
+  }, [])
+
   async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
@@ -237,6 +257,32 @@ export function App({
     writeTravelLocation(undefined)
     setConsultationState({ status: 'library' })
     setActionState({ status: 'idle' })
+    setContextActionFeedback(undefined)
+  }
+
+  async function copyAddress(address: string, placeLabel: string) {
+    const copied = await platformActions.copyText(address)
+    setContextActionFeedback(copied
+      ? { status: 'success', message: `Adresse de ${placeLabel} copiée.` }
+      : { status: 'error', message: 'La copie de l’adresse n’est pas disponible sur cet appareil.' })
+  }
+
+  async function openDocument(document: TravelDocument) {
+    if (consultationState.status !== 'ready') return
+    const repository = repositoryRef.current
+    if (!repository) return
+    const loaded = await repository.getResource(
+      consultationState.persistedTravel.travel.id,
+      document.resourceId,
+    )
+    if (!loaded.ok) {
+      setContextActionFeedback({ status: 'error', message: loaded.error.message })
+      return
+    }
+    const opened = platformActions.openLocalPdf(loaded.value, document.label)
+    setContextActionFeedback(opened
+      ? { status: 'success', message: `Ouverture du document local « ${document.label} ».` }
+      : { status: 'error', message: 'Ce document local ne peut pas être ouvert en sécurité.' })
   }
 
   async function deleteTravel(entry: TravelLibraryEntry) {
@@ -297,11 +343,16 @@ export function App({
         )}
         {consultationState.status === 'ready' && (
           <TravelConsultation
+            key={consultationState.persistedTravel.travel.id}
             persistedTravel={consultationState.persistedTravel}
             view={consultationState.view}
             clock={clock}
+            online={online}
+            actionFeedback={contextActionFeedback}
             onNavigate={navigateTravel}
             onBackToLibrary={backToLibrary}
+            onCopyAddress={(address, label) => void copyAddress(address, label)}
+            onOpenDocument={(document) => void openDocument(document)}
           />
         )}
         {consultationState.status === 'library' && (

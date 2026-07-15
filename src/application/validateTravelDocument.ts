@@ -1,11 +1,11 @@
-import { validateTravelDocumentSchema } from '../contracts/voyage/v1/schemaValidation'
-import { toTravel } from '../contracts/voyage/v1/toTravel'
+import { validateTravelDocumentForVersion } from '../contracts/voyage/registry'
 import type { Travel } from '../domain/voyage/model'
 import {
   validateTravel,
   type DomainValidationIssue,
 } from '../domain/voyage/validation'
 import type { ContractValidationIssue } from '../contracts/voyage/v1/schemaValidation'
+import { normalizeTravelDocument } from '../import/migrations/registry'
 
 export type TravelDocumentValidationIssue =
   | ContractValidationIssue
@@ -25,13 +25,35 @@ export type TravelDocumentValidationResult =
 export function validateTravelDocument(
   input: unknown,
 ): TravelDocumentValidationResult {
-  const contractResult = validateTravelDocumentSchema(input)
+  const version =
+    input && typeof input === 'object'
+      ? (input as Record<string, unknown>).contentModelVersion
+      : undefined
+  const contractResult = validateTravelDocumentForVersion(
+    typeof version === 'string' ? version : '',
+    input,
+  )
 
   if (!contractResult.valid) {
     return contractResult
   }
 
-  const travel = toTravel(contractResult.document)
+  const normalized = normalizeTravelDocument(
+    typeof version === 'string' ? version : '',
+    contractResult.document,
+  )
+  if (!normalized.ok) {
+    return {
+      valid: false,
+      issues: [{
+        source: 'schema',
+        code: 'SCHEMA_CONST',
+        path: '/contentModelVersion',
+        message: normalized.issue.message,
+      }],
+    }
+  }
+  const travel = normalized.travel
   const issues = validateTravel(travel)
 
   return issues.length > 0

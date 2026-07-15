@@ -45,6 +45,8 @@ export interface TravelStep {
   placeId?: EntityId
   accommodationId?: EntityId
   links: readonly TravelLink[]
+  documentIds: readonly EntityId[]
+  reservationIds: readonly EntityId[]
 }
 
 export interface TravelDay {
@@ -53,6 +55,26 @@ export interface TravelDay {
   title: string
   summary?: string
   steps: readonly TravelStep[]
+  documentIds: readonly EntityId[]
+  reservationIds: readonly EntityId[]
+}
+
+export interface TravelDocument {
+  id: EntityId
+  label: string
+  description?: string
+  resourceId: EntityId
+}
+
+export interface TravelReservation {
+  id: EntityId
+  label: string
+  reference?: string
+  date?: IsoDate
+  time?: LocalTime
+  status?: string
+  links: readonly TravelLink[]
+  documentIds: readonly EntityId[]
 }
 
 export type TravelVariantTarget =
@@ -86,4 +108,6 @@ export interface Travel {
   places: readonly TravelPlace[]
   days: readonly TravelDay[]
   variants: readonly TravelVariant[]
+  documents: readonly TravelDocument[]
+  reservations: readonly TravelReservation[]
 }

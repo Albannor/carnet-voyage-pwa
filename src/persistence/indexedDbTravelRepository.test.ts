@@ -1,9 +1,11 @@
 import validTravelDocument from '../../examples/voyage/1.0.0/valid/madrid-weekend.json'
+import validTravelDocumentV1_1 from '../../examples/voyage/1.1.0/valid/coastal-trip.json'
 import type { TravelDocumentV1 } from '../contracts/voyage/v1/document'
 import { importTravelPackage, type ValidatedTravelPackage } from '../import/importTravelPackage'
 import {
   createPackageArchive,
   selectedPackageFile,
+  TEST_PDF_BYTES,
   TEST_PNG_BYTES,
 } from '../import/test/packageFixtures'
 import { sha256Hex } from '../import/sha256'
@@ -125,6 +127,28 @@ async function validatedPackage(
   return imported.package
 }
 
+async function validatedPackageV1_1(): Promise<ValidatedTravelPackage> {
+  const archive = await createPackageArchive({
+    travel: validTravelDocumentV1_1,
+    includeDefaultResource: false,
+    manifest: {
+      id: validTravelDocumentV1_1.id,
+      travelModelVersion: '1.1.0',
+      resources: [{
+        id: 'pdf-ferry-ticket',
+        path: 'documents/booking.pdf',
+        mediaType: 'application/pdf',
+        size: TEST_PDF_BYTES.length,
+        sha256: await sha256Hex(TEST_PDF_BYTES),
+      }],
+    },
+    extraFiles: { 'documents/booking.pdf': TEST_PDF_BYTES },
+  })
+  const imported = await importTravelPackage(selectedPackageFile(archive))
+  if (!imported.ok) throw new Error(imported.errors[0]?.code)
+  return imported.package
+}
+
 async function seedPersonalState(state: PersistedPersonalState) {
   const database = await openRawDatabase(databaseName)
   const transaction = database.transaction(TRAVEL_STORES.personalStates, 'readwrite')
@@ -204,6 +228,71 @@ describe('IndexedDbTravelRepository', () => {
     const result = await reopened.getTravel('travel-alpha')
 
     expect(result.ok && result.value.travel.title).toBe('Voyage alpha')
+  })
+
+  it('adapte en mémoire un contenu interne antérieur sans collections 1.1.0', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('legacy'))
+    repository.close()
+
+    const database = await openRawDatabase(databaseName)
+    const readTransaction = database.transaction(TRAVEL_STORES.contents, 'readonly')
+    const readCompletion = transactionCompletion(readTransaction)
+    const legacyContent = await requestResult<Record<string, unknown>>(
+      readTransaction.objectStore(TRAVEL_STORES.contents).get('travel-legacy'),
+    )
+    await readCompletion
+    const legacyTravel = legacyContent.travel as Record<string, unknown>
+    delete legacyTravel.documents
+    delete legacyTravel.reservations
+    for (const day of legacyTravel.days as Array<Record<string, unknown>>) {
+      delete day.documentIds
+      delete day.reservationIds
+      for (const step of day.steps as Array<Record<string, unknown>>) {
+        delete step.documentIds
+        delete step.reservationIds
+      }
+    }
+    legacyContent.internalModelVersion = 1
+    const writeTransaction = database.transaction(TRAVEL_STORES.contents, 'readwrite')
+    const writeCompletion = transactionCompletion(writeTransaction)
+    writeTransaction.objectStore(TRAVEL_STORES.contents).put(legacyContent)
+    await writeCompletion
+    database.close()
+
+    const reopened = await openRepository()
+    const result = await reopened.getTravel('travel-legacy')
+
+    expect(result.ok && result.value.travel.documents).toEqual([])
+    expect(result.ok && result.value.travel.reservations).toEqual([])
+    expect(result.ok && result.value.travel.days[0]?.documentIds).toEqual([])
+    expect(result.ok && result.value.travel.days[0]?.steps[0]?.reservationIds).toEqual([])
+  })
+
+  it('persiste le contrat 1.1.0 et permet de relire son PDF local', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackageV1_1())
+    repository.close()
+
+    const reopened = await openRepository()
+    const stored = await reopened.getTravel(validTravelDocumentV1_1.id)
+    const resource = await reopened.getResource(
+      validTravelDocumentV1_1.id,
+      'pdf-ferry-ticket',
+    )
+
+    expect(stored.ok && stored.value.travel).toMatchObject({
+      contentVersion: '1.1.0',
+      documents: [{ id: 'document-ticket', resourceId: 'pdf-ferry-ticket' }],
+      reservations: [{ id: 'reservation-ferry' }],
+    })
+    expect(resource.ok && resource.value).toMatchObject({
+      mediaType: 'application/pdf',
+      size: TEST_PDF_BYTES.length,
+    })
+    expect(resource.ok && Array.from(resource.value.bytes)).toEqual(
+      Array.from(TEST_PDF_BYTES),
+    )
   })
 
   it('fait coexister plusieurs voyages', async () => {

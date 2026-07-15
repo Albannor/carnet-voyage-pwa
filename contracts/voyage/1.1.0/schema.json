@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:carnet-voyage:schema:voyage:1.1.0",
+  "title": "Contrat voyage.json 1.1.0",
+  "description": "Extension rétrocompatible ajoutant documents, réservations et associations contextuelles explicites.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contentModelVersion",
+    "id",
+    "title",
+    "destination",
+    "language",
+    "timeZone",
+    "startDate",
+    "endDate",
+    "summary",
+    "accommodations",
+    "places",
+    "days",
+    "variants"
+  ],
+  "properties": {
+    "contentModelVersion": { "const": "1.1.0" },
+    "id": { "$ref": "#/$defs/stableId" },
+    "title": { "$ref": "#/$defs/title" },
+    "destination": { "$ref": "#/$defs/destination" },
+    "language": { "$ref": "#/$defs/languageTag" },
+    "timeZone": { "$ref": "#/$defs/timeZone" },
+    "startDate": { "$ref": "#/$defs/date" },
+    "endDate": { "$ref": "#/$defs/date" },
+    "summary": { "$ref": "#/$defs/description" },
+    "accommodations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/accommodation" }
+    },
+    "places": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/place" }
+    },
+    "days": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/day" }
+    },
+    "variants": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/variant" }
+    },
+    "documents": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/document" }
+    },
+    "reservations": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/reservation" }
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "shortText": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "date": { "type": "string", "format": "date" },
+    "localTime": {
+      "type": "string",
+      "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "languageTag": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$"
+    },
+    "timeZone": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(?:UTC|[A-Za-z_]+(?:/[A-Za-z0-9_+.-]+)+)$"
+    },
+    "idReferences": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/stableId" }
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "countryCode"],
+      "properties": {
+        "name": { "$ref": "#/$defs/title" },
+        "countryCode": { "type": "string", "pattern": "^[A-Z]{2}$" }
+      }
+    },
+    "externalLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "url"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "label": { "$ref": "#/$defs/title" },
+        "url": { "type": "string", "format": "uri", "maxLength": 2048 }
+      }
+    },
+    "links": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/externalLink" }
+    },
+    "place": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "links"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "name": { "$ref": "#/$defs/title" },
+        "address": { "$ref": "#/$defs/shortText" },
+        "links": { "$ref": "#/$defs/links" }
+      }
+    },
+    "accommodation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "placeId", "startDate", "endDate"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "name": { "$ref": "#/$defs/title" },
+        "placeId": { "$ref": "#/$defs/stableId" },
+        "startDate": { "$ref": "#/$defs/date" },
+        "endDate": { "$ref": "#/$defs/date" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "links"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "title": { "$ref": "#/$defs/title" },
+        "description": { "$ref": "#/$defs/description" },
+        "startTime": { "$ref": "#/$defs/localTime" },
+        "endTime": { "$ref": "#/$defs/localTime" },
+        "placeId": { "$ref": "#/$defs/stableId" },
+        "accommodationId": { "$ref": "#/$defs/stableId" },
+        "links": { "$ref": "#/$defs/links" },
+        "documentIds": { "$ref": "#/$defs/idReferences" },
+        "reservationIds": { "$ref": "#/$defs/idReferences" }
+      }
+    },
+    "day": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "date", "title", "steps"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "date": { "$ref": "#/$defs/date" },
+        "title": { "$ref": "#/$defs/title" },
+        "summary": { "$ref": "#/$defs/description" },
+        "steps": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "documentIds": { "$ref": "#/$defs/idReferences" },
+        "reservationIds": { "$ref": "#/$defs/idReferences" }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "description", "targetType", "targetId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "kind": { "enum": ["standard", "low-walking", "rain"] },
+        "label": { "$ref": "#/$defs/title" },
+        "description": { "$ref": "#/$defs/description" },
+        "targetType": { "enum": ["day", "step"] },
+        "targetId": { "$ref": "#/$defs/stableId" }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "resourceId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "label": { "$ref": "#/$defs/title" },
+        "description": { "$ref": "#/$defs/description" },
+        "resourceId": { "$ref": "#/$defs/stableId" }
+      }
+    },
+    "reservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "label": { "$ref": "#/$defs/title" },
+        "reference": { "$ref": "#/$defs/shortText" },
+        "date": { "$ref": "#/$defs/date" },
+        "time": { "$ref": "#/$defs/localTime" },
+        "status": { "$ref": "#/$defs/title" },
+        "links": { "$ref": "#/$defs/links" },
+        "documentIds": { "$ref": "#/$defs/idReferences" }
+      }
+    }
+  }
+}

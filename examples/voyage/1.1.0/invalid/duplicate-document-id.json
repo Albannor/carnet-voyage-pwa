@@ -1,0 +1,35 @@
+{
+  "contentModelVersion": "1.1.0",
+  "id": "duplicate-document-trip",
+  "title": "Voyage avec documents dupliqués",
+  "destination": { "name": "Ville exemple", "countryCode": "FR" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-09-10",
+  "endDate": "2026-09-10",
+  "summary": "Fixture invalide pour l’unicité des documents.",
+  "accommodations": [{
+    "id": "stay-example",
+    "name": "Hébergement exemple",
+    "placeId": "place-example",
+    "startDate": "2026-09-10",
+    "endDate": "2026-09-10"
+  }],
+  "places": [{
+    "id": "place-example",
+    "name": "Lieu exemple",
+    "links": []
+  }],
+  "days": [{
+    "id": "day-one",
+    "date": "2026-09-10",
+    "title": "Journée unique",
+    "steps": []
+  }],
+  "variants": [],
+  "documents": [
+    { "id": "document-ticket", "label": "Billet A", "resourceId": "pdf-a" },
+    { "id": "document-ticket", "label": "Billet B", "resourceId": "pdf-b" }
+  ],
+  "reservations": []
+}

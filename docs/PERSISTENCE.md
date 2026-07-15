@@ -10,7 +10,7 @@ La couche se trouve dans `src/persistence/`. Elle utilise directement l'API Inde
 
 - nom par défaut : `carnet-voyage` ;
 - version IndexedDB : `1` ;
-- version du modèle interne normalisé : `1`.
+- version du modèle interne normalisé : `2`.
 
 La version IndexedDB évolue séparément des versions externes `manifest.json` et `voyage.json`. La création de la version 1 n'efface aucune base existante. Une base portant une version future est refusée avec `DATABASE_VERSION_INCOMPATIBLE` ; une évolution ultérieure devra ajouter une migration ordonnée au lieu de supprimer silencieusement les données.
 
@@ -50,7 +50,7 @@ Cette politique évite une mise à jour implicite et prépare la protection des 
 
 La liste charge seulement `travelMetadata`. L'ouverture récupère les métadonnées et le contenu correspondant au même `travelId`. Une ressource se récupère obligatoirement avec la clé composite `[travelId, resourceId]`, ce qui permet à deux voyages de posséder le même identifiant de ressource sans collision.
 
-L'interface affiche uniquement une bibliothèque et un aperçu minimal : titre, destination, dates et résumé. La navigation par journée et la consultation détaillée appartiennent à l'étape 5.
+L'interface de consultation relit le voyage normalisé et récupère chaque PDF avec la clé composite du voyage courant. Les anciens contenus internes sans collections documentaires sont adaptés en mémoire vers la version 2, sans modifier la version 1 de la structure IndexedDB.
 
 ## Suppression
 
@@ -100,8 +100,7 @@ npm run build
 
 ## Limites volontaires
 
-- aucune consultation détaillée, navigation par journée ou vue « Aujourd'hui » avant l'étape 5 ;
+- les actions contextuelles consultent les ressources existantes mais ne créent ni galerie ni lecteur PDF intégré ;
 - aucune note ni checklist avant l'étape 7 ; seul leur object store séparé est réservé ;
 - aucun service worker ni installation hors ligne complète avant l'étape 8 ;
-- aucune mise à jour, fusion ou migration réelle d'une ancienne base, puisqu'une seule version existe ;
-- aucune galerie ou lecture complète des ressources à cette étape.
+- aucune migration de structure IndexedDB, mise à jour ou fusion de voyage, puisqu'une seule version de base existe ;

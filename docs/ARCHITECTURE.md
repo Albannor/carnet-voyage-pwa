@@ -58,6 +58,8 @@ Depuis l'étape 4, l'orchestration transmet le paquet complet normalisé au dép
 
 Depuis l’étape 5, la consultation relit toujours le modèle normalisé par l’interface de dépôt avant de le rendre. Les composants de voyage reçoivent ce modèle déjà chargé et ne connaissent ni IndexedDB, ni l’archive d’origine. L’identifiant du voyage et la vue active peuvent être reflétés dans l’URL pour permettre un rechargement ; ce contexte de navigation ne contient aucun contenu métier et n’est pas stocké dans `localStorage`. Les règles de date, de fuseau et de sélection d’hébergement sont indépendantes de React et décrites dans `CONSULTATION.md`.
 
+Depuis l’étape 6, les contenus `voyage.json` `1.0.0` et `1.1.0` convergent vers la version 2 du modèle interne. Chaque version externe garde son schéma et son normaliseur. Les PDF sont résolus par `[travelId, resourceId]` dans le dépôt, tandis que les services externes passent par une politique HTTPS défensive. Le mode de variante est un état de vue en mémoire et ne modifie jamais le contenu importé.
+
 ## Stockage local
 
 IndexedDB est la source de vérité locale pour :

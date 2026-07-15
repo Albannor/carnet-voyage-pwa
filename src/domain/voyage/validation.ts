@@ -16,7 +16,9 @@ export type DomainIssueCode =
   | 'STEP_TIME_RANGE'
   | 'TRAVEL_DATE_RANGE'
   | 'UNKNOWN_ACCOMMODATION_REFERENCE'
+  | 'UNKNOWN_DOCUMENT_REFERENCE'
   | 'UNKNOWN_PLACE_REFERENCE'
+  | 'UNKNOWN_RESERVATION_REFERENCE'
   | 'UNKNOWN_VARIANT_TARGET'
   | 'UNSUPPORTED_URL_PROTOCOL'
 
@@ -143,12 +145,18 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
   )
   const dayIds = new Set(travel.days.map((day) => day.id))
   const stepIds = new Set(travel.days.flatMap((day) => day.steps.map((step) => step.id)))
+  const documentIds = new Set(travel.documents.map((document) => document.id))
+  const reservationIds = new Set(
+    travel.reservations.map((reservation) => reservation.id),
+  )
 
   issues.push(
     ...duplicateIdIssues(entityItems(travel.places, '/places')),
     ...duplicateIdIssues(entityItems(travel.accommodations, '/accommodations')),
     ...duplicateIdIssues(entityItems(travel.days, '/days')),
     ...duplicateIdIssues(entityItems(travel.variants, '/variants')),
+    ...duplicateIdIssues(entityItems(travel.documents, '/documents')),
+    ...duplicateIdIssues(entityItems(travel.reservations, '/reservations')),
   )
 
   const stepItems = travel.days.flatMap((day, dayIndex) =>
@@ -172,6 +180,14 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
           link,
           path: `/days/${dayIndex}/steps/${stepIndex}/links/${linkIndex}`,
         })
+      })
+    })
+  })
+  travel.reservations.forEach((reservation, reservationIndex) => {
+    reservation.links.forEach((link, linkIndex) => {
+      linkedItems.push({
+        link,
+        path: `/reservations/${reservationIndex}/links/${linkIndex}`,
       })
     })
   })
@@ -227,6 +243,29 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
   let previousDayDate: string | undefined
   travel.days.forEach((day, dayIndex) => {
     const dayPath = `/days/${dayIndex}`
+
+    day.documentIds.forEach((documentId, referenceIndex) => {
+      if (!documentIds.has(documentId)) {
+        issues.push(
+          issue(
+            'UNKNOWN_DOCUMENT_REFERENCE',
+            `${dayPath}/documentIds/${referenceIndex}`,
+            `Le document « ${documentId} » référencé par la journée n'existe pas.`,
+          ),
+        )
+      }
+    })
+    day.reservationIds.forEach((reservationId, referenceIndex) => {
+      if (!reservationIds.has(reservationId)) {
+        issues.push(
+          issue(
+            'UNKNOWN_RESERVATION_REFERENCE',
+            `${dayPath}/reservationIds/${referenceIndex}`,
+            `La réservation « ${reservationId} » référencée par la journée n'existe pas.`,
+          ),
+        )
+      }
+    })
 
     if (day.date < travel.period.start || day.date > travel.period.end) {
       issues.push(
@@ -286,6 +325,43 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
             'UNKNOWN_ACCOMMODATION_REFERENCE',
             `${stepPath}/accommodationId`,
             `L'hébergement « ${step.accommodationId} » référencé par l'étape n'existe pas.`,
+          ),
+        )
+      }
+
+      step.documentIds.forEach((documentId, referenceIndex) => {
+        if (!documentIds.has(documentId)) {
+          issues.push(
+            issue(
+              'UNKNOWN_DOCUMENT_REFERENCE',
+              `${stepPath}/documentIds/${referenceIndex}`,
+              `Le document « ${documentId} » référencé par l'étape n'existe pas.`,
+            ),
+          )
+        }
+      })
+      step.reservationIds.forEach((reservationId, referenceIndex) => {
+        if (!reservationIds.has(reservationId)) {
+          issues.push(
+            issue(
+              'UNKNOWN_RESERVATION_REFERENCE',
+              `${stepPath}/reservationIds/${referenceIndex}`,
+              `La réservation « ${reservationId} » référencée par l'étape n'existe pas.`,
+            ),
+          )
+        }
+      })
+    })
+  })
+
+  travel.reservations.forEach((reservation, reservationIndex) => {
+    reservation.documentIds.forEach((documentId, referenceIndex) => {
+      if (!documentIds.has(documentId)) {
+        issues.push(
+          issue(
+            'UNKNOWN_DOCUMENT_REFERENCE',
+            `/reservations/${reservationIndex}/documentIds/${referenceIndex}`,
+            `Le document « ${documentId} » référencé par la réservation n'existe pas.`,
           ),
         )
       }

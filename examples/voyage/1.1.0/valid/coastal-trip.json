@@ -1,0 +1,101 @@
+{
+  "contentModelVersion": "1.1.0",
+  "id": "coastal-trip-2026",
+  "title": "Escapade côtière",
+  "destination": {
+    "name": "La Rochelle",
+    "countryCode": "FR"
+  },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-07-14",
+  "endDate": "2026-07-15",
+  "summary": "Un court séjour avec des actions contextuelles, une réservation et un document local.",
+  "accommodations": [
+    {
+      "id": "stay-port",
+      "name": "Maison du port",
+      "placeId": "place-port",
+      "startDate": "2026-07-14",
+      "endDate": "2026-07-15"
+    }
+  ],
+  "places": [
+    {
+      "id": "place-port",
+      "name": "Vieux-Port",
+      "address": "Quai du Carénage",
+      "links": [
+        {
+          "id": "link-port-route",
+          "label": "Ouvrir l’itinéraire vers le Vieux-Port",
+          "url": "https://www.openstreetmap.org/search?query=Vieux-Port"
+        }
+      ]
+    }
+  ],
+  "days": [
+    {
+      "id": "day-arrival",
+      "date": "2026-07-14",
+      "title": "Arrivée au port",
+      "summary": "Installation puis traversée réservée.",
+      "reservationIds": ["reservation-ferry"],
+      "steps": [
+        {
+          "id": "step-ferry",
+          "title": "Prendre le bateau",
+          "startTime": "14:00",
+          "placeId": "place-port",
+          "links": [],
+          "documentIds": ["document-ticket"],
+          "reservationIds": ["reservation-ferry"]
+        }
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "id": "variant-rain",
+      "kind": "rain",
+      "label": "Traversée couverte",
+      "description": "Attendre dans le terminal couvert avant l’embarquement.",
+      "targetType": "step",
+      "targetId": "step-ferry"
+    },
+    {
+      "id": "variant-low-walking",
+      "kind": "low-walking",
+      "label": "Accès direct au quai",
+      "description": "Utiliser l’accès le plus proche du point d’embarquement.",
+      "targetType": "day",
+      "targetId": "day-arrival"
+    }
+  ],
+  "documents": [
+    {
+      "id": "document-ticket",
+      "label": "Billet de traversée",
+      "description": "Confirmation PDF disponible localement.",
+      "resourceId": "pdf-ferry-ticket"
+    }
+  ],
+  "reservations": [
+    {
+      "id": "reservation-ferry",
+      "label": "Traversée vers l’île",
+      "reference": "TRAVERSEE-2026",
+      "date": "2026-07-14",
+      "time": "14:00",
+      "status": "Confirmée",
+      "links": [
+        {
+          "id": "link-manage-ferry",
+          "label": "Gérer la réservation de la traversée",
+          "url": "https://example.com/reservations/TRAVERSEE-2026"
+        }
+      ],
+      "documentIds": ["document-ticket"]
+    }
+  ]
+}

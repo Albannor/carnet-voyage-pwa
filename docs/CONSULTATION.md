@@ -40,7 +40,7 @@ Dans tous les cas, les journées existantes restent accessibles. Les changements
 
 Les étapes sont rendues dans l’ordre du tableau du modèle interne, déjà contrôlé par les invariants métier lors de l’import. L’interface ne déduit pas l’ordre d’une présentation source et ne réordonne pas visuellement le contenu.
 
-Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire indiqué ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable et leurs éventuelles adresses sont affichées comme du texte. Les liens ne sont pas encore exposés : ils appartiennent à l’étape 6.
+Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire indiqué ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable et leurs éventuelles adresses sont affichées comme du texte.
 
 ## Hébergement comme point d’ancrage
 
@@ -52,7 +52,25 @@ Pour la synthèse, la date d’ancrage est :
 - la date de début avant le séjour ;
 - la date de fin après le séjour.
 
-L’absence d’hébergement est annoncée explicitement. Aucune action de copie, d’itinéraire ou de carte n’est fournie à cette étape.
+L’absence d’hébergement est annoncée explicitement. Son adresse peut être copiée localement et ses liens HTTPS sont présentés dans ce contexte, sans carte intégrée.
+
+## Actions contextuelles et documents
+
+Les actions sont distinguées par leur libellé et leur comportement :
+
+- une **action locale** copie une adresse et reste disponible sans réseau ;
+- un **document local** récupère uniquement le PDF rattaché au voyage courant dans IndexedDB ;
+- un **service externe** ouvre un lien HTTPS dans un nouvel onglet avec `noopener noreferrer` et indique qu'une connexion est requise.
+
+Hors connexion, les liens externes sont désactivés mais le programme, les réservations et les PDF déjà importés restent consultables. Une seconde vérification d'URL à l'affichage neutralise toute valeur non HTTPS, en complément du schéma et de la validation métier. Aucun HTML importé, SVG actif ou document exécutable n'est rendu.
+
+Documents et réservations sont reliés aux journées ou étapes exclusivement par identifiants stables. Le document référence à son tour une ressource PDF déclarée dans le manifest. Aucun nom de fichier, chemin ou libellé ne sert à déduire une association.
+
+## Variantes
+
+Le mode standard est toujours disponible. Les modes « Économe en marche » et « Pluie » ne sont proposés que si le voyage contient au moins une variante correspondante. Une variante décrit une adaptation ciblant explicitement une journée ou une étape ; elle ne remplace pas silencieusement le programme standard.
+
+Le choix est un état de consultation React en mémoire. Changer de mode ne modifie ni le voyage, ni l'URL, ni la vue active : la synthèse, la journée, l'étape visible et la vue « Aujourd'hui » restent dans leur contexte. Lorsqu'aucune adaptation du mode choisi ne concerne la journée, l'interface l'explique et conserve le programme standard.
 
 ## États vides et erreurs
 
@@ -89,7 +107,7 @@ La suite couvre la synthèse, la chronologie, les étapes sans heure, les états
 
 Restent hors périmètre :
 
-- les liens, itinéraires, ressources et variantes contextuelles de l’étape 6 ;
 - les checklists et notes personnelles de l’étape 7 ;
 - l’installation et le fonctionnement hors ligne complet de l’étape 8 ;
-- toute carte, navigation GPS, réservation ou action sur une adresse.
+- toute carte, navigation GPS, modification de réservation ou lecteur PDF intégré ;
+- la conservation du mode choisi après un rechargement.

@@ -1,13 +1,17 @@
 import type { TravelDocumentV1 } from '../../contracts/voyage/v1/document'
 import { toTravel } from '../../contracts/voyage/v1/toTravel'
+import type { SupportedTravelDocument } from '../../contracts/voyage/registry'
+import type { TravelDocumentV1_1 } from '../../contracts/voyage/v1_1/document'
+import { toTravelV1_1 } from '../../contracts/voyage/v1_1/toTravel'
 import type { Travel } from '../../domain/voyage/model'
 import { importIssue, type ImportIssue } from '../errors'
 
-export type TravelNormalizer = (document: TravelDocumentV1) => Travel
+export type TravelNormalizer = (document: SupportedTravelDocument) => Travel
 export type TravelNormalizerRegistry = Readonly<Record<string, TravelNormalizer>>
 
 export const TRAVEL_NORMALIZERS: TravelNormalizerRegistry = Object.freeze({
-  '1.0.0': toTravel,
+  '1.0.0': (document) => toTravel(document as TravelDocumentV1),
+  '1.1.0': (document) => toTravelV1_1(document as TravelDocumentV1_1),
 })
 
 export type TravelNormalizationResult =
@@ -20,7 +24,7 @@ export function hasTravelNormalizer(version: string) {
 
 export function normalizeTravelDocument(
   version: string,
-  document: TravelDocumentV1,
+  document: SupportedTravelDocument,
   registry: TravelNormalizerRegistry = TRAVEL_NORMALIZERS,
 ): TravelNormalizationResult {
   const normalizer = registry[version]

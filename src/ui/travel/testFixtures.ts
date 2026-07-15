@@ -9,15 +9,15 @@ export const consultationEntry: TravelLibraryEntry = {
   startDate: '2026-07-14',
   endDate: '2026-07-17',
   sourcePackageVersion: '1.0.0',
-  sourceTravelVersion: '1.0.0',
+  sourceTravelVersion: '1.1.0',
   importedAt: '2026-07-01T10:00:00.000Z',
   storageSchemaVersion: 1,
-  internalModelVersion: 1,
+  internalModelVersion: 2,
 }
 
 export const consultationTravel: Travel = {
   id: consultationEntry.travelId,
-  contentVersion: '1.0.0',
+  contentVersion: '1.1.0',
   title: consultationEntry.title,
   destination: { label: consultationEntry.destination, countryCode: 'FR' },
   locale: 'fr-FR',
@@ -43,11 +43,18 @@ export const consultationTravel: Travel = {
       id: 'place-port',
       label: 'Vieux-Port',
       address: 'Quai du Carénage',
-      links: [],
+      links: [
+        {
+          id: 'link-port-route',
+          label: 'Ouvrir l’itinéraire vers le Vieux-Port',
+          href: 'https://example.com/route/port',
+        },
+      ],
     },
     {
       id: 'place-market',
       label: 'Marché central',
+      address: 'Place du Marché',
       links: [],
     },
     {
@@ -71,7 +78,15 @@ export const consultationTravel: Travel = {
           startsAt: '09:00',
           endsAt: '10:00',
           placeId: 'place-market',
-          links: [],
+          links: [
+            {
+              id: 'link-market-route',
+              label: 'Ouvrir l’itinéraire vers le marché',
+              href: 'https://example.com/route/market',
+            },
+          ],
+          documentIds: [],
+          reservationIds: [],
         },
         {
           id: 'step-check-in',
@@ -80,19 +95,27 @@ export const consultationTravel: Travel = {
           accommodationId: 'stay-port',
           placeId: 'place-port',
           links: [],
+          documentIds: ['document-booking'],
+          reservationIds: ['reservation-stay'],
         },
         {
           id: 'step-flexible',
           title: 'Pause libre',
           links: [],
+          documentIds: [],
+          reservationIds: [],
         },
       ],
+      documentIds: [],
+      reservationIds: [],
     },
     {
       id: 'day-harbour',
       date: '2026-07-15',
       title: 'Autour du port',
       steps: [],
+      documentIds: ['document-booking'],
+      reservationIds: ['reservation-stay'],
     },
     {
       id: 'day-island',
@@ -106,11 +129,56 @@ export const consultationTravel: Travel = {
           startsAt: '11:30',
           placeId: 'place-island',
           links: [],
+          documentIds: [],
+          reservationIds: [],
         },
       ],
+      documentIds: [],
+      reservationIds: [],
     },
   ],
-  variants: [],
+  variants: [
+    {
+      id: 'variant-arrival-rain',
+      kind: 'rain',
+      label: 'Accueil couvert',
+      description: 'Attendre sous la halle avant l’installation.',
+      target: { type: 'day', dayId: 'day-arrival' },
+    },
+    {
+      id: 'variant-market-low-walking',
+      kind: 'low-walking',
+      label: 'Marché sans détour',
+      description: 'Rejoindre directement l’entrée principale.',
+      target: { type: 'step', stepId: 'step-market' },
+    },
+  ],
+  documents: [
+    {
+      id: 'document-booking',
+      label: 'Confirmation d’hébergement',
+      description: 'PDF enregistré avec le voyage.',
+      resourceId: 'pdf-booking',
+    },
+  ],
+  reservations: [
+    {
+      id: 'reservation-stay',
+      label: 'Réservation Maison du port',
+      reference: 'PORT-2026',
+      date: '2026-07-14',
+      time: '14:00',
+      status: 'Confirmée',
+      links: [
+        {
+          id: 'link-manage-stay',
+          label: 'Gérer la réservation Maison du port',
+          href: 'https://example.com/reservations/PORT-2026',
+        },
+      ],
+      documentIds: ['document-booking'],
+    },
+  ],
 }
 
 export const persistedConsultationTravel: PersistedTravel = {

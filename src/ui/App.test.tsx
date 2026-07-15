@@ -7,6 +7,8 @@ import type {
   TravelRepositoryFactory,
 } from '../persistence/repository'
 import { App } from './App'
+import { TEST_PDF_BYTES } from '../import/test/packageFixtures'
+import { persistedConsultationTravel } from './travel/testFixtures'
 
 const { importToLibraryMock } = vi.hoisted(() => ({
   importToLibraryMock: vi.fn(),
@@ -47,6 +49,8 @@ const travel: Travel = {
   places: [],
   days: [],
   variants: [],
+  documents: [],
+  reservations: [],
 }
 
 let repository: TravelLibraryRepository
@@ -296,6 +300,48 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Voyage bêta' })).toBeInTheDocument()
     expect(repository.getTravel).toHaveBeenCalledWith('travel-beta')
     expect(screen.queryByRole('heading', { name: 'Voyage alpha' })).not.toBeInTheDocument()
+  })
+
+  it('récupère et ouvre un PDF depuis le périmètre du voyage consulté', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [persistedConsultationTravel.metadata],
+    })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: persistedConsultationTravel,
+    })
+    vi.mocked(repository.getResource).mockResolvedValue({
+      ok: true,
+      value: {
+        travelId: persistedConsultationTravel.travel.id,
+        resourceId: 'pdf-booking',
+        path: 'documents/booking.pdf',
+        mediaType: 'application/pdf',
+        size: TEST_PDF_BYTES.length,
+        sha256: 'a'.repeat(64),
+        bytes: TEST_PDF_BYTES,
+      },
+    })
+    const platformActions = {
+      copyText: vi.fn().mockResolvedValue(true),
+      openLocalPdf: vi.fn().mockReturnValue(true),
+    }
+    render(<App repositoryFactory={repositoryFactory} platformActions={platformActions} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir la journée Arrivée au port/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: /Document local · Ouvrir Confirmation/ })[0]!)
+
+    await waitFor(() => expect(repository.getResource).toHaveBeenCalledWith(
+      persistedConsultationTravel.travel.id,
+      'pdf-booking',
+    ))
+    expect(platformActions.openLocalPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'pdf-booking' }),
+      'Confirmation d’hébergement',
+    )
+    expect(await screen.findByText(/Ouverture du document local/)).toBeInTheDocument()
   })
 
   it('demande une confirmation nommant le voyage avant suppression', async () => {

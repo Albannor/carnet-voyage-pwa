@@ -4,7 +4,7 @@ Carnet de voyage PWA est une application web progressive en construction, statiq
 
 ## État du projet
 
-Le dépôt contient désormais la consultation commune de l’étape 5. Après validation et enregistrement atomique d’un paquet ZIP dans IndexedDB, l’application permet de retrouver un voyage, d’ouvrir sa synthèse, d’utiliser la vue « Aujourd’hui », de naviguer entre ses journées et de lire leur chronologie. La suppression explicite et l’isolation entre voyages restent assurées par la bibliothèque locale.
+Le dépôt contient désormais les actions contextuelles et variantes de l’étape 6. Après validation et enregistrement atomique d’un paquet ZIP dans IndexedDB, l’application permet de consulter les journées, d'utiliser des adresses et itinéraires explicites, d'ouvrir les PDF locaux associés, de lire les réservations et de choisir les modes standard, économe en marche ou pluie disponibles. La suppression explicite et l’isolation entre voyages restent assurées par la bibliothèque locale.
 
 ## Prérequis
 
@@ -64,7 +64,8 @@ npm run build
 - [Produit](docs/PRODUCT.md) : vision, utilisateurs, périmètre du MVP et critères de réussite.
 - [Architecture](docs/ARCHITECTURE.md) : modèle local-first, sécurité, stockage, hors ligne et futures couches techniques.
 - [Format des guides](docs/GUIDE-FORMAT.md) : structure conceptuelle du paquet de voyage et règles de versionnement.
-- [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : périmètre, formats, politiques de validation et limites du premier sous-ensemble.
+- [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : contrat initial toujours pris en charge.
+- [Contrat `voyage.json` 1.1.0](contracts/voyage/1.1.0/README.md) : documents, réservations et associations contextuelles optionnelles.
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
 - [Consultation](docs/CONSULTATION.md) : parcours, vue « Aujourd’hui », fuseaux horaires, chronologie, hébergements et états vides.
@@ -82,9 +83,9 @@ npm run build
 ├── README.md
 ├── contracts/
 │   ├── package/1.0.0/  # schéma versionné de manifest.json
-│   └── voyage/1.0.0/   # schéma JSON versionné du contenu
+│   └── voyage/          # schémas JSON de contenu 1.0.0 et 1.1.0
 ├── examples/
-│   └── voyage/1.0.0/   # exemple valide et fixtures invalides
+│   └── voyage/          # exemples valides et invalides par version
 ├── index.html
 ├── package-lock.json
 ├── package.json
@@ -130,4 +131,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Les contrats `1.0.0` restent de premiers sous-ensembles, pas le format définitif complet. La consultation n’expose encore ni les actions contextuelles et variantes de l’étape 6, ni les checklists et notes de l’étape 7. Réservations et associations de documents aux entités restent absentes. Le manifest web prépare l’identité installable de l’application, mais aucun service worker ou fonctionnement hors ligne complet n’est implémenté avant l’étape 8.
+Les contrats `voyage.json` `1.0.0` et `1.1.0` restent des sous-ensembles versionnés, pas le format définitif complet. Les checklists et notes de l’étape 7 sont absentes. Les actions externes nécessitent un réseau et aucun lecteur PDF, moteur cartographique ou service de réservation n'est intégré. Le manifest web prépare l’identité installable de l’application, mais aucun service worker ou fonctionnement hors ligne complet n’est implémenté avant l’étape 8.

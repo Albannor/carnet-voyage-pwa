@@ -44,6 +44,29 @@ function failure<T>(error: PersistenceIssue): PersistenceResult<T> {
   return { ok: false, error }
 }
 
+function normalizeStoredTravel(content: PersistedTravelContent) {
+  if (content.internalModelVersion > INTERNAL_TRAVEL_MODEL_VERSION) {
+    return undefined
+  }
+
+  const travel = content.travel
+  return {
+    ...travel,
+    documents: travel.documents ?? [],
+    reservations: travel.reservations ?? [],
+    days: travel.days.map((day) => ({
+      ...day,
+      documentIds: day.documentIds ?? [],
+      reservationIds: day.reservationIds ?? [],
+      steps: day.steps.map((step) => ({
+        ...step,
+        documentIds: step.documentIds ?? [],
+        reservationIds: step.reservationIds ?? [],
+      })),
+    })),
+  }
+}
+
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result)
@@ -392,7 +415,10 @@ class IndexedDbTravelRepository implements TravelLibraryRepository {
       if (!metadata || !content) {
         return failure(readFailure(travelId))
       }
-      return success({ metadata, travel: content.travel })
+      const travel = normalizeStoredTravel(content)
+      return travel
+        ? success({ metadata, travel })
+        : failure(readFailure(travelId))
     } catch {
       return failure(readFailure(travelId))
     }

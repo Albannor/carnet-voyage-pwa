@@ -1,0 +1,16 @@
+{
+  "contentModelVersion": "1.1.0",
+  "id": "invalid-unknown-property",
+  "title": "Propriété inconnue",
+  "destination": { "name": "Exemple", "countryCode": "FR" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-07-14",
+  "endDate": "2026-07-14",
+  "summary": "Fixture invalide pour une propriété interdite.",
+  "accommodations": [{ "id": "stay", "name": "Hébergement", "placeId": "place", "startDate": "2026-07-14", "endDate": "2026-07-14" }],
+  "places": [{ "id": "place", "name": "Lieu", "links": [] }],
+  "days": [{ "id": "day", "date": "2026-07-14", "title": "Journée", "steps": [] }],
+  "variants": [],
+  "documents": [{ "id": "document", "label": "Document", "resourceId": "pdf-document", "html": "<script>alert(1)</script>" }]
+}

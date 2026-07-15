@@ -31,6 +31,8 @@ function toStep(step: StepDocument): TravelStep {
     placeId: step.placeId,
     accommodationId: step.accommodationId,
     links: step.links.map(toLink),
+    documentIds: [],
+    reservationIds: [],
   }
 }
 
@@ -41,6 +43,8 @@ function toDay(day: DayDocument): TravelDay {
     title: day.title,
     summary: day.summary,
     steps: day.steps.map(toStep),
+    documentIds: [],
+    reservationIds: [],
   }
 }
 
@@ -92,5 +96,7 @@ export function toTravel(document: TravelDocumentV1): Travel {
     })),
     days: document.days.map(toDay),
     variants: document.variants.map(toVariant),
+    documents: [],
+    reservations: [],
   }
 }

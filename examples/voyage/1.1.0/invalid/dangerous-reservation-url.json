@@ -1,0 +1,16 @@
+{
+  "contentModelVersion": "1.1.0",
+  "id": "invalid-reservation-url",
+  "title": "URL de réservation dangereuse",
+  "destination": { "name": "Exemple", "countryCode": "FR" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-07-14",
+  "endDate": "2026-07-14",
+  "summary": "Fixture invalide pour une URL active.",
+  "accommodations": [{ "id": "stay", "name": "Hébergement", "placeId": "place", "startDate": "2026-07-14", "endDate": "2026-07-14" }],
+  "places": [{ "id": "place", "name": "Lieu", "links": [] }],
+  "days": [{ "id": "day", "date": "2026-07-14", "title": "Journée", "reservationIds": ["reservation"], "steps": [] }],
+  "variants": [],
+  "reservations": [{ "id": "reservation", "label": "Réservation", "links": [{ "id": "dangerous-link", "label": "Ouvrir", "url": "javascript:alert(1)" }] }]
+}

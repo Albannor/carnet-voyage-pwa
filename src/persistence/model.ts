@@ -1,7 +1,7 @@
 import type { Travel } from '../domain/voyage/model'
 import type { AllowedResourceMediaType } from '../import/packageManifest'
 
-export const INTERNAL_TRAVEL_MODEL_VERSION = 1 as const
+export const INTERNAL_TRAVEL_MODEL_VERSION = 2 as const
 
 export interface TravelLibraryEntry {
   readonly travelId: string
