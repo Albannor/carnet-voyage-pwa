@@ -1,3 +1,7 @@
+/// <reference types="node" />
+
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +12,11 @@ import {
   fixedClock,
   persistedConsultationTravel,
 } from './testFixtures'
+
+const consultationStyles = readFileSync(
+  resolve(process.cwd(), 'src/ui/styles.css'),
+  'utf8',
+).replace(/\s+/g, ' ')
 
 afterEach(() => cleanup())
 
@@ -58,6 +67,14 @@ function persistedWith(overrides: Partial<typeof consultationTravel>): Persisted
     ...persistedConsultationTravel,
     travel: { ...consultationTravel, ...overrides },
   }
+}
+
+function reservationCardForHeading(name: string) {
+  const card = screen.getByRole('heading', { name }).closest('.reservation-card')
+  if (!(card instanceof HTMLElement)) {
+    throw new Error(`Carte de réservation introuvable pour « ${name} ».`)
+  }
+  return card
 }
 
 describe('synthèse du voyage', () => {
@@ -274,6 +291,73 @@ describe('actions contextuelles', () => {
     expect(screen.getByText('PORT-2026')).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: /Ouvrir Confirmation d’hébergement/ })[0]!)
     expect(onOpenDocument).toHaveBeenCalledWith(consultationTravel.documents[0])
+  })
+
+  it('empile une réservation complète et protège les libellés longs', () => {
+    const longStatus = 'Confirmation définitive en attente de vérification administrative par l’établissement'
+    const longDocumentLabel = 'Confirmation complète de réservation de l’hébergement madrilène avec toutes les conditions'
+    const longExternalLabel = 'Gérer la réservation complète auprès du service externe de l’hébergement madrilène'
+    const reservation = {
+      ...consultationTravel.reservations[0]!,
+      label: 'Réservation de l’hébergement central de Madrid',
+      status: longStatus,
+      links: [{
+        id: 'link-manage-long-stay',
+        label: longExternalLabel,
+        href: 'https://example.com/reservations/MADRID-LONGUE',
+      }],
+    }
+    const document = {
+      ...consultationTravel.documents[0]!,
+      label: longDocumentLabel,
+    }
+    render(<ConsultationHarness
+      travel={persistedWith({ reservations: [reservation], documents: [document] })}
+      initialView={{ kind: 'day', dayId: 'day-arrival' }}
+    />)
+
+    const card = reservationCardForHeading(reservation.label)
+    expect(Array.from(card.children, (child) => child.tagName)).toEqual([
+      'P', 'H5', 'DL', 'UL', 'UL',
+    ])
+    expect(within(card).getByText(longStatus)).toBeInTheDocument()
+    expect(within(card).getByRole('button')).toHaveTextContent(
+      `Document local · Ouvrir ${longDocumentLabel}`,
+    )
+    expect(within(card).getByRole('link')).toHaveTextContent(
+      `Service externe · ${longExternalLabel}`,
+    )
+  })
+
+  it('garde une réservation lisible sans document ni lien externe', () => {
+    const reservation = {
+      ...consultationTravel.reservations[0]!,
+      links: [],
+      documentIds: [],
+    }
+    render(<ConsultationHarness
+      travel={persistedWith({ reservations: [reservation] })}
+      initialView={{ kind: 'day', dayId: 'day-arrival' }}
+    />)
+
+    const card = reservationCardForHeading(reservation.label)
+    expect(within(card).getByText('Confirmée')).toBeInTheDocument()
+    expect(within(card).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(card).queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('réserve la grille de chronologie à l’article d’étape', () => {
+    expect(consultationStyles).toContain('.timeline > li > article {')
+    expect(consultationStyles).not.toContain('.timeline article {')
+    expect(consultationStyles).toMatch(
+      /\.reservation-card \{[^}]*min-width: 0;[^}]*grid-template-columns: minmax\(0, 1fr\);/,
+    )
+    expect(consultationStyles).toMatch(
+      /\.reservation-metadata \{[^}]*grid-template-columns: minmax\(0, 1fr\);/,
+    )
+    expect(consultationStyles).toContain(
+      '@media (width >= 30rem) { .reservation-metadata { grid-template-columns: max-content minmax(0, 1fr);',
+    )
   })
 
   it('neutralise défensivement une URL dangereuse', () => {
