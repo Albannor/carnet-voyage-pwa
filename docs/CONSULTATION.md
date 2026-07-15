@@ -72,6 +72,14 @@ Le mode standard est toujours disponible. Les modes « Économe en marche » et 
 
 Le choix est un état de consultation React en mémoire. Changer de mode ne modifie ni le voyage, ni l'URL, ni la vue active : la synthèse, la journée, l'étape visible et la vue « Aujourd'hui » restent dans leur contexte. Lorsqu'aucune adaptation du mode choisi ne concerne la journée, l'interface l'explique et conserve le programme standard.
 
+## Checklists et note locale
+
+Les définitions de checklists proviennent uniquement de `voyage.json` 1.2.0. Une checklist générale apparaît dans la synthèse, une checklist de journée dans la journée ciblée et une checklist d’étape auprès de l’étape ciblée. Aucune section vide n’est rendue. Les cases natives sont accessibles au clavier et leur état est identifié par `travelId`, `checklistId` et `itemId` dans IndexedDB, sans modifier le contenu importé.
+
+Le changement de case fournit un retour immédiat, attend la fin de l’écriture locale puis annonce la réussite. En cas d’échec, la valeur persistée précédente est rétablie et une erreur est annoncée. Les voyages 1.0.0 et 1.1.0 n’ont simplement aucune checklist.
+
+La zone « Notes personnelles » expose une seule note générale par voyage. Son `textarea` charge la valeur locale, conserve le texte comme texte brut et déclenche un enregistrement temporisé de la dernière valeur. Une perte de focus force l’écriture en attente. Les états « modification », « enregistrement », « enregistré » et « échec » sont annoncés, et l’interface rappelle que la note reste sur cet appareil. Ni la note ni les cases ne sont stockées dans l’URL ou `localStorage`.
+
 ## États vides et erreurs
 
 La consultation gère :
@@ -101,13 +109,13 @@ Les règles pures de date et d’hébergement, les vues React et l’orchestrati
 npm run test
 ```
 
-La suite couvre la synthèse, la chronologie, les étapes sans heure, les états vides, les hébergements successifs, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture et l’absence de surface d’exécution du HTML importé.
+La suite couvre la synthèse, la chronologie, les étapes sans heure, les états vides, les hébergements successifs, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, ainsi que l’absence de surface d’exécution du HTML importé.
 
 ## Limites actuelles
 
 Restent hors périmètre :
 
-- les checklists et notes personnelles de l’étape 7 ;
 - l’installation et le fonctionnement hors ligne complet de l’étape 8 ;
+- les notes multiples, riches, partagées ou avec pièces jointes ;
 - toute carte, navigation GPS, modification de réservation ou lecteur PDF intégré ;
 - la conservation du mode choisi après un rechargement.

@@ -4,7 +4,7 @@ Carnet de voyage PWA est une application web progressive en construction, statiq
 
 ## État du projet
 
-Le dépôt contient désormais les actions contextuelles et variantes de l’étape 6. Après validation et enregistrement atomique d’un paquet ZIP dans IndexedDB, l’application permet de consulter les journées, d'utiliser des adresses et itinéraires explicites, d'ouvrir les PDF locaux associés, de lire les réservations et de choisir les modes standard, économe en marche ou pluie disponibles. La suppression explicite et l’isolation entre voyages restent assurées par la bibliothèque locale.
+Le dépôt contient désormais les checklists persistantes et la note générale locale de l’étape 7. Les définitions de checklist proviennent du contenu structuré validé, tandis que les cases cochées et la note personnelle restent séparées dans IndexedDB. La consultation conserve les journées, actions contextuelles, PDF locaux, réservations et variantes livrés aux étapes précédentes. La prochaine étape est l’installation et le fonctionnement hors ligne du shell à l’étape 8.
 
 ## Prérequis
 
@@ -52,7 +52,7 @@ npm run build
 ## Principes directeurs
 
 - L'application fonctionne sans backend dans le MVP et conserve les voyages sur l'appareil.
-- Le stockage métier reposera sur IndexedDB ; le service worker et le Cache Storage assureront la disponibilité hors ligne de l'application.
+- Le stockage métier repose sur IndexedDB ; le service worker et le Cache Storage assureront la disponibilité hors ligne du shell à l’étape 8.
 - L'application et les dossiers de voyage restent strictement séparés : un voyage importé est une donnée, jamais du code.
 - Chaque import est structuré, versionné et validé avant toute écriture locale.
 - Aucun script ou HTML actif provenant d'un guide importé n'est exécuté par l'application.
@@ -66,6 +66,7 @@ npm run build
 - [Format des guides](docs/GUIDE-FORMAT.md) : structure conceptuelle du paquet de voyage et règles de versionnement.
 - [Contrat `voyage.json` 1.0.0](contracts/voyage/1.0.0/README.md) : contrat initial toujours pris en charge.
 - [Contrat `voyage.json` 1.1.0](contracts/voyage/1.1.0/README.md) : documents, réservations et associations contextuelles optionnelles.
+- [Contrat `voyage.json` 1.2.0](contracts/voyage/1.2.0/README.md) : définitions de checklists ciblant le voyage, une journée ou une étape.
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
 - [Consultation](docs/CONSULTATION.md) : parcours, vue « Aujourd’hui », fuseaux horaires, chronologie, hébergements et états vides.
@@ -83,7 +84,7 @@ npm run build
 ├── README.md
 ├── contracts/
 │   ├── package/1.0.0/  # schéma versionné de manifest.json
-│   └── voyage/          # schémas JSON de contenu 1.0.0 et 1.1.0
+│   └── voyage/          # schémas JSON de contenu 1.0.0, 1.1.0 et 1.2.0
 ├── examples/
 │   └── voyage/          # exemples valides et invalides par version
 ├── index.html
@@ -131,4 +132,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Les contrats `voyage.json` `1.0.0` et `1.1.0` restent des sous-ensembles versionnés, pas le format définitif complet. Les checklists et notes de l’étape 7 sont absentes. Les actions externes nécessitent un réseau et aucun lecteur PDF, moteur cartographique ou service de réservation n'est intégré. Le manifest web prépare l’identité installable de l’application, mais aucun service worker ou fonctionnement hors ligne complet n’est implémenté avant l’étape 8.
+Les contrats `voyage.json` `1.0.0`, `1.1.0` et `1.2.0` restent des sous-ensembles versionnés, pas le format définitif complet. Une seule note personnelle en texte brut est disponible par voyage ; il n’existe ni note riche, ni pièce jointe, ni fusion de réimport. Les actions externes nécessitent un réseau et aucun lecteur PDF ou moteur cartographique n'est intégré. L’étape 8 ajoutera le service worker et le fonctionnement hors ligne complet du shell.

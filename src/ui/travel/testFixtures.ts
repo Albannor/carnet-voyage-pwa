@@ -179,6 +179,26 @@ export const consultationTravel: Travel = {
       documentIds: ['document-booking'],
     },
   ],
+  checklists: [
+    {
+      id: 'checklist-travel',
+      title: 'Avant le départ',
+      target: { type: 'travel' },
+      items: [{ id: 'item-passport', label: 'Prendre les pièces d’identité' }],
+    },
+    {
+      id: 'checklist-day',
+      title: 'Pour l’arrivée',
+      target: { type: 'day', dayId: 'day-arrival' },
+      items: [{ id: 'item-checkin', label: 'Vérifier l’heure d’arrivée' }],
+    },
+    {
+      id: 'checklist-step',
+      title: 'Au marché',
+      target: { type: 'step', stepId: 'step-market' },
+      items: [{ id: 'item-bag', label: 'Prendre un sac' }],
+    },
+  ],
 }
 
 export const persistedConsultationTravel: PersistedTravel = {

@@ -1,5 +1,6 @@
 import validTravelDocument from '../../examples/voyage/1.0.0/valid/madrid-weekend.json'
 import validTravelDocumentV1_1 from '../../examples/voyage/1.1.0/valid/coastal-trip.json'
+import validTravelDocumentV1_2 from '../../examples/voyage/1.2.0/valid/coastal-checklists.json'
 import type { TravelDocumentV1 } from '../contracts/voyage/v1/document'
 import { importTravelPackage, type ValidatedTravelPackage } from '../import/importTravelPackage'
 import {
@@ -149,6 +150,31 @@ async function validatedPackageV1_1(): Promise<ValidatedTravelPackage> {
   return imported.package
 }
 
+async function validatedChecklistPackage(suffix: string): Promise<ValidatedTravelPackage> {
+  const travel = structuredClone(validTravelDocumentV1_2)
+  travel.id = `travel-${suffix}`
+  travel.title = `Voyage ${suffix}`
+  const archive = await createPackageArchive({
+    travel,
+    includeDefaultResource: false,
+    manifest: {
+      id: travel.id,
+      travelModelVersion: '1.2.0',
+      resources: [{
+        id: 'pdf-ferry-ticket',
+        path: 'documents/booking.pdf',
+        mediaType: 'application/pdf',
+        size: TEST_PDF_BYTES.length,
+        sha256: await sha256Hex(TEST_PDF_BYTES),
+      }],
+    },
+    extraFiles: { 'documents/booking.pdf': TEST_PDF_BYTES },
+  })
+  const imported = await importTravelPackage(selectedPackageFile(archive))
+  if (!imported.ok) throw new Error(imported.errors[0]?.code)
+  return imported.package
+}
+
 async function seedPersonalState(state: PersistedPersonalState) {
   const database = await openRawDatabase(databaseName)
   const transaction = database.transaction(TRAVEL_STORES.personalStates, 'readwrite')
@@ -245,6 +271,7 @@ describe('IndexedDbTravelRepository', () => {
     const legacyTravel = legacyContent.travel as Record<string, unknown>
     delete legacyTravel.documents
     delete legacyTravel.reservations
+    delete legacyTravel.checklists
     for (const day of legacyTravel.days as Array<Record<string, unknown>>) {
       delete day.documentIds
       delete day.reservationIds
@@ -265,6 +292,7 @@ describe('IndexedDbTravelRepository', () => {
 
     expect(result.ok && result.value.travel.documents).toEqual([])
     expect(result.ok && result.value.travel.reservations).toEqual([])
+    expect(result.ok && result.value.travel.checklists).toEqual([])
     expect(result.ok && result.value.travel.days[0]?.documentIds).toEqual([])
     expect(result.ok && result.value.travel.days[0]?.steps[0]?.reservationIds).toEqual([])
   })
@@ -505,6 +533,127 @@ describe('IndexedDbTravelRepository', () => {
 
     expect(await personalStatesFor('travel-alpha')).toEqual([])
     expect(await personalStatesFor('travel-beta')).toHaveLength(1)
+  })
+
+  it('enregistre, relit puis décoche un élément de checklist', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('alpha'))
+
+    expect(await repository.setChecklistItemChecked(
+      'travel-alpha', 'checklist-departure', 'item-identification', true,
+    )).toEqual({ ok: true, value: undefined })
+    expect(await repository.getPersonalState('travel-alpha')).toEqual({
+      ok: true,
+      value: { checkedItemKeys: ['checklist-departure/item-identification'], note: '' },
+    })
+
+    await repository.setChecklistItemChecked(
+      'travel-alpha', 'checklist-departure', 'item-identification', false,
+    )
+    expect(await repository.getPersonalState('travel-alpha')).toEqual({
+      ok: true,
+      value: { checkedItemKeys: [], note: '' },
+    })
+  })
+
+  it('conserve une note et une case après fermeture et réouverture', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('alpha'))
+    await repository.setChecklistItemChecked('travel-alpha', 'checklist-departure', 'item-identification', true)
+    await repository.saveTravelNote('travel-alpha', '<strong>Texte brut</strong>')
+    repository.close()
+
+    const reopened = await openRepository()
+    expect(await reopened.getPersonalState('travel-alpha')).toEqual({
+      ok: true,
+      value: {
+        checkedItemKeys: ['checklist-departure/item-identification'],
+        note: '<strong>Texte brut</strong>',
+      },
+    })
+  })
+
+  it('isole les mêmes identifiants personnels entre deux voyages', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('alpha'))
+    await repository.importPackage(await validatedChecklistPackage('beta'))
+    await repository.setChecklistItemChecked('travel-alpha', 'checklist-departure', 'item-identification', true)
+    await repository.setChecklistItemChecked('travel-beta', 'checklist-departure', 'item-identification', false)
+    await repository.saveTravelNote('travel-alpha', 'Note alpha')
+    await repository.saveTravelNote('travel-beta', 'Note beta')
+
+    expect(await repository.getPersonalState('travel-alpha')).toMatchObject({
+      ok: true, value: { checkedItemKeys: ['checklist-departure/item-identification'], note: 'Note alpha' },
+    })
+    expect(await repository.getPersonalState('travel-beta')).toMatchObject({
+      ok: true, value: { checkedItemKeys: [], note: 'Note beta' },
+    })
+  })
+
+  it('supprime les états du seul voyage ciblé', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('alpha'))
+    await repository.importPackage(await validatedChecklistPackage('beta'))
+    await repository.saveTravelNote('travel-alpha', 'Note alpha')
+    await repository.saveTravelNote('travel-beta', 'Note beta')
+    await repository.setChecklistItemChecked('travel-alpha', 'checklist-departure', 'item-identification', true)
+    await repository.setChecklistItemChecked('travel-beta', 'checklist-departure', 'item-identification', true)
+
+    await repository.deleteTravel('travel-alpha')
+
+    expect(await personalStatesFor('travel-alpha')).toEqual([])
+    expect(await repository.getPersonalState('travel-beta')).toMatchObject({
+      ok: true, value: { checkedItemKeys: ['checklist-departure/item-identification'], note: 'Note beta' },
+    })
+  })
+
+  it('lit un ancien voyage sans état personnel', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('legacy'))
+    expect(await repository.getPersonalState('travel-legacy')).toEqual({
+      ok: true, value: { checkedItemKeys: [], note: '' },
+    })
+  })
+
+  it('présente les erreurs d’écriture et ne confirme pas une valeur non persistée', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('alpha'))
+    repository.close()
+    await expect(
+      repository.setChecklistItemChecked('travel-alpha', 'list', 'item', true),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'WRITE_FAILED' } })
+    await expect(
+      repository.saveTravelNote('travel-alpha', 'Note'),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'WRITE_FAILED' } })
+  })
+
+  it('refuse un état de checklist qui ne correspond pas au contenu importé', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('alpha'))
+    await expect(
+      repository.setChecklistItemChecked('travel-alpha', 'unknown', 'unknown', true),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'WRITE_FAILED' } })
+    expect(await repository.getPersonalState('travel-alpha')).toEqual({
+      ok: true, value: { checkedItemKeys: [], note: '' },
+    })
+  })
+
+  it('refuse à la lecture une référence personnelle inconnue du contenu', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('alpha'))
+    await seedPersonalState({
+      travelId: 'travel-alpha',
+      namespace: 'checklist',
+      key: 'checklist-unknown/item-unknown',
+      version: 1,
+      value: { checked: true },
+      updatedAt: '2026-07-14T12:00:00.000Z',
+    })
+
+    await expect(repository.getPersonalState('travel-alpha')).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'READ_FAILED', travelId: 'travel-alpha' },
+    })
   })
 
   it('signale un voyage introuvable avec son identifiant', async () => {

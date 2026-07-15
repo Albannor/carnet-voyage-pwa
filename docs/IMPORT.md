@@ -24,7 +24,7 @@ paquet-voyage.zip
 Les seules versions acceptées sont :
 
 - format du paquet : `1.0.0` ;
-- modèles de contenu de `voyage.json` : `1.0.0` et `1.1.0`.
+- modèles de contenu de `voyage.json` : `1.0.0`, `1.1.0` et `1.2.0`.
 
 Le schéma Draft 2020-12 du manifest se trouve dans [`contracts/package/1.0.0/schema.json`](../contracts/package/1.0.0/schema.json). Ce manifest technique ne configure pas l'installation de la PWA et ne remplace pas `public/manifest.webmanifest`.
 
@@ -45,7 +45,7 @@ L'import contrôle la cohérence du type, de l'extension, de la signature binair
 
 `guide-standalone.html` constitue la seule exception de structure. Il n'est pas déclaré comme ressource, n'est jamais analysé, renvoyé comme HTML, exécuté, injecté dans le DOM ou chargé dans une iframe. Sa présence est seulement signalée par un booléen technique.
 
-Le contrat `voyage.json` `1.0.0` ne porte aucune association métier vers les ressources. Le contrat `1.1.0` ajoute des documents dont le `resourceId` doit résoudre une ressource déclarée `application/pdf`, ainsi que des réservations et associations explicites par identifiant. Aucun rapprochement par chemin, libellé ou position n'est réalisé.
+Le contrat `voyage.json` `1.0.0` ne porte aucune association métier vers les ressources. Le contrat `1.1.0` ajoute des documents dont le `resourceId` doit résoudre une ressource déclarée `application/pdf`, ainsi que des réservations et associations explicites par identifiant. Le contrat `1.2.0` ajoute les définitions de checklists ; celles-ci ne référencent aucune ressource et leur état coché n’est pas importé. Aucun rapprochement par chemin, libellé ou position n'est réalisé.
 
 ## Limites de sécurité
 
@@ -91,7 +91,7 @@ Tout échec retourne uniquement un résultat `{ ok: false }`. Aucun champ `packa
 
 ## Normalisation et migrations
 
-`src/import/migrations/registry.ts` contient un registre explicite et sans effet de bord. Les entrées `1.0.0` et `1.1.0` utilisent chacune leur propre validateur de schéma et leur propre normaliseur vers le modèle interne courant. Le normaliseur `1.0.0` initialise documents, réservations et associations avec des collections vides.
+`src/import/migrations/registry.ts` contient un registre explicite et sans effet de bord. Les entrées `1.0.0`, `1.1.0` et `1.2.0` utilisent chacune leur propre validateur de schéma et leur propre normaliseur vers le modèle interne courant. Les normaliseurs 1.0.0 et 1.1.0 initialisent les checklists avec une collection vide ; le normaliseur 1.2.0 conserve leurs cibles et l’ordre de leurs éléments.
 
 Aucune ancienne version fictive n'a été inventée. Une version inconnue est refusée avant interprétation ; un normaliseur absent ou en échec produit respectivement `MIGRATION_UNAVAILABLE` ou `MIGRATION_FAILED`.
 

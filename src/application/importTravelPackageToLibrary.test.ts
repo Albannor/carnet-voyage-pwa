@@ -35,6 +35,9 @@ beforeEach(() => {
     listTravels: vi.fn(),
     getTravel: vi.fn(),
     getResource: vi.fn(),
+    getPersonalState: vi.fn(),
+    setChecklistItemChecked: vi.fn(),
+    saveTravelNote: vi.fn(),
     deleteTravel: vi.fn(),
     close: vi.fn(),
   }

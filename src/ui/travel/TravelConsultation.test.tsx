@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PersistedTravel } from '../../persistence/model'
 import { TravelConsultation, type TravelView } from './TravelConsultation'
@@ -19,6 +19,9 @@ function ConsultationHarness({
   online = true,
   onCopyAddress = vi.fn(),
   onOpenDocument = vi.fn(),
+  personalState = { checkedItemKeys: [], note: '' },
+  onSetChecklistItemChecked = vi.fn().mockResolvedValue({ ok: true }),
+  onSaveNote = vi.fn().mockResolvedValue({ ok: true }),
 }: {
   travel?: PersistedTravel
   initialView?: TravelView
@@ -27,6 +30,9 @@ function ConsultationHarness({
   online?: boolean
   onCopyAddress?: (address: string, label: string) => void
   onOpenDocument?: (document: typeof consultationTravel.documents[number]) => void
+  personalState?: { checkedItemKeys: readonly string[]; note: string }
+  onSetChecklistItemChecked?: (checklistId: string, itemId: string, checked: boolean) => Promise<{ ok: true } | { ok: false; message: string }>
+  onSaveNote?: (text: string) => Promise<{ ok: true } | { ok: false; message: string }>
 }) {
   const [view, setView] = useState<TravelView>(initialView)
   return (
@@ -39,6 +45,10 @@ function ConsultationHarness({
       onBackToLibrary={onBack}
       onCopyAddress={onCopyAddress}
       onOpenDocument={onOpenDocument}
+      personalState={personalState}
+      noteSaveDelayMs={10}
+      onSetChecklistItemChecked={onSetChecklistItemChecked}
+      onSaveNote={onSaveNote}
     />
   )
 }
@@ -327,5 +337,102 @@ describe('variantes contextuelles', () => {
 
     expect(screen.getByText(/Aucune variante n’est proposée/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pluie' })).not.toBeInTheDocument()
+  })
+})
+
+describe('checklists et notes locales', () => {
+  it('affiche chaque checklist uniquement dans sa portée', () => {
+    render(<ConsultationHarness />)
+    expect(screen.getByRole('group', { name: 'Avant le départ' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Pour l’arrivée' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Ouvrir la journée Arrivée au port/ }))
+    expect(screen.getByRole('group', { name: 'Pour l’arrivée' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Au marché' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Avant le départ' })).not.toBeInTheDocument()
+  })
+
+  it('n’affiche aucune section de checklist quand la collection est vide', () => {
+    render(<ConsultationHarness travel={persistedWith({ checklists: [] })} />)
+    expect(screen.queryByLabelText('Checklists associées')).not.toBeInTheDocument()
+  })
+
+  it('charge une case cochée et persiste un changement accessible', async () => {
+    const onSetChecklistItemChecked = vi.fn().mockResolvedValue({ ok: true })
+    render(<ConsultationHarness
+      personalState={{ checkedItemKeys: ['checklist-travel/item-passport'], note: '' }}
+      onSetChecklistItemChecked={onSetChecklistItemChecked}
+    />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Prendre les pièces d’identité' })
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    expect(checkbox).not.toBeChecked()
+    await screen.findByText('Enregistré localement')
+    expect(onSetChecklistItemChecked).toHaveBeenCalledWith(
+      'checklist-travel', 'item-passport', false,
+    )
+  })
+
+  it('rétablit la valeur précédente et annonce un échec', async () => {
+    const onSetChecklistItemChecked = vi.fn().mockResolvedValue({ ok: false, message: 'Échec' })
+    render(<ConsultationHarness onSetChecklistItemChecked={onSetChecklistItemChecked} />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Prendre les pièces d’identité' })
+    fireEvent.click(checkbox)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Échec de l’enregistrement')
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('charge et enregistre automatiquement la dernière note saisie', async () => {
+    vi.useFakeTimers()
+    const onSaveNote = vi.fn().mockResolvedValue({ ok: true })
+    render(<ConsultationHarness
+      personalState={{ checkedItemKeys: [], note: 'Note existante' }}
+      onSaveNote={onSaveNote}
+    />)
+    const textarea = screen.getByRole('textbox', { name: 'Note générale du voyage' })
+    expect(textarea).toHaveValue('Note existante')
+    fireEvent.change(textarea, { target: { value: '<b>Texte brut</b>' } })
+    fireEvent.change(textarea, { target: { value: '<b>Dernière valeur</b>' } })
+    await act(async () => vi.advanceTimersByTimeAsync(10))
+    expect(onSaveNote).toHaveBeenCalledTimes(1)
+    expect(onSaveNote).toHaveBeenCalledWith('<b>Dernière valeur</b>')
+    expect(screen.getByText('Enregistré localement')).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('annonce une erreur de note sans interpréter son contenu', async () => {
+    vi.useFakeTimers()
+    const onSaveNote = vi.fn().mockResolvedValue({ ok: false, message: 'Échec' })
+    render(<ConsultationHarness onSaveNote={onSaveNote} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note générale du voyage' }), {
+      target: { value: '<script>ne jamais exécuter</script>' },
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(10))
+    expect(screen.getByRole('alert')).toHaveTextContent('Échec de l’enregistrement')
+    expect(document.querySelector('script')).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('préserve la dernière note en attente lors de la sortie de consultation', () => {
+    vi.useFakeTimers()
+    const onSaveNote = vi.fn().mockResolvedValue({ ok: true })
+    const rendered = render(<ConsultationHarness onSaveNote={onSaveNote} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note générale du voyage' }), {
+      target: { value: 'Valeur avant sortie' },
+    })
+    rendered.unmount()
+    expect(onSaveNote).toHaveBeenCalledWith('Valeur avant sortie')
+    vi.useRealTimers()
+  })
+
+  it('préserve checklists, note, navigation, variantes et actions ensemble', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pluie' }))
+    expect(screen.getByText('Accueil couvert')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Vérifier l’heure d’arrivée' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Note générale du voyage' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Copier l’adresse de Marché central/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Aujourd’hui' }))
+    expect(screen.getByText('Vue active : Aujourd’hui')).toBeInTheDocument()
   })
 })

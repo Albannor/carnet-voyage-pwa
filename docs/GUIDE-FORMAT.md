@@ -102,8 +102,7 @@ Relèvent de l'état local de l'application :
 
 - le fait qu'une case soit cochée ;
 - le texte des notes personnelles ;
-- les préférences de consultation ;
-- la dernière journée ouverte.
+- les préférences de consultation éventuelles.
 
 Cette séparation évite qu'une réimportation remplace silencieusement les données personnelles. Les identifiants stables servent à réconcilier l'état lorsque le contenu évolue.
 
@@ -146,14 +145,16 @@ Les champs inconnus ne sont tolérés que si la version et le futur schéma les 
 
 Le contrat initial `1.0.0` reste pris en charge sans modification. Son schéma JSON Schema Draft 2020-12 se trouve dans [`contracts/voyage/1.0.0/schema.json`](../contracts/voyage/1.0.0/schema.json). Sa documentation détaillée figure dans le [`README` du contrat](../contracts/voyage/1.0.0/README.md).
 
-La version mineure `1.1.0`, documentée dans [`contracts/voyage/1.1.0/README.md`](../contracts/voyage/1.1.0/README.md), ajoute des documents PDF, des réservations et leurs associations explicites aux journées ou étapes. Ces collections restent optionnelles ; un voyage `1.0.0` est normalisé avec des collections vides. Checklists et notes restent absentes.
+La version mineure `1.1.0`, documentée dans [`contracts/voyage/1.1.0/README.md`](../contracts/voyage/1.1.0/README.md), ajoute des documents PDF, des réservations et leurs associations explicites aux journées ou étapes.
+
+La version mineure `1.2.0`, documentée dans [`contracts/voyage/1.2.0/README.md`](../contracts/voyage/1.2.0/README.md), ajoute des checklists optionnelles ciblant explicitement le voyage, une journée ou une étape. Elle limite le voyage à 100 checklists et chaque checklist à 100 éléments. Les identifiants de checklist sont uniques dans le voyage ; les identifiants d’élément sont uniques dans leur checklist. L’ordre du tableau définit l’ordre des éléments. Les notes et états cochés restent exclus de `voyage.json`.
 
 Le contrat externe décrit la forme acceptée à la frontière de l'application. Le modèle interne TypeScript, situé dans `src/domain/voyage/`, décrit les concepts utilisés par le domaine et leurs invariants sans dépendre de JSON Schema, de React ou du stockage. Une conversion explicite relie les deux ; leur ressemblance actuelle n'en fait pas une seule couche.
 
-Les deux contrats refusent toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
+Les trois contrats refusent toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
 
 ## Import implémenté
 
-La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte le paquet `1.0.0` et les contenus `voyage.json` `1.0.0` ou `1.1.0`.
+La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte le paquet `1.0.0` et les contenus `voyage.json` `1.0.0`, `1.1.0` ou `1.2.0`. La version déclarée dans le manifest doit être exactement celle du contenu.
 
 Après validation complète, l'étape 4 conserve le modèle normalisé et les ressources passives dans des espaces IndexedDB isolés par voyage. Le ZIP brut et `guide-standalone.html` ne sont pas stockés. Cette persistance est documentée dans [`docs/PERSISTENCE.md`](PERSISTENCE.md).

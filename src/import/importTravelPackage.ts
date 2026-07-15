@@ -272,7 +272,7 @@ export async function importTravelPackage(
         {
           file: 'manifest.json',
           field: '/travelModelVersion',
-          hint: 'Utilisez voyage.json 1.0.0 ou 1.1.0.',
+          hint: 'Utilisez voyage.json 1.0.0, 1.1.0 ou 1.2.0.',
         },
       ),
     ])

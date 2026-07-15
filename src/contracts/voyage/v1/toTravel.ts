@@ -98,5 +98,6 @@ export function toTravel(document: TravelDocumentV1): Travel {
     variants: document.variants.map(toVariant),
     documents: [],
     reservations: [],
+    checklists: [],
   }
 }

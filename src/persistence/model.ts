@@ -1,7 +1,14 @@
 import type { Travel } from '../domain/voyage/model'
 import type { AllowedResourceMediaType } from '../import/packageManifest'
 
-export const INTERNAL_TRAVEL_MODEL_VERSION = 2 as const
+export const INTERNAL_TRAVEL_MODEL_VERSION = 3 as const
+export const PERSONAL_STATE_RECORD_VERSION = 1 as const
+export const PERSONAL_STATE_NAMESPACES = Object.freeze({
+  checklist: 'checklist',
+  notes: 'notes',
+})
+export const GENERAL_NOTE_KEY = 'general'
+export const MAX_TRAVEL_NOTE_LENGTH = 10_000
 
 export interface TravelLibraryEntry {
   readonly travelId: string
@@ -38,14 +45,33 @@ export interface PersistedTravelResource {
   readonly bytes: Uint8Array
 }
 
-/**
- * Forme réservée au futur état personnel. Aucun cas d'usage de notes ou de
- * checklist n'est exposé à l'étape 4 ; seul l'espace isolé est créé.
- */
 export interface PersistedPersonalState {
   readonly travelId: string
   readonly namespace: string
   readonly key: string
   readonly value: unknown
   readonly updatedAt: string
+  readonly version?: number
+}
+
+export interface PersistedChecklistItemState extends PersistedPersonalState {
+  readonly namespace: typeof PERSONAL_STATE_NAMESPACES.checklist
+  readonly version: typeof PERSONAL_STATE_RECORD_VERSION
+  readonly value: { readonly checked: boolean }
+}
+
+export interface PersistedTravelNoteState extends PersistedPersonalState {
+  readonly namespace: typeof PERSONAL_STATE_NAMESPACES.notes
+  readonly key: typeof GENERAL_NOTE_KEY
+  readonly version: typeof PERSONAL_STATE_RECORD_VERSION
+  readonly value: { readonly text: string }
+}
+
+export interface TravelPersonalState {
+  readonly checkedItemKeys: readonly string[]
+  readonly note: string
+}
+
+export function checklistItemStateKey(checklistId: string, itemId: string) {
+  return `${checklistId}/${itemId}`
 }

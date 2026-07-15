@@ -12,6 +12,10 @@ import validTravel from '../../../examples/voyage/1.0.0/valid/madrid-weekend.jso
 import { validateTravelDocumentSchema } from '../../contracts/voyage/v1/schemaValidation'
 import { toTravel } from '../../contracts/voyage/v1/toTravel'
 import { validateTravel } from './validation'
+import validTravelV1_2 from '../../../examples/voyage/1.2.0/valid/coastal-checklists.json'
+import invalidChecklistCases from '../../../examples/voyage/1.2.0/invalid/checklist-cases.json'
+import { validateTravelDocumentSchemaV1_2 } from '../../contracts/voyage/v1_2/schemaValidation'
+import { toTravelV1_2 } from '../../contracts/voyage/v1_2/toTravel'
 
 function domainIssuesFor(input: unknown) {
   const contractResult = validateTravelDocumentSchema(input)
@@ -116,5 +120,79 @@ describe('invariants du modèle métier', () => {
       code: 'INVALID_TIME_ZONE',
       path: '/timeZone',
     })
+  })
+})
+
+describe('invariants des checklists', () => {
+  function travelV1_2() {
+    const result = validateTravelDocumentSchemaV1_2(structuredClone(validTravelV1_2))
+    if (!result.valid) throw new Error(JSON.stringify(result.issues))
+    return toTravelV1_2(result.document)
+  }
+
+  it('accepte les checklists valides et conserve leur ordre', () => {
+    const travel = travelV1_2()
+    expect(validateTravel(travel)).toEqual([])
+    expect(travel.checklists[0]?.items.map((item) => item.id)).toEqual([
+      'item-identification', 'item-charger',
+    ])
+  })
+
+  it('refuse les identifiants de checklist et d’élément dupliqués', () => {
+    const travel = travelV1_2()
+    const duplicateChecklist = {
+      ...travel.checklists[0]!,
+      id: invalidChecklistCases.duplicateChecklistId[1]!,
+      items: [
+        {
+          ...travel.checklists[0]!.items[0]!,
+          id: invalidChecklistCases.duplicateItemId[0]!,
+        },
+        {
+          ...travel.checklists[0]!.items[1]!,
+          id: invalidChecklistCases.duplicateItemId[1]!,
+        },
+      ],
+    }
+    const firstChecklist = {
+      ...travel.checklists[0]!,
+      id: invalidChecklistCases.duplicateChecklistId[0]!,
+      items: [{
+        ...travel.checklists[0]!.items[0]!,
+        id: invalidChecklistCases.duplicateItemId[0]!,
+      }],
+    }
+    const invalid = { ...travel, checklists: [firstChecklist, duplicateChecklist] }
+    expect(validateTravel(invalid)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'DUPLICATE_ID', path: '/checklists/1/id' }),
+      expect.objectContaining({ code: 'DUPLICATE_ID', path: '/checklists/1/items/1/id' }),
+    ]))
+  })
+
+  it('refuse les cibles de journée et d’étape inconnues', () => {
+    const travel = travelV1_2()
+    const invalid = {
+      ...travel,
+      checklists: [
+        {
+          ...travel.checklists[1]!,
+          target: {
+            type: 'day' as const,
+            dayId: invalidChecklistCases.unknownDayTarget.dayId,
+          },
+        },
+        {
+          ...travel.checklists[2]!,
+          target: {
+            type: 'step' as const,
+            stepId: invalidChecklistCases.unknownStepTarget.stepId,
+          },
+        },
+      ],
+    }
+    expect(validateTravel(invalid)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'UNKNOWN_CHECKLIST_TARGET', path: '/checklists/0/target/dayId' }),
+      expect.objectContaining({ code: 'UNKNOWN_CHECKLIST_TARGET', path: '/checklists/1/target/stepId' }),
+    ]))
   })
 })

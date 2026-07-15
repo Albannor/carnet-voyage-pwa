@@ -60,6 +60,8 @@ Depuis l’étape 5, la consultation relit toujours le modèle normalisé par l�
 
 Depuis l’étape 6, les contenus `voyage.json` `1.0.0` et `1.1.0` convergent vers la version 2 du modèle interne. Chaque version externe garde son schéma et son normaliseur. Les PDF sont résolus par `[travelId, resourceId]` dans le dépôt, tandis que les services externes passent par une politique HTTPS défensive. Le mode de variante est un état de vue en mémoire et ne modifie jamais le contenu importé.
 
+Depuis l’étape 7, `voyage.json` `1.2.0` ajoute les définitions de checklists et converge, avec les versions 1.0.0 et 1.1.0, vers la version 3 du modèle interne. Les versions antérieures reçoivent une collection de checklists vide. L’état coché et la note générale ne font jamais partie du modèle importé : l’application les charge et les écrit par l’interface du dépôt dans `personalStates`. Les composants React ne connaissent pas l’API IndexedDB.
+
 ## Stockage local
 
 IndexedDB est la source de vérité locale pour :
@@ -76,7 +78,7 @@ Les écritures importantes sont transactionnelles. La suppression d'un voyage ef
 
 La base IndexedDB initiale porte la version `1` et sépare quatre object stores : `travelMetadata`, `travelContents`, `travelResources` et `personalStates`. Les ressources et états personnels sont indexés par `travelId` ; leurs clés composites commencent par cet identifiant. La politique initiale refuse tout doublon au lieu d'écraser un voyage existant. Le détail des clés, transactions et erreurs figure dans `PERSISTENCE.md`.
 
-Le `localStorage` n'est pas la base métier. Il peut, si nécessaire, conserver des préférences simples et non sensibles de l'interface, sans devenir une dépendance du modèle de voyage.
+Le `localStorage` n'est pas utilisé pour les voyages, les notes ou les checklists. Les paramètres d’URL restent limités au contexte de navigation.
 
 ## Fonctionnement hors ligne
 
@@ -144,7 +146,7 @@ Les cas d'usage orchestrent import, liste, ouverture, suppression, sélection de
 
 ### Domaine
 
-Le domaine porte les entités normalisées, leurs identifiants, relations et invariants : voyage, journées, étapes, lieux, hébergements, variantes, liens, réservations et documents. Il ne dépend ni de React ni du stockage.
+Le domaine porte les entités normalisées, leurs identifiants, relations et invariants : voyage, journées, étapes, lieux, hébergements, variantes, liens, réservations, documents et définitions de checklists. Il ne dépend ni de React ni du stockage et ne représente aucun état personnel.
 
 ### Import, validation et migration
 

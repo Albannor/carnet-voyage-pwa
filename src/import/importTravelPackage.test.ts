@@ -6,8 +6,10 @@ import missingReferences from '../../examples/voyage/1.0.0/invalid/missing-refer
 import missingTitle from '../../examples/voyage/1.0.0/invalid/missing-required-title.json'
 import validTravel from '../../examples/voyage/1.0.0/valid/madrid-weekend.json'
 import validTravelV1_1 from '../../examples/voyage/1.1.0/valid/coastal-trip.json'
+import validTravelV1_2 from '../../examples/voyage/1.2.0/valid/coastal-checklists.json'
 import type { TravelDocumentV1 } from '../contracts/voyage/v1/document'
 import type { TravelDocumentV1_1 } from '../contracts/voyage/v1_1/document'
+import type { TravelDocumentV1_2 } from '../contracts/voyage/v1_2/document'
 import { IMPORT_LIMITS } from './limits'
 import { importTravelPackage } from './importTravelPackage'
 import { normalizeTravelDocument } from './migrations/registry'
@@ -108,6 +110,90 @@ describe('import sécurisé d’un paquet ZIP', () => {
       reservations: [{ id: 'reservation-ferry' }],
     })
     expect(result.package.resources[0]?.mediaType).toBe('application/pdf')
+  })
+
+  it('importe et normalise un voyage 1.2.0 avec ses checklists', async () => {
+    const pdfHash = await sha256Hex(TEST_PDF_BYTES)
+    const result = await importTravelPackage(selectedPackageFile(
+      await createPackageArchive({
+        travel: validTravelV1_2,
+        includeDefaultResource: false,
+        manifest: {
+          id: validTravelV1_2.id,
+          travelModelVersion: '1.2.0',
+          resources: [{
+            id: 'pdf-ferry-ticket',
+            path: 'documents/booking.pdf',
+            mediaType: 'application/pdf',
+            size: TEST_PDF_BYTES.length,
+            sha256: pdfHash,
+          }],
+        },
+        extraFiles: { 'documents/booking.pdf': TEST_PDF_BYTES },
+      }),
+    ))
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(JSON.stringify(result.errors))
+    expect(result.package.travel).toMatchObject({
+      contentVersion: '1.2.0',
+      checklists: [
+        { id: 'checklist-departure', target: { type: 'travel' } },
+        { id: 'checklist-arrival', target: { type: 'day', dayId: 'day-arrival' } },
+        { id: 'checklist-ferry', target: { type: 'step', stepId: 'step-ferry' } },
+      ],
+    })
+  })
+
+  it('conserve les versions 1.0.0 et 1.1.0 avec des checklists vides', async () => {
+    const importedV1 = await importTravelPackage(selectedPackageFile(await createPackageArchive()))
+    const pdfHash = await sha256Hex(TEST_PDF_BYTES)
+    const importedV1_1 = await importTravelPackage(selectedPackageFile(
+      await createPackageArchive({
+        travel: validTravelV1_1,
+        includeDefaultResource: false,
+        manifest: {
+          id: validTravelV1_1.id,
+          travelModelVersion: '1.1.0',
+          resources: [{ id: 'pdf-ferry-ticket', path: 'documents/booking.pdf', mediaType: 'application/pdf', size: TEST_PDF_BYTES.length, sha256: pdfHash }],
+        },
+        extraFiles: { 'documents/booking.pdf': TEST_PDF_BYTES },
+      }),
+    ))
+    expect(importedV1.ok && importedV1.package.travel.checklists).toEqual([])
+    expect(importedV1_1.ok && importedV1_1.package.travel.checklists).toEqual([])
+    expect(normalizeTravelDocument('1.1.0', validTravelV1_1 as TravelDocumentV1_1)).toMatchObject({
+      ok: true,
+      travel: { checklists: [] },
+    })
+  })
+
+  it('refuse une cible de checklist inconnue pendant l’import', async () => {
+    const travel = structuredClone(validTravelV1_2)
+    travel.checklists[1]!.target = { type: 'day', dayId: 'day-missing' }
+    await expectImportIssue(
+      await createPackageArchive({
+        travel,
+        includeDefaultResource: false,
+        manifest: {
+          id: travel.id,
+          travelModelVersion: '1.2.0',
+          resources: [{
+            id: 'pdf-ferry-ticket',
+            path: 'documents/booking.pdf',
+            mediaType: 'application/pdf',
+            size: TEST_PDF_BYTES.length,
+            sha256: await sha256Hex(TEST_PDF_BYTES),
+          }],
+        },
+        extraFiles: { 'documents/booking.pdf': TEST_PDF_BYTES },
+      }),
+      {
+        code: 'UNKNOWN_CHECKLIST_TARGET',
+        file: 'voyage.json',
+        field: '/checklists/1/target/dayId',
+      },
+    )
   })
 
   it('refuse une archive corrompue', async () => {
@@ -494,6 +580,20 @@ describe('import sécurisé d’un paquet ZIP', () => {
         documents: [{ id: 'document-ticket' }],
       },
     })
+  })
+
+  it('normalise explicitement la version externe 1.2.0', () => {
+    const result = normalizeTravelDocument(
+      '1.2.0',
+      validTravelV1_2 as TravelDocumentV1_2,
+    )
+    expect(result).toMatchObject({ ok: true })
+    if (!result.ok) throw new Error(result.issue.code)
+    expect(result.travel).toMatchObject({
+      id: 'coastal-checklists-2026',
+      contentVersion: '1.2.0',
+    })
+    expect(result.travel.checklists[0]).toMatchObject({ id: 'checklist-departure' })
   })
 
   it('signale une normalisation impossible sans interprétation approximative', () => {

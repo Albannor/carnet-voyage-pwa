@@ -4,9 +4,12 @@ import type {
   TravelLink,
   TravelStep,
 } from './model'
+import { CHECKLIST_LIMITS } from './checklistLimits'
 
 export type DomainIssueCode =
   | 'ACCOMMODATION_DATE_RANGE'
+  | 'CHECKLIST_LIMIT_EXCEEDED'
+  | 'CHECKLIST_TEXT_INVALID'
   | 'DAY_ORDER'
   | 'DAY_OUTSIDE_TRAVEL'
   | 'DUPLICATE_ID'
@@ -16,6 +19,7 @@ export type DomainIssueCode =
   | 'STEP_TIME_RANGE'
   | 'TRAVEL_DATE_RANGE'
   | 'UNKNOWN_ACCOMMODATION_REFERENCE'
+  | 'UNKNOWN_CHECKLIST_TARGET'
   | 'UNKNOWN_DOCUMENT_REFERENCE'
   | 'UNKNOWN_PLACE_REFERENCE'
   | 'UNKNOWN_RESERVATION_REFERENCE'
@@ -157,7 +161,61 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
     ...duplicateIdIssues(entityItems(travel.variants, '/variants')),
     ...duplicateIdIssues(entityItems(travel.documents, '/documents')),
     ...duplicateIdIssues(entityItems(travel.reservations, '/reservations')),
+    ...duplicateIdIssues(entityItems(travel.checklists, '/checklists')),
   )
+
+  if (travel.checklists.length > CHECKLIST_LIMITS.maxChecklists) {
+    issues.push(issue(
+      'CHECKLIST_LIMIT_EXCEEDED',
+      '/checklists',
+      `Un voyage ne peut pas contenir plus de ${CHECKLIST_LIMITS.maxChecklists} checklists.`,
+    ))
+  }
+
+  travel.checklists.forEach((checklist, checklistIndex) => {
+    const checklistPath = `/checklists/${checklistIndex}`
+    issues.push(...duplicateIdIssues(entityItems(checklist.items, `${checklistPath}/items`)))
+
+    if (checklist.items.length === 0 || checklist.items.length > CHECKLIST_LIMITS.maxItemsPerChecklist) {
+      issues.push(issue(
+        'CHECKLIST_LIMIT_EXCEEDED',
+        `${checklistPath}/items`,
+        `Une checklist doit contenir entre 1 et ${CHECKLIST_LIMITS.maxItemsPerChecklist} éléments.`,
+      ))
+    }
+
+    const texts = [
+      { value: checklist.title, path: `${checklistPath}/title`, max: CHECKLIST_LIMITS.maxTitleLength },
+      ...(checklist.description === undefined ? [] : [{ value: checklist.description, path: `${checklistPath}/description`, max: CHECKLIST_LIMITS.maxDescriptionLength }]),
+      ...checklist.items.flatMap((item, itemIndex) => [
+        { value: item.label, path: `${checklistPath}/items/${itemIndex}/label`, max: CHECKLIST_LIMITS.maxTitleLength },
+        ...(item.description === undefined ? [] : [{ value: item.description, path: `${checklistPath}/items/${itemIndex}/description`, max: CHECKLIST_LIMITS.maxDescriptionLength }]),
+      ]),
+    ]
+    texts.forEach(({ value, path, max }) => {
+      if (value.length === 0 || value.length > max) {
+        issues.push(issue(
+          'CHECKLIST_TEXT_INVALID',
+          path,
+          `Ce texte doit contenir entre 1 et ${max} caractères.`,
+        ))
+      }
+    })
+
+    const targetExists = checklist.target.type === 'travel'
+      ? true
+      : checklist.target.type === 'day'
+        ? dayIds.has(checklist.target.dayId)
+        : stepIds.has(checklist.target.stepId)
+    if (!targetExists) {
+      const targetPath = checklist.target.type === 'day' ? 'dayId' : 'stepId'
+      issues.push(issue(
+        'UNKNOWN_CHECKLIST_TARGET',
+        `${checklistPath}/target/${targetPath}`,
+        'La cible de cette checklist n’existe pas dans le voyage.',
+      ))
+    }
+  })
 
   const stepItems = travel.days.flatMap((day, dayIndex) =>
     day.steps.map((step, stepIndex) => ({

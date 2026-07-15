@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
   findAccommodationForDate,
   findPlace,
@@ -9,6 +9,7 @@ import {
 import type {
   Travel,
   TravelAccommodation,
+  TravelChecklist,
   TravelDay,
   TravelDocument,
   TravelLink,
@@ -17,7 +18,12 @@ import type {
   TravelStep,
   TravelVariantKind,
 } from '../../domain/voyage/model'
-import type { PersistedTravel } from '../../persistence/model'
+import {
+  MAX_TRAVEL_NOTE_LENGTH,
+  checklistItemStateKey,
+  type PersistedTravel,
+  type TravelPersonalState,
+} from '../../persistence/model'
 import { safeExternalHttpsUrl } from '../../services/travelActions'
 
 export type TravelView =
@@ -30,16 +36,28 @@ export interface ContextActionFeedback {
   readonly message: string
 }
 
+export type PersonalSaveResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string }
+
 interface TravelConsultationProps {
   persistedTravel: PersistedTravel
   view: TravelView
   clock: Clock
   online: boolean
   actionFeedback?: ContextActionFeedback
+  personalState: TravelPersonalState
+  noteSaveDelayMs?: number
   onNavigate(view: TravelView): void
   onBackToLibrary(): void
   onCopyAddress(address: string, placeLabel: string): void
   onOpenDocument(document: TravelDocument): void
+  onSetChecklistItemChecked(
+    checklistId: string,
+    itemId: string,
+    checked: boolean,
+  ): Promise<PersonalSaveResult>
+  onSaveNote(text: string): Promise<PersonalSaveResult>
 }
 
 const VARIANT_LABELS: Record<TravelVariantKind, string> = {
@@ -208,9 +226,146 @@ function DayNavigation({ travel, view, onNavigate }: { travel: Travel; view: Tra
 
 interface ActionProps { online: boolean; onCopyAddress(address: string, placeLabel: string): void; onOpenDocument(document: TravelDocument): void }
 
-function Overview({ travel, clock, onNavigate, ...actions }: { travel: Travel; clock: Clock; onNavigate(view: TravelView): void } & ActionProps) {
+interface PersonalStateProps {
+  checkedItemKeys: ReadonlySet<string>
+  checklistFeedback: Readonly<Record<string, 'saving' | 'saved' | 'error'>>
+  onToggleChecklistItem(checklistId: string, itemId: string, checked: boolean): void
+}
+
+function ChecklistCollection({
+  checklists,
+  checkedItemKeys,
+  checklistFeedback,
+  onToggleChecklistItem,
+}: {
+  checklists: readonly TravelChecklist[]
+} & PersonalStateProps) {
+  if (checklists.length === 0) return null
+  return (
+    <section className="checklists" aria-label="Checklists associées">
+      {checklists.map((checklist) => (
+        <fieldset className="checklist-card" key={checklist.id}>
+          <legend>{checklist.title}</legend>
+          {checklist.description && <p>{checklist.description}</p>}
+          <ul>
+            {checklist.items.map((item) => {
+              const key = checklistItemStateKey(checklist.id, item.id)
+              const feedback = checklistFeedback[key]
+              return (
+                <li key={item.id}>
+                  <label className="checklist-item">
+                    <input
+                      type="checkbox"
+                      checked={checkedItemKeys.has(key)}
+                      disabled={feedback === 'saving'}
+                      onChange={(event) => onToggleChecklistItem(
+                        checklist.id,
+                        item.id,
+                        event.currentTarget.checked,
+                      )}
+                    />
+                    <span><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span>
+                  </label>
+                  {feedback && (
+                    <span
+                      className={feedback === 'error' ? 'personal-feedback personal-error' : 'personal-feedback'}
+                      role={feedback === 'error' ? 'alert' : 'status'}
+                    >
+                      {feedback === 'saving' ? 'Enregistrement local…' : feedback === 'saved' ? 'Enregistré localement' : 'Échec de l’enregistrement. La valeur précédente est conservée.'}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </fieldset>
+      ))}
+    </section>
+  )
+}
+
+function NotesPanel({
+  initialNote,
+  saveDelayMs,
+  onSave,
+}: {
+  initialNote: string
+  saveDelayMs: number
+  onSave(text: string): Promise<PersonalSaveResult>
+}) {
+  const [note, setNote] = useState(initialNote)
+  const [status, setStatus] = useState<'idle' | 'editing' | 'saving' | 'saved' | 'error'>('idle')
+  const timer = useRef<number | undefined>(undefined)
+  const revision = useRef(0)
+  const requestedRevision = useRef(0)
+  const latestNote = useRef(initialNote)
+  const saveRef = useRef(onSave)
+
+  useEffect(() => {
+    saveRef.current = onSave
+  }, [onSave])
+
+  async function save(value: string, currentRevision: number) {
+    window.clearTimeout(timer.current)
+    setStatus('saving')
+    requestedRevision.current = Math.max(requestedRevision.current, currentRevision)
+    const result = await onSave(value)
+    if (revision.current !== currentRevision) return
+    setStatus(result.ok ? 'saved' : 'error')
+  }
+
+  function scheduleSave(event: ChangeEvent<HTMLTextAreaElement>) {
+    const value = event.currentTarget.value
+    const currentRevision = revision.current + 1
+    revision.current = currentRevision
+    latestNote.current = value
+    setNote(value)
+    setStatus('editing')
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      void save(value, currentRevision)
+    }, saveDelayMs)
+  }
+
+  useEffect(() => () => {
+    window.clearTimeout(timer.current)
+    if (revision.current > requestedRevision.current) {
+      void saveRef.current(latestNote.current)
+    }
+  }, [])
+
+  return (
+    <section className="personal-notes" aria-labelledby="personal-notes-title">
+      <p className="card-label">Données personnelles</p>
+      <h2 id="personal-notes-title">Notes personnelles</h2>
+      <label htmlFor="travel-personal-note">Note générale du voyage</label>
+      <textarea
+        id="travel-personal-note"
+        value={note}
+        maxLength={MAX_TRAVEL_NOTE_LENGTH}
+        rows={6}
+        onChange={scheduleSave}
+        onBlur={() => {
+          if (status === 'editing') void save(note, revision.current)
+        }}
+      />
+      <div className="note-meta">
+        <span>Texte brut · reste uniquement sur cet appareil.</span>
+        <span role={status === 'error' ? 'alert' : 'status'} aria-live="polite">
+          {status === 'editing' && 'Modification en cours…'}
+          {status === 'saving' && 'Enregistrement local…'}
+          {status === 'saved' && 'Enregistré localement'}
+          {status === 'error' && 'Échec de l’enregistrement. Votre texte reste affiché pour permettre une nouvelle tentative.'}
+        </span>
+      </div>
+    </section>
+  )
+}
+
+function Overview({ travel, clock, onNavigate, personalState, ...actions }: { travel: Travel; clock: Clock; onNavigate(view: TravelView): void; personalState: PersonalStateProps } & ActionProps) {
   const anchorDate = getOverviewAnchorDate(travel, clock); const anchor = findAccommodationForDate(travel, anchorDate)
-  return <div className="consultation-view" aria-labelledby="travel-summary-title"><p className="section-label">Synthèse opérationnelle</p><h2 id="travel-summary-title">{travel.title}</h2><p className="travel-context"><strong>{travel.destination.label}</strong><span>{dateRange(travel)}</span><span>Fuseau horaire : {travel.timeZone}</span></p><p className="travel-summary">{travel.summary}</p><div className="overview-actions"><button className="primary-button" type="button" onClick={() => onNavigate({ kind: 'today' })}>Ouvrir la vue Aujourd’hui</button></div><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={anchorDate} locale={travel.locale} travel={travel} {...actions} /><section className="days-overview" aria-labelledby="days-overview-title"><h3 id="days-overview-title">Journées du voyage</h3>{travel.days.length === 0 ? <p className="empty-state">Ce voyage ne contient aucune journée. Sa synthèse reste disponible.</p> : <ol>{travel.days.map((day) => <li key={day.id}><article><p className="day-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p><h4>{day.title}</h4>{day.summary && <p>{day.summary}</p>}<button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: day.id })}>Ouvrir la journée {day.title}</button></article></li>)}</ol>}</section></div>
+  const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'travel')
+  return <div className="consultation-view" aria-labelledby="travel-summary-title"><p className="section-label">Synthèse opérationnelle</p><h2 id="travel-summary-title">{travel.title}</h2><p className="travel-context"><strong>{travel.destination.label}</strong><span>{dateRange(travel)}</span><span>Fuseau horaire : {travel.timeZone}</span></p><p className="travel-summary">{travel.summary}</p><div className="overview-actions"><button className="primary-button" type="button" onClick={() => onNavigate({ kind: 'today' })}>Ouvrir la vue Aujourd’hui</button></div><ChecklistCollection checklists={checklists} {...personalState} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={anchorDate} locale={travel.locale} travel={travel} {...actions} /><section className="days-overview" aria-labelledby="days-overview-title"><h3 id="days-overview-title">Journées du voyage</h3>{travel.days.length === 0 ? <p className="empty-state">Ce voyage ne contient aucune journée. Sa synthèse reste disponible.</p> : <ol>{travel.days.map((day) => <li key={day.id}><article><p className="day-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p><h4>{day.title}</h4>{day.summary && <p>{day.summary}</p>}<button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: day.id })}>Ouvrir la journée {day.title}</button></article></li>)}</ol>}</section></div>
 }
 
 function variantsFor(travel: Travel, kind: TravelVariantKind, day: TravelDay, step?: TravelStep) {
@@ -230,11 +385,11 @@ function VariantNotices({ travel, day, step, kind }: { travel: Travel; day: Trav
   return <aside className="variant-notice" aria-label={`Adaptation ${VARIANT_LABELS[kind]}`}>{variants.map((variant) => <div key={variant.id}><strong>{variant.label}</strong><p>{variant.description}</p></div>)}</aside>
 }
 
-function Timeline({ travel, day, selectedVariant, ...actions }: { travel: Travel; day: TravelDay; selectedVariant: TravelVariantKind } & ActionProps) {
-  return <section className="timeline-section" aria-labelledby={`timeline-${day.id}`}><h3 id={`timeline-${day.id}`}>Déroulement chronologique</h3>{day.steps.length === 0 ? <p className="empty-state">Aucune étape n’est renseignée pour cette journée.</p> : <ol className="timeline">{day.steps.map((step, index) => { const place = findPlace(travel, step.placeId); return <li key={step.id}><article aria-labelledby={`step-${step.id}`}><div className="step-order" aria-hidden="true">{index + 1}</div><div className="step-content"><p className="step-time">{step.startsAt ? <><time dateTime={step.startsAt}>{step.startsAt}</time>{step.endsAt && <>{' '}– <time dateTime={step.endsAt}>{step.endsAt}</time></>}</> : 'Sans horaire indiqué'}</p><h4 id={`step-${step.id}`}>{step.title}</h4>{step.description && <p>{step.description}</p>}{place && <div className="step-place"><strong>Lieu : {place.label}</strong>{place.address && <address>{place.address}</address>}</div>}<VariantNotices travel={travel} day={day} step={step} kind={selectedVariant} /><ContextActions travel={travel} place={place} links={step.links} documentIds={step.documentIds} reservationIds={step.reservationIds} {...actions} /></div></article></li> })}</ol>}</section>
+function Timeline({ travel, day, selectedVariant, personalState, ...actions }: { travel: Travel; day: TravelDay; selectedVariant: TravelVariantKind; personalState: PersonalStateProps } & ActionProps) {
+  return <section className="timeline-section" aria-labelledby={`timeline-${day.id}`}><h3 id={`timeline-${day.id}`}>Déroulement chronologique</h3>{day.steps.length === 0 ? <p className="empty-state">Aucune étape n’est renseignée pour cette journée.</p> : <ol className="timeline">{day.steps.map((step, index) => { const place = findPlace(travel, step.placeId); const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'step' && checklist.target.stepId === step.id); return <li key={step.id}><article aria-labelledby={`step-${step.id}`}><div className="step-order" aria-hidden="true">{index + 1}</div><div className="step-content"><p className="step-time">{step.startsAt ? <><time dateTime={step.startsAt}>{step.startsAt}</time>{step.endsAt && <>{' '}– <time dateTime={step.endsAt}>{step.endsAt}</time></>}</> : 'Sans horaire indiqué'}</p><h4 id={`step-${step.id}`}>{step.title}</h4>{step.description && <p>{step.description}</p>}{place && <div className="step-place"><strong>Lieu : {place.label}</strong>{place.address && <address>{place.address}</address>}</div>}<ChecklistCollection checklists={checklists} {...personalState} /><VariantNotices travel={travel} day={day} step={step} kind={selectedVariant} /><ContextActions travel={travel} place={place} links={step.links} documentIds={step.documentIds} reservationIds={step.reservationIds} {...actions} /></div></article></li> })}</ol>}</section>
 }
 
-function DayDetail({ travel, day, selectedVariant, headingPrefix, onNavigate, ...actions }: { travel: Travel; day: TravelDay; selectedVariant: TravelVariantKind; headingPrefix?: ReactNode; onNavigate(view: TravelView): void } & ActionProps) {
+function DayDetail({ travel, day, selectedVariant, headingPrefix, onNavigate, personalState, ...actions }: { travel: Travel; day: TravelDay; selectedVariant: TravelVariantKind; headingPrefix?: ReactNode; onNavigate(view: TravelView): void; personalState: PersonalStateProps } & ActionProps) {
   const dayIndex = travel.days.findIndex((candidate) => candidate.id === day.id); const previous = dayIndex > 0 ? travel.days[dayIndex - 1] : undefined; const next = dayIndex < travel.days.length - 1 ? travel.days[dayIndex + 1] : undefined; const anchor = findAccommodationForDate(travel, day.date)
   const relevantVariants = selectedVariant === 'standard' ? [] : travel.variants.filter((variant) => {
     if (variant.kind !== selectedVariant) return false
@@ -242,19 +397,22 @@ function DayDetail({ travel, day, selectedVariant, headingPrefix, onNavigate, ..
     const targetStepId = variant.target.stepId
     return day.steps.some((step) => step.id === targetStepId)
   })
-  return <div className="consultation-view" aria-labelledby="day-title"><p className="section-label">{headingPrefix ?? 'Programme de la journée'}</p><h2 id="day-title">{day.title}</h2><p className="day-heading-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p>{day.summary && <p className="travel-summary">{day.summary}</p>}<VariantNotices travel={travel} day={day} kind={selectedVariant} />{selectedVariant !== 'standard' && relevantVariants.length === 0 && <p className="variant-empty" role="status">Aucune adaptation « {VARIANT_LABELS[selectedVariant]} » n’est prévue pour cette journée. Le programme standard reste affiché.</p>}<ContextActions travel={travel} documentIds={day.documentIds} reservationIds={day.reservationIds} {...actions} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={day.date} locale={travel.locale} travel={travel} {...actions} /><Timeline travel={travel} day={day} selectedVariant={selectedVariant} {...actions} /><nav className="adjacent-days" aria-label="Journées précédente et suivante">{previous ? <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: previous.id })}>Journée précédente : {previous.title}</button> : <span />}{next && <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: next.id })}>Journée suivante : {next.title}</button>}</nav></div>
+  const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'day' && checklist.target.dayId === day.id)
+  return <div className="consultation-view" aria-labelledby="day-title"><p className="section-label">{headingPrefix ?? 'Programme de la journée'}</p><h2 id="day-title">{day.title}</h2><p className="day-heading-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p>{day.summary && <p className="travel-summary">{day.summary}</p>}<ChecklistCollection checklists={checklists} {...personalState} /><VariantNotices travel={travel} day={day} kind={selectedVariant} />{selectedVariant !== 'standard' && relevantVariants.length === 0 && <p className="variant-empty" role="status">Aucune adaptation « {VARIANT_LABELS[selectedVariant]} » n’est prévue pour cette journée. Le programme standard reste affiché.</p>}<ContextActions travel={travel} documentIds={day.documentIds} reservationIds={day.reservationIds} {...actions} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={day.date} locale={travel.locale} travel={travel} {...actions} /><Timeline travel={travel} day={day} selectedVariant={selectedVariant} personalState={personalState} {...actions} /><nav className="adjacent-days" aria-label="Journées précédente et suivante">{previous ? <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: previous.id })}>Journée précédente : {previous.title}</button> : <span />}{next && <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: next.id })}>Journée suivante : {next.title}</button>}</nav></div>
 }
 
-function TodayView({ travel, clock, selectedVariant, onNavigate, ...actions }: { travel: Travel; clock: Clock; selectedVariant: TravelVariantKind; onNavigate(view: TravelView): void } & ActionProps) {
+function TodayView({ travel, clock, selectedVariant, onNavigate, personalState, ...actions }: { travel: Travel; clock: Clock; selectedVariant: TravelVariantKind; onNavigate(view: TravelView): void; personalState: PersonalStateProps } & ActionProps) {
   const today = getTodayState(travel, clock)
-  if (today.status === 'day') return <DayDetail travel={travel} day={today.day} selectedVariant={selectedVariant} headingPrefix="Aujourd’hui" onNavigate={onNavigate} {...actions} />
+  if (today.status === 'day') return <DayDetail travel={travel} day={today.day} selectedVariant={selectedVariant} headingPrefix="Aujourd’hui" onNavigate={onNavigate} personalState={personalState} {...actions} />
   const message = today.status === 'before' ? `Ce voyage n’a pas encore commencé. Il débute le ${formatDate(travel.period.start, travel.locale)}.` : today.status === 'after' ? `Ce voyage est terminé depuis le ${formatDate(travel.period.end, travel.locale)}.` : `Aucune journée n’est prévue pour le ${formatDate(today.date, travel.locale)}, bien que cette date soit comprise dans le séjour.`
   return <div className="consultation-view" aria-labelledby="today-title"><p className="section-label">Repère temporel</p><h2 id="today-title">Aujourd’hui</h2><p className="today-date">Date locale du voyage : <time dateTime={today.date}>{formatDate(today.date, travel.locale)}</time></p><p className="empty-state" role="status">{message}</p><p className="today-help">Toutes les journées du voyage restent accessibles ci-dessus.</p></div>
 }
 
 function viewLabel(view: TravelView, travel: Travel) { if (view.kind === 'summary') return 'Synthèse du voyage'; if (view.kind === 'today') return 'Aujourd’hui'; return travel.days.find((day) => day.id === view.dayId)?.title ?? 'Synthèse du voyage' }
 
-export function TravelConsultation({ persistedTravel, view, clock, online, actionFeedback, onNavigate, onBackToLibrary, onCopyAddress, onOpenDocument }: TravelConsultationProps) {
-  const { travel } = persistedTravel; const [selectedVariant, setSelectedVariant] = useState<TravelVariantKind>('standard'); const selectedDay = view.kind === 'day' ? travel.days.find((day) => day.id === view.dayId) : undefined; const safeView = view.kind === 'day' && !selectedDay ? { kind: 'summary' } as const : view; const actions = { online, onCopyAddress, onOpenDocument }
-  return <section className="foundation travel-workspace" aria-label={`Voyage ${travel.title}`}><div className="travel-toolbar"><button className="secondary-button" type="button" onClick={onBackToLibrary}>Retour à la bibliothèque</button><nav aria-label="Vues du voyage"><button className="secondary-button" type="button" aria-current={safeView.kind === 'summary' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'summary' })}>Synthèse</button><button className="secondary-button" type="button" aria-current={safeView.kind === 'today' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'today' })}>Aujourd’hui</button></nav></div><p className="active-view" role="status" aria-live="polite">Vue active : {viewLabel(safeView, travel)}</p>{actionFeedback && <p className={`action-message ${actionFeedback.status === 'error' ? 'action-error' : 'action-success'}`} role={actionFeedback.status === 'error' ? 'alert' : 'status'}>{actionFeedback.message}</p>}<VariantSelector travel={travel} selected={selectedVariant} onSelect={setSelectedVariant} /><DayNavigation travel={travel} view={safeView} onNavigate={onNavigate} />{safeView.kind === 'summary' && <Overview travel={travel} clock={clock} onNavigate={onNavigate} {...actions} />}{safeView.kind === 'today' && <TodayView travel={travel} clock={clock} selectedVariant={selectedVariant} onNavigate={onNavigate} {...actions} />}{safeView.kind === 'day' && selectedDay && <DayDetail travel={travel} day={selectedDay} selectedVariant={selectedVariant} onNavigate={onNavigate} {...actions} />}</section>
+export function TravelConsultation({ persistedTravel, view, clock, online, actionFeedback, personalState, noteSaveDelayMs = 500, onNavigate, onBackToLibrary, onCopyAddress, onOpenDocument, onSetChecklistItemChecked, onSaveNote }: TravelConsultationProps) {
+  const { travel } = persistedTravel; const [selectedVariant, setSelectedVariant] = useState<TravelVariantKind>('standard'); const [checkedItemKeys, setCheckedItemKeys] = useState(() => new Set(personalState.checkedItemKeys)); const [checklistFeedback, setChecklistFeedback] = useState<Record<string, 'saving' | 'saved' | 'error'>>({}); const selectedDay = view.kind === 'day' ? travel.days.find((day) => day.id === view.dayId) : undefined; const safeView = view.kind === 'day' && !selectedDay ? { kind: 'summary' } as const : view; const actions = { online, onCopyAddress, onOpenDocument }
+  async function toggleChecklistItem(checklistId: string, itemId: string, checked: boolean) { const key = checklistItemStateKey(checklistId, itemId); const previous = checkedItemKeys.has(key); setCheckedItemKeys((current) => { const next = new Set(current); if (checked) next.add(key); else next.delete(key); return next }); setChecklistFeedback((current) => ({ ...current, [key]: 'saving' })); const result = await onSetChecklistItemChecked(checklistId, itemId, checked); if (!result.ok) { setCheckedItemKeys((current) => { const next = new Set(current); if (previous) next.add(key); else next.delete(key); return next }) } setChecklistFeedback((current) => ({ ...current, [key]: result.ok ? 'saved' : 'error' })) }
+  const checklistState = { checkedItemKeys, checklistFeedback, onToggleChecklistItem: (checklistId: string, itemId: string, checked: boolean) => void toggleChecklistItem(checklistId, itemId, checked) }
+  return <section className="foundation travel-workspace" aria-label={`Voyage ${travel.title}`}><div className="travel-toolbar"><button className="secondary-button" type="button" onClick={onBackToLibrary}>Retour à la bibliothèque</button><nav aria-label="Vues du voyage"><button className="secondary-button" type="button" aria-current={safeView.kind === 'summary' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'summary' })}>Synthèse</button><button className="secondary-button" type="button" aria-current={safeView.kind === 'today' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'today' })}>Aujourd’hui</button></nav></div><p className="active-view" role="status" aria-live="polite">Vue active : {viewLabel(safeView, travel)}</p>{actionFeedback && <p className={`action-message ${actionFeedback.status === 'error' ? 'action-error' : 'action-success'}`} role={actionFeedback.status === 'error' ? 'alert' : 'status'}>{actionFeedback.message}</p>}<VariantSelector travel={travel} selected={selectedVariant} onSelect={setSelectedVariant} /><DayNavigation travel={travel} view={safeView} onNavigate={onNavigate} />{safeView.kind === 'summary' && <Overview travel={travel} clock={clock} onNavigate={onNavigate} personalState={checklistState} {...actions} />}{safeView.kind === 'today' && <TodayView travel={travel} clock={clock} selectedVariant={selectedVariant} onNavigate={onNavigate} personalState={checklistState} {...actions} />}{safeView.kind === 'day' && selectedDay && <DayDetail travel={travel} day={selectedDay} selectedVariant={selectedVariant} onNavigate={onNavigate} personalState={checklistState} {...actions} />}<NotesPanel initialNote={personalState.note} saveDelayMs={noteSaveDelayMs} onSave={onSaveNote} /></section>
 }

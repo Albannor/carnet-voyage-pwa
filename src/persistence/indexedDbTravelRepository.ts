@@ -1,10 +1,18 @@
 import type { ValidatedTravelPackage } from '../import/importTravelPackage'
 import {
   INTERNAL_TRAVEL_MODEL_VERSION,
+  GENERAL_NOTE_KEY,
+  MAX_TRAVEL_NOTE_LENGTH,
+  PERSONAL_STATE_NAMESPACES,
+  PERSONAL_STATE_RECORD_VERSION,
+  checklistItemStateKey,
+  type PersistedChecklistItemState,
   type PersistedPersonalState,
   type PersistedTravel,
   type PersistedTravelContent,
   type PersistedTravelResource,
+  type PersistedTravelNoteState,
+  type TravelPersonalState,
   type TravelLibraryEntry,
 } from './model'
 import {
@@ -54,6 +62,7 @@ function normalizeStoredTravel(content: PersistedTravelContent) {
     ...travel,
     documents: travel.documents ?? [],
     reservations: travel.reservations ?? [],
+    checklists: travel.checklists ?? [],
     days: travel.days.map((day) => ({
       ...day,
       documentIds: day.documentIds ?? [],
@@ -285,6 +294,39 @@ function readFailure(travelId?: string): PersistenceIssue {
   )
 }
 
+function personalWriteFailure(travelId: string): PersistenceIssue {
+  return persistenceIssue(
+    'WRITE_FAILED',
+    "L’état personnel n’a pas pu être enregistré localement.",
+    { travelId, hint: 'La valeur précédente reste conservée. Réessayez.' },
+  )
+}
+
+const CHECKLIST_ITEM_STATE_KEY_PATTERN =
+  /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
+
+function isChecklistState(state: PersistedPersonalState): state is PersistedChecklistItemState {
+  return state.namespace === PERSONAL_STATE_NAMESPACES.checklist
+    && state.version === PERSONAL_STATE_RECORD_VERSION
+    && typeof state.key === 'string'
+    && CHECKLIST_ITEM_STATE_KEY_PATTERN.test(state.key)
+    && typeof state.value === 'object'
+    && state.value !== null
+    && typeof (state.value as Record<string, unknown>).checked === 'boolean'
+    && Object.keys(state.value as object).length === 1
+}
+
+function isNoteState(state: PersistedPersonalState): state is PersistedTravelNoteState {
+  return state.namespace === PERSONAL_STATE_NAMESPACES.notes
+    && state.key === GENERAL_NOTE_KEY
+    && state.version === PERSONAL_STATE_RECORD_VERSION
+    && typeof state.value === 'object'
+    && state.value !== null
+    && typeof (state.value as Record<string, unknown>).text === 'string'
+    && ((state.value as Record<string, unknown>).text as string).length <= MAX_TRAVEL_NOTE_LENGTH
+    && Object.keys(state.value as object).length === 1
+}
+
 class IndexedDbTravelRepository implements TravelLibraryRepository {
   constructor(
     private readonly database: IDBDatabase,
@@ -452,6 +494,152 @@ class IndexedDbTravelRepository implements TravelLibraryRepository {
           )
     } catch {
       return failure(readFailure(travelId))
+    }
+  }
+
+  async getPersonalState(
+    travelId: string,
+  ): Promise<PersistenceResult<TravelPersonalState>> {
+    try {
+      const transaction = this.database.transaction(
+        [
+          TRAVEL_STORES.metadata,
+          TRAVEL_STORES.contents,
+          TRAVEL_STORES.personalStates,
+        ],
+        'readonly',
+      )
+      const completion = transactionCompletion(transaction)
+      const metadata = await requestResult<TravelLibraryEntry | undefined>(
+        transaction.objectStore(TRAVEL_STORES.metadata).get(travelId),
+      )
+      const records = await requestResult<PersistedPersonalState[]>(
+        transaction.objectStore(TRAVEL_STORES.personalStates)
+          .index(TRAVEL_INDEXES.personalStatesByTravel)
+          .getAll(travelId),
+      )
+      const content = await requestResult<PersistedTravelContent | undefined>(
+        transaction.objectStore(TRAVEL_STORES.contents).get(travelId),
+      )
+      await completion
+      if (!metadata && !content) {
+        return failure(persistenceIssue(
+          'TRAVEL_NOT_FOUND',
+          "Ce voyage n'existe pas dans la bibliothèque locale.",
+          { travelId, hint: 'Actualisez la bibliothèque puis réessayez.' },
+        ))
+      }
+      if (!metadata || !content) return failure(readFailure(travelId))
+
+      const travel = normalizeStoredTravel(content)
+      if (!travel) return failure(readFailure(travelId))
+
+      const knownRecords = records.filter((record) =>
+        record.namespace === PERSONAL_STATE_NAMESPACES.checklist
+        || record.namespace === PERSONAL_STATE_NAMESPACES.notes)
+      if (knownRecords.some((record) => !isChecklistState(record) && !isNoteState(record))) {
+        return failure(readFailure(travelId))
+      }
+      const validChecklistKeys = new Set(
+        travel.checklists.flatMap((checklist) => checklist.items.map((item) =>
+          checklistItemStateKey(checklist.id, item.id),
+        )),
+      )
+      if (knownRecords.filter(isChecklistState).some(
+        (record) => !validChecklistKeys.has(record.key),
+      )) {
+        return failure(readFailure(travelId))
+      }
+      const checkedItemKeys = knownRecords
+        .filter(isChecklistState)
+        .filter((record) => record.value.checked)
+        .map((record) => record.key)
+        .sort()
+      const note = knownRecords.find(isNoteState)?.value.text ?? ''
+      return success({ checkedItemKeys, note })
+    } catch {
+      return failure(readFailure(travelId))
+    }
+  }
+
+  async setChecklistItemChecked(
+    travelId: string,
+    checklistId: string,
+    itemId: string,
+    checked: boolean,
+  ): Promise<PersistenceResult<void>> {
+    const storedTravel = await this.getTravel(travelId)
+    if (!storedTravel.ok) {
+      return storedTravel.error.code === 'TRAVEL_NOT_FOUND'
+        ? storedTravel
+        : failure(personalWriteFailure(travelId))
+    }
+    const checklist = storedTravel.value.travel.checklists.find(
+      (candidate) => candidate.id === checklistId,
+    )
+    if (!checklist?.items.some((item) => item.id === itemId)) {
+      return failure(personalWriteFailure(travelId))
+    }
+    const record: PersistedChecklistItemState = {
+      travelId,
+      namespace: PERSONAL_STATE_NAMESPACES.checklist,
+      key: checklistItemStateKey(checklistId, itemId),
+      version: PERSONAL_STATE_RECORD_VERSION,
+      value: { checked },
+      updatedAt: this.now().toISOString(),
+    }
+    return this.writePersonalState(record)
+  }
+
+  async saveTravelNote(
+    travelId: string,
+    text: string,
+  ): Promise<PersistenceResult<void>> {
+    if (text.length > MAX_TRAVEL_NOTE_LENGTH) return failure(personalWriteFailure(travelId))
+    const record: PersistedTravelNoteState = {
+      travelId,
+      namespace: PERSONAL_STATE_NAMESPACES.notes,
+      key: GENERAL_NOTE_KEY,
+      version: PERSONAL_STATE_RECORD_VERSION,
+      value: { text },
+      updatedAt: this.now().toISOString(),
+    }
+    return this.writePersonalState(record)
+  }
+
+  private async writePersonalState(
+    state: PersistedChecklistItemState | PersistedTravelNoteState,
+  ): Promise<PersistenceResult<void>> {
+    let transaction: IDBTransaction
+    try {
+      transaction = this.database.transaction(
+        [TRAVEL_STORES.metadata, TRAVEL_STORES.personalStates],
+        'readwrite',
+      )
+    } catch {
+      return failure(personalWriteFailure(state.travelId))
+    }
+    const completion = transactionCompletion(transaction)
+    try {
+      const metadata = await requestResult<TravelLibraryEntry | undefined>(
+        transaction.objectStore(TRAVEL_STORES.metadata).get(state.travelId),
+      )
+      if (!metadata) {
+        await abortAndWait(transaction, completion)
+        return failure(persistenceIssue(
+          'TRAVEL_NOT_FOUND',
+          "Ce voyage n'existe pas dans la bibliothèque locale.",
+          { travelId: state.travelId, hint: 'Actualisez la bibliothèque puis réessayez.' },
+        ))
+      }
+      await requestResult(
+        transaction.objectStore(TRAVEL_STORES.personalStates).put(state),
+      )
+      await completion
+      return success(undefined)
+    } catch {
+      await abortAndWait(transaction, completion)
+      return failure(personalWriteFailure(state.travelId))
     }
   }
 

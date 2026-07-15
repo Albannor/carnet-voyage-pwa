@@ -2,7 +2,7 @@
 
 ## Statut
 
-L'étape 4 utilise IndexedDB comme source de vérité locale. La base enregistre uniquement un paquet ayant réussi toute la chaîne d'import de l'étape 3. Le ZIP brut et `guide-standalone.html` ne sont jamais conservés.
+IndexedDB reste la source de vérité locale. La base enregistre uniquement un paquet ayant réussi toute la chaîne d'import et, depuis l’étape 7, les états personnels créés après import. Le ZIP brut et `guide-standalone.html` ne sont jamais conservés.
 
 La couche se trouve dans `src/persistence/`. Elle utilise directement l'API IndexedDB du navigateur, reste indépendante de React et expose l'interface `TravelLibraryRepository`. L'orchestration `src/application/importTravelPackageToLibrary.ts` relie l'import validé au dépôt sans contourner la frontière de confiance.
 
@@ -10,7 +10,7 @@ La couche se trouve dans `src/persistence/`. Elle utilise directement l'API Inde
 
 - nom par défaut : `carnet-voyage` ;
 - version IndexedDB : `1` ;
-- version du modèle interne normalisé : `2`.
+- version du modèle interne normalisé : `3`.
 
 La version IndexedDB évolue séparément des versions externes `manifest.json` et `voyage.json`. La création de la version 1 n'efface aucune base existante. Une base portant une version future est refusée avec `DATABASE_VERSION_INCOMPATIBLE` ; une évolution ultérieure devra ajouter une migration ordonnée au lieu de supprimer silencieusement les données.
 
@@ -21,9 +21,22 @@ La version IndexedDB évolue séparément des versions externes `manifest.json` 
 | `travelMetadata` | `travelId` | Liste légère : paquet, titre, destination, dates, versions source, date d'import et versions internes. |
 | `travelContents` | `travelId` | Modèle métier normalisé complet, indépendant du contrat JSON externe. |
 | `travelResources` | `[travelId, resourceId]` | Ressources passives validées avec chemin, type MIME, taille, SHA-256 et octets. |
-| `personalStates` | `[travelId, namespace, key]` | Espace réservé aux futurs états personnels, sans fonctionnalité de note ou de checklist à cette étape. |
+| `personalStates` | `[travelId, namespace, key]` | États personnels versionnés : cases cochées et note générale. |
 
-`travelResources` possède les index `byTravelId` et `byTravelAndPath`. `personalStates` possède l'index `byTravelId`. Le préfixe `travelId` dans les clés et index empêche une lecture ou une suppression de ressource sans préciser son voyage.
+`travelResources` possède les index `byTravelId` et `byTravelAndPath`. `personalStates` possède l'index `byTravelId`. Le préfixe `travelId` dans les clés et index empêche une lecture ou une suppression de ressource ou d’état sans préciser son voyage.
+
+## États personnels
+
+Les enregistrements portent `version: 1`, une date `updatedAt` et l’un des namespaces suivants :
+
+| Namespace | Clé | Valeur |
+| --- | --- | --- |
+| `checklist` | `checklistId/itemId` | `{ checked: boolean }` |
+| `notes` | `general` | `{ text: string }` |
+
+Les identifiants du contrat n’autorisent pas `/`, ce qui rend la clé de checklist non ambiguë. Avant l’écriture, le dépôt vérifie que la checklist et son élément existent dans le contenu importé du voyage. La note générale est limitée à 10 000 caractères et reste du texte brut.
+
+Le dépôt expose des opérations étroites pour charger l’état personnel complet, cocher ou décocher un élément et enregistrer la note. React n’accède jamais directement à IndexedDB. Une réussite n’est retournée qu’après l’événement `complete` de la transaction ; une erreur conserve la valeur précédemment persistée.
 
 ## Transaction d'import
 
@@ -44,24 +57,24 @@ Une erreur d'écriture ou une annulation provoque un rollback complet. L'interfa
 
 `travelMetadata` utilise `travelId` comme clé unique et l'import emploie `add`, jamais un écrasement automatique. Un identifiant existant produit `TRAVEL_ALREADY_EXISTS`. L'utilisateur doit supprimer explicitement le voyage existant avant un nouvel import.
 
-Cette politique évite une mise à jour implicite et prépare la protection des futurs états personnels. Aucune fusion ou réimportation avec conservation sélective n'est implémentée.
+Cette politique évite une mise à jour implicite et protège les états personnels. Aucune fusion ou réimportation avec conservation sélective n'est implémentée ; un doublon ne peut donc pas écraser silencieusement une note ou une case.
 
 ## Lecture et isolation
 
 La liste charge seulement `travelMetadata`. L'ouverture récupère les métadonnées et le contenu correspondant au même `travelId`. Une ressource se récupère obligatoirement avec la clé composite `[travelId, resourceId]`, ce qui permet à deux voyages de posséder le même identifiant de ressource sans collision.
 
-L'interface de consultation relit le voyage normalisé et récupère chaque PDF avec la clé composite du voyage courant. Les anciens contenus internes sans collections documentaires sont adaptés en mémoire vers la version 2, sans modifier la version 1 de la structure IndexedDB.
+L'interface de consultation relit le voyage normalisé et récupère chaque PDF avec la clé composite du voyage courant. Les anciens contenus internes sans collections documentaires ou checklists sont adaptés en mémoire vers la version 3, sans modifier la version 1 de la structure IndexedDB. Un ancien voyage sans état personnel retourne une note vide et aucune case cochée.
 
 ## Suppression
 
 La suppression est précédée d'une confirmation qui nomme le voyage. Une transaction unique couvre les quatre object stores :
 
 - les ressources sont sélectionnées par l'index `byTravelId` ;
-- les futurs états personnels sont sélectionnés par leur propre index `byTravelId` ;
+- les notes et états de checklist sont sélectionnés par leur propre index `byTravelId` ;
 - le contenu et les métadonnées sont supprimés par `travelId` ;
 - la réussite n'est annoncée qu'après `complete`.
 
-Une suppression ne touche donc ni les ressources ni les états d'un autre voyage. Une erreur annule toute la transaction.
+La confirmation indique explicitement que notes et cases cochées seront supprimées. Une suppression ne touche donc ni les ressources ni les états d'un autre voyage. Une erreur annule toute la transaction.
 
 ## Erreurs présentables
 
@@ -101,6 +114,8 @@ npm run build
 ## Limites volontaires
 
 - les actions contextuelles consultent les ressources existantes mais ne créent ni galerie ni lecteur PDF intégré ;
-- aucune note ni checklist avant l'étape 7 ; seul leur object store séparé est réservé ;
+- une seule note générale en texte brut par voyage ; aucune note multiple, riche, partagée ou avec pièce jointe ;
+- aucune fusion ni mise à jour automatique d’un voyage existant ;
+- l’enregistrement automatique de la note est temporisé dans l’interface et les cases sont écrites individuellement ;
 - aucun service worker ni installation hors ligne complète avant l'étape 8 ;
 - aucune migration de structure IndexedDB, mise à jour ou fusion de voyage, puisqu'une seule version de base existe ;

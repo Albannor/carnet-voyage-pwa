@@ -77,6 +77,25 @@ export interface TravelReservation {
   documentIds: readonly EntityId[]
 }
 
+export type TravelChecklistTarget =
+  | { readonly type: 'travel' }
+  | { readonly type: 'day'; readonly dayId: EntityId }
+  | { readonly type: 'step'; readonly stepId: EntityId }
+
+export interface TravelChecklistItem {
+  readonly id: EntityId
+  readonly label: string
+  readonly description?: string
+}
+
+export interface TravelChecklist {
+  readonly id: EntityId
+  readonly title: string
+  readonly description?: string
+  readonly target: TravelChecklistTarget
+  readonly items: readonly TravelChecklistItem[]
+}
+
 export type TravelVariantTarget =
   | {
       type: 'day'
@@ -110,4 +129,5 @@ export interface Travel {
   variants: readonly TravelVariant[]
   documents: readonly TravelDocument[]
   reservations: readonly TravelReservation[]
+  checklists: readonly TravelChecklist[]
 }

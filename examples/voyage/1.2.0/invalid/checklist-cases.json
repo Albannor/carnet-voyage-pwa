@@ -1,0 +1,11 @@
+{
+  "description": "Fragments invalides utilisés comme référence éditoriale ; les tests les appliquent à un voyage 1.2.0 complet.",
+  "unknownProperty": { "id": "checklist-invalid", "title": "Test", "target": { "type": "travel" }, "items": [{ "id": "item-one", "label": "Test", "html": "<script>actif</script>" }] },
+  "duplicateChecklistId": ["checklist-departure", "checklist-departure"],
+  "duplicateItemId": ["item-same", "item-same"],
+  "unknownDayTarget": { "type": "day", "dayId": "day-missing" },
+  "unknownStepTarget": { "type": "step", "stepId": "step-missing" },
+  "incoherentTarget": { "type": "day", "dayId": "day-arrival", "stepId": "step-ferry" },
+  "oversizedChecklist": { "itemCount": 101 },
+  "invalidTexts": { "empty": "", "tooLongLength": 1001 }
+}

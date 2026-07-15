@@ -1,0 +1,75 @@
+{
+  "contentModelVersion": "1.2.0",
+  "id": "coastal-checklists-2026",
+  "title": "Escapade côtière organisée",
+  "destination": { "name": "La Rochelle", "countryCode": "FR" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-07-14",
+  "endDate": "2026-07-15",
+  "summary": "Un séjour avec des préparatifs structurés et des états personnels conservés séparément.",
+  "accommodations": [
+    { "id": "stay-port", "name": "Maison du port", "placeId": "place-port", "startDate": "2026-07-14", "endDate": "2026-07-15" }
+  ],
+  "places": [
+    {
+      "id": "place-port",
+      "name": "Vieux-Port",
+      "address": "Quai du Carénage",
+      "links": [
+        { "id": "link-port-route", "label": "Ouvrir l’itinéraire vers le Vieux-Port", "url": "https://www.openstreetmap.org/search?query=Vieux-Port" }
+      ]
+    }
+  ],
+  "days": [
+    {
+      "id": "day-arrival",
+      "date": "2026-07-14",
+      "title": "Arrivée au port",
+      "summary": "Installation puis traversée réservée.",
+      "reservationIds": ["reservation-ferry"],
+      "steps": [
+        {
+          "id": "step-ferry",
+          "title": "Prendre le bateau",
+          "startTime": "14:00",
+          "placeId": "place-port",
+          "links": [],
+          "documentIds": ["document-ticket"],
+          "reservationIds": ["reservation-ferry"]
+        }
+      ]
+    }
+  ],
+  "variants": [],
+  "documents": [
+    { "id": "document-ticket", "label": "Billet de traversée", "resourceId": "pdf-ferry-ticket" }
+  ],
+  "reservations": [
+    { "id": "reservation-ferry", "label": "Traversée vers l’île", "documentIds": ["document-ticket"] }
+  ],
+  "checklists": [
+    {
+      "id": "checklist-departure",
+      "title": "Avant le départ",
+      "description": "Les essentiels du séjour.",
+      "target": { "type": "travel" },
+      "items": [
+        { "id": "item-identification", "label": "Prendre les pièces d’identité" },
+        { "id": "item-charger", "label": "Prendre le chargeur", "description": "Téléphone et batterie externe." }
+      ]
+    },
+    {
+      "id": "checklist-arrival",
+      "title": "Pour la journée d’arrivée",
+      "target": { "type": "day", "dayId": "day-arrival" },
+      "items": [{ "id": "item-checkin", "label": "Vérifier l’heure d’arrivée" }]
+    },
+    {
+      "id": "checklist-ferry",
+      "title": "Avant l’embarquement",
+      "target": { "type": "step", "stepId": "step-ferry" },
+      "items": [{ "id": "item-ticket", "label": "Préparer le billet local" }]
+    }
+  ]
+}

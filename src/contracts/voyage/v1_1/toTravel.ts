@@ -105,5 +105,6 @@ export function toTravelV1_1(document: TravelDocumentV1_1): Travel {
       resourceId: resourceDocument.resourceId,
     })),
     reservations: (document.reservations ?? []).map(toReservation),
+    checklists: [],
   }
 }

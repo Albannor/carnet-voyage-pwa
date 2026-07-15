@@ -51,6 +51,7 @@ const travel: Travel = {
   variants: [],
   documents: [],
   reservations: [],
+  checklists: [],
 }
 
 let repository: TravelLibraryRepository
@@ -64,6 +65,12 @@ beforeEach(() => {
     listTravels: vi.fn().mockResolvedValue({ ok: true, value: [] }),
     getTravel: vi.fn(),
     getResource: vi.fn(),
+    getPersonalState: vi.fn().mockResolvedValue({
+      ok: true,
+      value: { checkedItemKeys: [], note: '' },
+    }),
+    setChecklistItemChecked: vi.fn(),
+    saveTravelNote: vi.fn(),
     deleteTravel: vi.fn(),
     close: vi.fn(),
   }
@@ -344,6 +351,43 @@ describe('App', () => {
     expect(await screen.findByText(/Ouverture du document local/)).toBeInTheDocument()
   })
 
+  it('relie les checklists et la note au dépôt du voyage courant', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [persistedConsultationTravel.metadata],
+    })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: persistedConsultationTravel,
+    })
+    vi.mocked(repository.getPersonalState).mockResolvedValue({
+      ok: true,
+      value: { checkedItemKeys: [], note: 'Note locale existante' },
+    })
+    vi.mocked(repository.setChecklistItemChecked).mockResolvedValue({ ok: true, value: undefined })
+    vi.mocked(repository.saveTravelNote).mockResolvedValue({ ok: true, value: undefined })
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
+    const checkbox = await screen.findByRole('checkbox', { name: 'Prendre les pièces d’identité' })
+    fireEvent.click(checkbox)
+    await waitFor(() => expect(repository.setChecklistItemChecked).toHaveBeenCalledWith(
+      persistedConsultationTravel.travel.id,
+      'checklist-travel',
+      'item-passport',
+      true,
+    ))
+
+    const note = screen.getByRole('textbox', { name: 'Note générale du voyage' })
+    expect(note).toHaveValue('Note locale existante')
+    fireEvent.change(note, { target: { value: 'Dernière note' } })
+    fireEvent.blur(note)
+    await waitFor(() => expect(repository.saveTravelNote).toHaveBeenCalledWith(
+      persistedConsultationTravel.travel.id,
+      'Dernière note',
+    ))
+  })
+
   it('demande une confirmation nommant le voyage avant suppression', async () => {
     vi.mocked(repository.listTravels)
       .mockResolvedValueOnce({ ok: true, value: [entry] })
@@ -361,6 +405,7 @@ describe('App', () => {
     fireEvent.click(deleteButton)
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Voyage alpha'))
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/notes personnelles.*états de checklist/i))
     await waitFor(() =>
       expect(repository.deleteTravel).toHaveBeenCalledWith('travel-alpha'),
     )

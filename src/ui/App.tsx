@@ -10,7 +10,7 @@ import { systemClock, type Clock } from '../application/travelConsultation'
 import type { ImportIssue } from '../import/errors'
 import type { TravelDocument } from '../domain/voyage/model'
 import { openIndexedDbTravelRepository } from '../persistence/indexedDbTravelRepository'
-import type { PersistedTravel, TravelLibraryEntry } from '../persistence/model'
+import type { PersistedTravel, TravelLibraryEntry, TravelPersonalState } from '../persistence/model'
 import type {
   PersistenceIssue,
   TravelLibraryRepository,
@@ -83,7 +83,7 @@ interface AppProps {
 type ConsultationUiState =
   | { status: 'library' }
   | { status: 'loading' }
-  | { status: 'ready'; persistedTravel: PersistedTravel; view: TravelView }
+  | { status: 'ready'; persistedTravel: PersistedTravel; personalState: TravelPersonalState; view: TravelView }
   | { status: 'error'; error: PersistenceIssue }
 
 export function App({
@@ -118,11 +118,16 @@ export function App({
     view: TravelView,
   ) => {
     setConsultationState({ status: 'loading' })
-    const result = await repository.getTravel(travelId)
+    const [result, personalState] = await Promise.all([
+      repository.getTravel(travelId),
+      repository.getPersonalState(travelId),
+    ])
     setConsultationState(
-      result.ok
-        ? { status: 'ready', persistedTravel: result.value, view }
-        : { status: 'error', error: result.error },
+      !result.ok
+        ? { status: 'error', error: result.error }
+        : !personalState.ok
+          ? { status: 'error', error: personalState.error }
+          : { status: 'ready', persistedTravel: result.value, personalState: personalState.value, view },
     )
   }, [])
 
@@ -285,9 +290,41 @@ export function App({
       : { status: 'error', message: 'Ce document local ne peut pas être ouvert en sécurité.' })
   }
 
+  async function setChecklistItemChecked(
+    checklistId: string,
+    itemId: string,
+    checked: boolean,
+  ) {
+    if (consultationState.status !== 'ready' || !repositoryRef.current) {
+      return { ok: false as const, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const result = await repositoryRef.current.setChecklistItemChecked(
+      consultationState.persistedTravel.travel.id,
+      checklistId,
+      itemId,
+      checked,
+    )
+    return result.ok
+      ? { ok: true as const }
+      : { ok: false as const, message: result.error.message }
+  }
+
+  async function saveTravelNote(text: string) {
+    if (consultationState.status !== 'ready' || !repositoryRef.current) {
+      return { ok: false as const, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const result = await repositoryRef.current.saveTravelNote(
+      consultationState.persistedTravel.travel.id,
+      text,
+    )
+    return result.ok
+      ? { ok: true as const }
+      : { ok: false as const, message: result.error.message }
+  }
+
   async function deleteTravel(entry: TravelLibraryEntry) {
     const confirmed = window.confirm(
-      `Supprimer « ${entry.title} » ? Le voyage, ses ressources et ses futurs états personnels seront supprimés de cet appareil.`,
+      `Supprimer « ${entry.title} » ? Le voyage, ses ressources, ses notes personnelles et ses états de checklist seront supprimés de cet appareil.`,
     )
     if (!confirmed) return
 
@@ -349,10 +386,13 @@ export function App({
             clock={clock}
             online={online}
             actionFeedback={contextActionFeedback}
+            personalState={consultationState.personalState}
             onNavigate={navigateTravel}
             onBackToLibrary={backToLibrary}
             onCopyAddress={(address, label) => void copyAddress(address, label)}
             onOpenDocument={(document) => void openDocument(document)}
+            onSetChecklistItemChecked={setChecklistItemChecked}
+            onSaveNote={saveTravelNote}
           />
         )}
         {consultationState.status === 'library' && (

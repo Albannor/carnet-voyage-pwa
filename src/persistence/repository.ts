@@ -2,6 +2,7 @@ import type { ValidatedTravelPackage } from '../import/importTravelPackage'
 import type {
   PersistedTravel,
   PersistedTravelResource,
+  TravelPersonalState,
   TravelLibraryEntry,
 } from './model'
 
@@ -40,6 +41,14 @@ export interface TravelLibraryRepository {
     travelId: string,
     resourceId: string,
   ): Promise<PersistenceResult<PersistedTravelResource>>
+  getPersonalState(travelId: string): Promise<PersistenceResult<TravelPersonalState>>
+  setChecklistItemChecked(
+    travelId: string,
+    checklistId: string,
+    itemId: string,
+    checked: boolean,
+  ): Promise<PersistenceResult<void>>
+  saveTravelNote(travelId: string, text: string): Promise<PersistenceResult<void>>
   deleteTravel(travelId: string): Promise<PersistenceResult<void>>
   close(): void
 }
