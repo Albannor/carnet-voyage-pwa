@@ -28,6 +28,7 @@ Le produit ne suppose ni rôle administrateur, ni collaboration en temps réel, 
 - Identifier le voyage par sa destination, ses dates et ses informations principales.
 - Parcourir une synthèse et le programme de chaque journée.
 - Retrouver les hébergements, adresses, réservations, documents et alternatives préparés dans le dossier.
+- Consulter les illustrations locales et leurs crédits sans dépendre d’une source distante.
 - Compléter une checklist et ajouter des notes personnelles conservées localement.
 - Vérifier que le voyage sera consultable hors connexion après installation et import.
 
@@ -54,6 +55,7 @@ Le MVP comprend :
 - une présentation chronologique des étapes d'une journée ;
 - l'accès contextuel aux hébergements, lieux, itinéraires, réservations, documents et plans B fournis par le dossier ;
 - les modes standard, économe en marche et pluie lorsqu'ils sont décrits dans le voyage ;
+- les illustrations locales de couverture, journée et étape avec texte alternatif, légende et provenance ;
 - une interface mobile cohérente pour tous les voyages ;
 - la disponibilité hors ligne de l'application et des contenus locaux après leur installation ou import ;
 - l'ouverture explicite des services externes par des liens.
@@ -81,6 +83,7 @@ Le MVP est considéré comme réussi lorsque :
 - plusieurs voyages peuvent coexister localement sans mélange de contenu, de checklist ou de notes ;
 - la synthèse, les journées et la vue « Aujourd'hui » permettent d'atteindre les informations essentielles en quelques actions sur mobile ;
 - les étapes, liens, documents et variantes apparaissent dans leur contexte et restent compréhensibles sans connaître la structure du fichier source ;
+- les illustrations restent locales, créditées et non indispensables à la compréhension du contenu ;
 - l'application et les contenus importés prévus pour l'usage local restent consultables hors connexion ;
 - les états de checklist et les notes persistent séparément du contenu importé ;
 - l'interface reste utilisable sur les tailles d'écran mobiles prises en charge et répond aux contrôles d'accessibilité définis pour le projet ;

@@ -63,14 +63,17 @@ function normalizeStoredTravel(content: PersistedTravelContent) {
     documents: travel.documents ?? [],
     reservations: travel.reservations ?? [],
     checklists: travel.checklists ?? [],
+    illustrations: travel.illustrations ?? [],
     days: travel.days.map((day) => ({
       ...day,
       documentIds: day.documentIds ?? [],
       reservationIds: day.reservationIds ?? [],
+      illustrationIds: day.illustrationIds ?? [],
       steps: day.steps.map((step) => ({
         ...step,
         documentIds: step.documentIds ?? [],
         reservationIds: step.reservationIds ?? [],
+        illustrationIds: step.illustrationIds ?? [],
       })),
     })),
   }

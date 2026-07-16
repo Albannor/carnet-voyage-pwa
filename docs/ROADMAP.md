@@ -54,19 +54,25 @@ Le périmètre reste celui du MVP défini dans `PRODUCT.md`. Les étapes ci-dess
 
 **Vérification :** conservation après fermeture, isolation entre voyages, réimport sans perte silencieuse et suppression uniquement avec le voyage concerné.
 
-## Étape 8 — Installation et hors ligne
+## Étape 8 — Illustrations
+
+**Livrable :** contrat `voyage.json` `1.3.0`, illustrations locales de voyage, journée et étape, rendu responsive, textes alternatifs, légendes et crédits de provenance.
+
+**Vérification :** compatibilité 1.0.0 à 1.2.0, ressources PNG/JPEG/WebP validées et isolées, aucun chargement d’image distant, révocation des URL d’objet et absence d’emplacement vide pour les anciens voyages.
+
+## Étape 9 — Installation et hors ligne
 
 **Livrable :** Web App Manifest propre à l'application, service worker, cache versionné du shell, démarrage hors ligne et disponibilité locale des ressources importées prévues.
 
 **Vérification :** installation, premier chargement contrôlé, redémarrage sans réseau, mise à jour du shell sans perte de voyages et signalement honnête des services externes indisponibles.
 
-## Étape 9 — Durcissement du MVP
+## Étape 10 — Durcissement du MVP
 
 **Livrable :** revue de sécurité des imports, accessibilité, responsive, performance, gestion des limites de stockage et documentation utilisateur minimale.
 
 **Vérification :** parcours critiques automatisés, audit mobile et clavier, corpus d'imports adversariaux, lint, typecheck, tests et build sans erreur.
 
-## Étape 10 — Préparation de la première version
+## Étape 11 — Préparation de la première version
 
 **Livrable :** critères de réussite du MVP tracés vers des scénarios vérifiés, notes de version et procédure reproductible de construction statique.
 

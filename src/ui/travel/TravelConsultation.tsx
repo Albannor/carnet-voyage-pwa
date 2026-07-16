@@ -13,6 +13,7 @@ import type {
   TravelDay,
   TravelDocument,
   TravelLink,
+  TravelIllustration,
   TravelPlace,
   TravelReservation,
   TravelStep,
@@ -22,6 +23,7 @@ import {
   MAX_TRAVEL_NOTE_LENGTH,
   checklistItemStateKey,
   type PersistedTravel,
+  type PersistedTravelResource,
   type TravelPersonalState,
 } from '../../persistence/model'
 import { safeExternalHttpsUrl } from '../../services/travelActions'
@@ -40,6 +42,10 @@ export type PersonalSaveResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly message: string }
 
+export type IllustrationResourceLoadResult =
+  | { readonly ok: true; readonly resource: PersistedTravelResource }
+  | { readonly ok: false; readonly message: string }
+
 interface TravelConsultationProps {
   persistedTravel: PersistedTravel
   view: TravelView
@@ -52,12 +58,222 @@ interface TravelConsultationProps {
   onBackToLibrary(): void
   onCopyAddress(address: string, placeLabel: string): void
   onOpenDocument(document: TravelDocument): void
+  onLoadIllustrationResource(
+    travelId: string,
+    resourceId: string,
+  ): Promise<IllustrationResourceLoadResult>
   onSetChecklistItemChecked(
     checklistId: string,
     itemId: string,
     checked: boolean,
   ): Promise<PersonalSaveResult>
   onSaveNote(text: string): Promise<PersonalSaveResult>
+}
+
+function illustrationById(travel: Travel, illustrationId: string) {
+  return travel.illustrations.find((illustration) => illustration.id === illustrationId)
+}
+
+function LocalIllustration({
+  travelId,
+  illustration,
+  loading,
+  onLoadResource,
+}: {
+  travelId: string
+  illustration: TravelIllustration
+  loading?: 'lazy'
+  onLoadResource(
+    travelId: string,
+    resourceId: string,
+  ): Promise<IllustrationResourceLoadResult>
+}) {
+  const resourceKey = `${travelId}/${illustration.resourceId}`
+  const [resourceState, setResourceState] = useState<
+    | { readonly key: string; readonly status: 'ready'; readonly source: string }
+    | { readonly key: string; readonly status: 'failed' }
+  >()
+
+  useEffect(() => {
+    let active = true
+    let objectUrl: string | undefined
+    void onLoadResource(travelId, illustration.resourceId).then((result) => {
+      if (!active) return
+      if (!result.ok) {
+        setResourceState({ key: resourceKey, status: 'failed' })
+        return
+      }
+      try {
+        objectUrl = URL.createObjectURL(new Blob(
+          [Uint8Array.from(result.resource.bytes).buffer],
+          { type: result.resource.mediaType },
+        ))
+        if (!active) {
+          URL.revokeObjectURL(objectUrl)
+          return
+        }
+        setResourceState({ key: resourceKey, status: 'ready', source: objectUrl })
+      } catch {
+        setResourceState({ key: resourceKey, status: 'failed' })
+      }
+    })
+
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [illustration.resourceId, onLoadResource, resourceKey, travelId])
+
+  const currentState = resourceState?.key === resourceKey
+    ? resourceState
+    : undefined
+
+  if (currentState?.status === 'failed') {
+    return (
+      <figure className="travel-illustration illustration-fallback">
+        <p role="status">Illustration locale indisponible : {illustration.alt}</p>
+        {illustration.caption && <figcaption>{illustration.caption}</figcaption>}
+      </figure>
+    )
+  }
+
+  return (
+    <figure className="travel-illustration">
+      {currentState?.status === 'ready' ? (
+        <img
+          src={currentState.source}
+          alt={illustration.alt}
+          loading={loading}
+        />
+      ) : (
+        <div className="illustration-loading" role="status">
+          Chargement de l’illustration locale…
+        </div>
+      )}
+      {illustration.caption && <figcaption>{illustration.caption}</figcaption>}
+    </figure>
+  )
+}
+
+function IllustrationCollection({
+  travel,
+  illustrationIds,
+  cover = false,
+  onLoadResource,
+}: {
+  travel: Travel
+  illustrationIds: readonly string[]
+  cover?: boolean
+  onLoadResource(
+    travelId: string,
+    resourceId: string,
+  ): Promise<IllustrationResourceLoadResult>
+}) {
+  const illustrations = illustrationIds.flatMap((id) => {
+    const illustration = illustrationById(travel, id)
+    return illustration ? [illustration] : []
+  })
+  if (illustrations.length === 0) return null
+
+  return (
+    <div className={cover ? 'illustration-grid cover-illustration' : 'illustration-grid'}>
+      {illustrations.map((illustration) => (
+        <LocalIllustration
+          key={illustration.id}
+          travelId={travel.id}
+          illustration={illustration}
+          loading={cover ? undefined : 'lazy'}
+          onLoadResource={onLoadResource}
+        />
+      ))}
+    </div>
+  )
+}
+
+function referencedIllustrations(travel: Travel) {
+  const orderedIds = [
+    ...(travel.coverIllustrationId ? [travel.coverIllustrationId] : []),
+    ...travel.days.flatMap((day) => [
+      ...day.illustrationIds,
+      ...day.steps.flatMap((step) => step.illustrationIds),
+    ]),
+  ]
+  const seen = new Set<string>()
+  return orderedIds.flatMap((id) => {
+    if (seen.has(id)) return []
+    seen.add(id)
+    const illustration = illustrationById(travel, id)
+    return illustration ? [illustration] : []
+  })
+}
+
+function CreditExternalLink({
+  href,
+  children,
+  online,
+}: {
+  href: string
+  children: ReactNode
+  online: boolean
+}) {
+  const safeHref = safeExternalHttpsUrl(href)
+  return safeHref && online ? (
+    <a href={safeHref} target="_blank" rel="noopener noreferrer">
+      Service externe · {children}
+    </a>
+  ) : (
+    <span aria-disabled="true">
+      {safeHref ? `${String(children)} · indisponible hors connexion` : `${String(children)} · lien refusé`}
+    </span>
+  )
+}
+
+function IllustrationCredits({ travel, online }: { travel: Travel; online: boolean }) {
+  const illustrations = referencedIllustrations(travel)
+  if (illustrations.length === 0) return null
+
+  return (
+    <section className="illustration-credits" aria-labelledby="illustration-credits-title">
+      <h3 id="illustration-credits-title">Crédits photographiques</h3>
+      <ol>
+        {illustrations.map((illustration) => {
+          const provenance = illustration.provenance
+          return (
+            <li key={illustration.id}>
+              <strong>{illustration.caption ?? illustration.alt}</strong>
+              {provenance.type === 'licensed' && (
+                <>
+                  <span>Auteur : {provenance.creator}</span>
+                  <span>
+                    <CreditExternalLink href={provenance.sourceUrl} online={online}>
+                      Source de l’image
+                    </CreditExternalLink>
+                    {' · '}
+                    <CreditExternalLink href={provenance.licenseUrl} online={online}>
+                      Licence {provenance.licenseCode}
+                    </CreditExternalLink>
+                  </span>
+                  {provenance.modified && <span>Image recadrée ou transformée.</span>}
+                </>
+              )}
+              {provenance.type === 'user-provided' && (
+                <span>
+                  Photographie personnelle
+                  {provenance.credit ? ` · ${provenance.credit}` : ''}
+                </span>
+              )}
+              {provenance.type === 'ai-generated' && (
+                <span>
+                  Image générée par IA · {provenance.provider}
+                  {provenance.generatedAt ? ` · ${provenance.generatedAt}` : ''}
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
 }
 
 const VARIANT_LABELS: Record<TravelVariantKind, string> = {
@@ -224,7 +440,15 @@ function DayNavigation({ travel, view, onNavigate }: { travel: Travel; view: Tra
   return <nav className="day-navigation" aria-label="Journées du voyage"><ul>{travel.days.map((day) => { const selected = view.kind === 'day' && view.dayId === day.id; return <li key={day.id}><button className={selected ? 'day-tab day-tab-active' : 'day-tab'} type="button" aria-current={selected ? 'page' : undefined} onClick={() => onNavigate({ kind: 'day', dayId: day.id })}><span>{formatDate(day.date, travel.locale)}</span><strong>{day.title}</strong>{selected && <em>Journée sélectionnée</em>}</button></li> })}</ul></nav>
 }
 
-interface ActionProps { online: boolean; onCopyAddress(address: string, placeLabel: string): void; onOpenDocument(document: TravelDocument): void }
+interface ActionProps {
+  online: boolean
+  onCopyAddress(address: string, placeLabel: string): void
+  onOpenDocument(document: TravelDocument): void
+  onLoadIllustrationResource(
+    travelId: string,
+    resourceId: string,
+  ): Promise<IllustrationResourceLoadResult>
+}
 
 interface PersonalStateProps {
   checkedItemKeys: ReadonlySet<string>
@@ -365,7 +589,8 @@ function NotesPanel({
 function Overview({ travel, clock, onNavigate, personalState, ...actions }: { travel: Travel; clock: Clock; onNavigate(view: TravelView): void; personalState: PersonalStateProps } & ActionProps) {
   const anchorDate = getOverviewAnchorDate(travel, clock); const anchor = findAccommodationForDate(travel, anchorDate)
   const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'travel')
-  return <div className="consultation-view" aria-labelledby="travel-summary-title"><p className="section-label">Synthèse opérationnelle</p><h2 id="travel-summary-title">{travel.title}</h2><p className="travel-context"><strong>{travel.destination.label}</strong><span>{dateRange(travel)}</span><span>Fuseau horaire : {travel.timeZone}</span></p><p className="travel-summary">{travel.summary}</p><div className="overview-actions"><button className="primary-button" type="button" onClick={() => onNavigate({ kind: 'today' })}>Ouvrir la vue Aujourd’hui</button></div><ChecklistCollection checklists={checklists} {...personalState} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={anchorDate} locale={travel.locale} travel={travel} {...actions} /><section className="days-overview" aria-labelledby="days-overview-title"><h3 id="days-overview-title">Journées du voyage</h3>{travel.days.length === 0 ? <p className="empty-state">Ce voyage ne contient aucune journée. Sa synthèse reste disponible.</p> : <ol>{travel.days.map((day) => <li key={day.id}><article><p className="day-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p><h4>{day.title}</h4>{day.summary && <p>{day.summary}</p>}<button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: day.id })}>Ouvrir la journée {day.title}</button></article></li>)}</ol>}</section></div>
+  const coverIds = travel.coverIllustrationId ? [travel.coverIllustrationId] : []
+  return <div className="consultation-view" aria-labelledby="travel-summary-title"><p className="section-label">Synthèse opérationnelle</p><h2 id="travel-summary-title">{travel.title}</h2><IllustrationCollection travel={travel} illustrationIds={coverIds} cover onLoadResource={actions.onLoadIllustrationResource} /><p className="travel-context"><strong>{travel.destination.label}</strong><span>{dateRange(travel)}</span><span>Fuseau horaire : {travel.timeZone}</span></p><p className="travel-summary">{travel.summary}</p><div className="overview-actions"><button className="primary-button" type="button" onClick={() => onNavigate({ kind: 'today' })}>Ouvrir la vue Aujourd’hui</button></div><ChecklistCollection checklists={checklists} {...personalState} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={anchorDate} locale={travel.locale} travel={travel} {...actions} /><section className="days-overview" aria-labelledby="days-overview-title"><h3 id="days-overview-title">Journées du voyage</h3>{travel.days.length === 0 ? <p className="empty-state">Ce voyage ne contient aucune journée. Sa synthèse reste disponible.</p> : <ol>{travel.days.map((day) => <li key={day.id}><article><p className="day-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p><h4>{day.title}</h4>{day.summary && <p>{day.summary}</p>}<button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: day.id })}>Ouvrir la journée {day.title}</button></article></li>)}</ol>}</section><IllustrationCredits travel={travel} online={actions.online} /></div>
 }
 
 function variantsFor(travel: Travel, kind: TravelVariantKind, day: TravelDay, step?: TravelStep) {
@@ -386,7 +611,7 @@ function VariantNotices({ travel, day, step, kind }: { travel: Travel; day: Trav
 }
 
 function Timeline({ travel, day, selectedVariant, personalState, ...actions }: { travel: Travel; day: TravelDay; selectedVariant: TravelVariantKind; personalState: PersonalStateProps } & ActionProps) {
-  return <section className="timeline-section" aria-labelledby={`timeline-${day.id}`}><h3 id={`timeline-${day.id}`}>Déroulement chronologique</h3>{day.steps.length === 0 ? <p className="empty-state">Aucune étape n’est renseignée pour cette journée.</p> : <ol className="timeline">{day.steps.map((step, index) => { const place = findPlace(travel, step.placeId); const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'step' && checklist.target.stepId === step.id); return <li key={step.id}><article aria-labelledby={`step-${step.id}`}><div className="step-order" aria-hidden="true">{index + 1}</div><div className="step-content"><p className="step-time">{step.startsAt ? <><time dateTime={step.startsAt}>{step.startsAt}</time>{step.endsAt && <>{' '}– <time dateTime={step.endsAt}>{step.endsAt}</time></>}</> : 'Sans horaire indiqué'}</p><h4 id={`step-${step.id}`}>{step.title}</h4>{step.description && <p>{step.description}</p>}{place && <div className="step-place"><strong>Lieu : {place.label}</strong>{place.address && <address>{place.address}</address>}</div>}<ChecklistCollection checklists={checklists} {...personalState} /><VariantNotices travel={travel} day={day} step={step} kind={selectedVariant} /><ContextActions travel={travel} place={place} links={step.links} documentIds={step.documentIds} reservationIds={step.reservationIds} {...actions} /></div></article></li> })}</ol>}</section>
+  return <section className="timeline-section" aria-labelledby={`timeline-${day.id}`}><h3 id={`timeline-${day.id}`}>Déroulement chronologique</h3>{day.steps.length === 0 ? <p className="empty-state">Aucune étape n’est renseignée pour cette journée.</p> : <ol className="timeline">{day.steps.map((step, index) => { const place = findPlace(travel, step.placeId); const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'step' && checklist.target.stepId === step.id); return <li key={step.id}><article aria-labelledby={`step-${step.id}`}><div className="step-order" aria-hidden="true">{index + 1}</div><div className="step-content"><p className="step-time">{step.startsAt ? <><time dateTime={step.startsAt}>{step.startsAt}</time>{step.endsAt && <>{' '}– <time dateTime={step.endsAt}>{step.endsAt}</time></>}</> : 'Sans horaire indiqué'}</p><h4 id={`step-${step.id}`}>{step.title}</h4>{step.description && <p>{step.description}</p>}{place && <div className="step-place"><strong>Lieu : {place.label}</strong>{place.address && <address>{place.address}</address>}</div>}<IllustrationCollection travel={travel} illustrationIds={step.illustrationIds} onLoadResource={actions.onLoadIllustrationResource} /><ChecklistCollection checklists={checklists} {...personalState} /><VariantNotices travel={travel} day={day} step={step} kind={selectedVariant} /><ContextActions travel={travel} place={place} links={step.links} documentIds={step.documentIds} reservationIds={step.reservationIds} {...actions} /></div></article></li> })}</ol>}</section>
 }
 
 function DayDetail({ travel, day, selectedVariant, headingPrefix, onNavigate, personalState, ...actions }: { travel: Travel; day: TravelDay; selectedVariant: TravelVariantKind; headingPrefix?: ReactNode; onNavigate(view: TravelView): void; personalState: PersonalStateProps } & ActionProps) {
@@ -398,7 +623,7 @@ function DayDetail({ travel, day, selectedVariant, headingPrefix, onNavigate, pe
     return day.steps.some((step) => step.id === targetStepId)
   })
   const checklists = travel.checklists.filter((checklist) => checklist.target.type === 'day' && checklist.target.dayId === day.id)
-  return <div className="consultation-view" aria-labelledby="day-title"><p className="section-label">{headingPrefix ?? 'Programme de la journée'}</p><h2 id="day-title">{day.title}</h2><p className="day-heading-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p>{day.summary && <p className="travel-summary">{day.summary}</p>}<ChecklistCollection checklists={checklists} {...personalState} /><VariantNotices travel={travel} day={day} kind={selectedVariant} />{selectedVariant !== 'standard' && relevantVariants.length === 0 && <p className="variant-empty" role="status">Aucune adaptation « {VARIANT_LABELS[selectedVariant]} » n’est prévue pour cette journée. Le programme standard reste affiché.</p>}<ContextActions travel={travel} documentIds={day.documentIds} reservationIds={day.reservationIds} {...actions} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={day.date} locale={travel.locale} travel={travel} {...actions} /><Timeline travel={travel} day={day} selectedVariant={selectedVariant} personalState={personalState} {...actions} /><nav className="adjacent-days" aria-label="Journées précédente et suivante">{previous ? <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: previous.id })}>Journée précédente : {previous.title}</button> : <span />}{next && <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: next.id })}>Journée suivante : {next.title}</button>}</nav></div>
+  return <div className="consultation-view" aria-labelledby="day-title"><p className="section-label">{headingPrefix ?? 'Programme de la journée'}</p><h2 id="day-title">{day.title}</h2><p className="day-heading-date"><time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time></p>{day.summary && <p className="travel-summary">{day.summary}</p>}<IllustrationCollection travel={travel} illustrationIds={day.illustrationIds} onLoadResource={actions.onLoadIllustrationResource} /><ChecklistCollection checklists={checklists} {...personalState} /><VariantNotices travel={travel} day={day} kind={selectedVariant} />{selectedVariant !== 'standard' && relevantVariants.length === 0 && <p className="variant-empty" role="status">Aucune adaptation « {VARIANT_LABELS[selectedVariant]} » n’est prévue pour cette journée. Le programme standard reste affiché.</p>}<ContextActions travel={travel} documentIds={day.documentIds} reservationIds={day.reservationIds} {...actions} /><AccommodationCard accommodation={anchor?.accommodation} place={anchor?.place} date={day.date} locale={travel.locale} travel={travel} {...actions} /><Timeline travel={travel} day={day} selectedVariant={selectedVariant} personalState={personalState} {...actions} /><nav className="adjacent-days" aria-label="Journées précédente et suivante">{previous ? <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: previous.id })}>Journée précédente : {previous.title}</button> : <span />}{next && <button className="secondary-button" type="button" onClick={() => onNavigate({ kind: 'day', dayId: next.id })}>Journée suivante : {next.title}</button>}</nav></div>
 }
 
 function TodayView({ travel, clock, selectedVariant, onNavigate, personalState, ...actions }: { travel: Travel; clock: Clock; selectedVariant: TravelVariantKind; onNavigate(view: TravelView): void; personalState: PersonalStateProps } & ActionProps) {
@@ -410,8 +635,8 @@ function TodayView({ travel, clock, selectedVariant, onNavigate, personalState, 
 
 function viewLabel(view: TravelView, travel: Travel) { if (view.kind === 'summary') return 'Synthèse du voyage'; if (view.kind === 'today') return 'Aujourd’hui'; return travel.days.find((day) => day.id === view.dayId)?.title ?? 'Synthèse du voyage' }
 
-export function TravelConsultation({ persistedTravel, view, clock, online, actionFeedback, personalState, noteSaveDelayMs = 500, onNavigate, onBackToLibrary, onCopyAddress, onOpenDocument, onSetChecklistItemChecked, onSaveNote }: TravelConsultationProps) {
-  const { travel } = persistedTravel; const [selectedVariant, setSelectedVariant] = useState<TravelVariantKind>('standard'); const [checkedItemKeys, setCheckedItemKeys] = useState(() => new Set(personalState.checkedItemKeys)); const [checklistFeedback, setChecklistFeedback] = useState<Record<string, 'saving' | 'saved' | 'error'>>({}); const selectedDay = view.kind === 'day' ? travel.days.find((day) => day.id === view.dayId) : undefined; const safeView = view.kind === 'day' && !selectedDay ? { kind: 'summary' } as const : view; const actions = { online, onCopyAddress, onOpenDocument }
+export function TravelConsultation({ persistedTravel, view, clock, online, actionFeedback, personalState, noteSaveDelayMs = 500, onNavigate, onBackToLibrary, onCopyAddress, onOpenDocument, onLoadIllustrationResource, onSetChecklistItemChecked, onSaveNote }: TravelConsultationProps) {
+  const { travel } = persistedTravel; const [selectedVariant, setSelectedVariant] = useState<TravelVariantKind>('standard'); const [checkedItemKeys, setCheckedItemKeys] = useState(() => new Set(personalState.checkedItemKeys)); const [checklistFeedback, setChecklistFeedback] = useState<Record<string, 'saving' | 'saved' | 'error'>>({}); const selectedDay = view.kind === 'day' ? travel.days.find((day) => day.id === view.dayId) : undefined; const safeView = view.kind === 'day' && !selectedDay ? { kind: 'summary' } as const : view; const actions = { online, onCopyAddress, onOpenDocument, onLoadIllustrationResource }
   async function toggleChecklistItem(checklistId: string, itemId: string, checked: boolean) { const key = checklistItemStateKey(checklistId, itemId); const previous = checkedItemKeys.has(key); setCheckedItemKeys((current) => { const next = new Set(current); if (checked) next.add(key); else next.delete(key); return next }); setChecklistFeedback((current) => ({ ...current, [key]: 'saving' })); const result = await onSetChecklistItemChecked(checklistId, itemId, checked); if (!result.ok) { setCheckedItemKeys((current) => { const next = new Set(current); if (previous) next.add(key); else next.delete(key); return next }) } setChecklistFeedback((current) => ({ ...current, [key]: result.ok ? 'saved' : 'error' })) }
   const checklistState = { checkedItemKeys, checklistFeedback, onToggleChecklistItem: (checklistId: string, itemId: string, checked: boolean) => void toggleChecklistItem(checklistId, itemId, checked) }
   return <section className="foundation travel-workspace" aria-label={`Voyage ${travel.title}`}><div className="travel-toolbar"><button className="secondary-button" type="button" onClick={onBackToLibrary}>Retour à la bibliothèque</button><nav aria-label="Vues du voyage"><button className="secondary-button" type="button" aria-current={safeView.kind === 'summary' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'summary' })}>Synthèse</button><button className="secondary-button" type="button" aria-current={safeView.kind === 'today' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'today' })}>Aujourd’hui</button></nav></div><p className="active-view" role="status" aria-live="polite">Vue active : {viewLabel(safeView, travel)}</p>{actionFeedback && <p className={`action-message ${actionFeedback.status === 'error' ? 'action-error' : 'action-success'}`} role={actionFeedback.status === 'error' ? 'alert' : 'status'}>{actionFeedback.message}</p>}<VariantSelector travel={travel} selected={selectedVariant} onSelect={setSelectedVariant} /><DayNavigation travel={travel} view={safeView} onNavigate={onNavigate} />{safeView.kind === 'summary' && <Overview travel={travel} clock={clock} onNavigate={onNavigate} personalState={checklistState} {...actions} />}{safeView.kind === 'today' && <TodayView travel={travel} clock={clock} selectedVariant={selectedVariant} onNavigate={onNavigate} personalState={checklistState} {...actions} />}{safeView.kind === 'day' && selectedDay && <DayDetail travel={travel} day={selectedDay} selectedVariant={selectedVariant} onNavigate={onNavigate} personalState={checklistState} {...actions} />}<NotesPanel initialNote={personalState.note} saveDelayMs={noteSaveDelayMs} onSave={onSaveNote} /></section>

@@ -1,6 +1,7 @@
 import type { Travel } from '../domain/voyage/model'
 import { importIssue, type ImportIssue } from './errors'
 import type { PackageManifestV1 } from './packageManifest'
+import { isAllowedImageMediaType } from './packageManifest'
 
 export function validateTravelResourceReferences(
   travel: Travel,
@@ -10,7 +11,7 @@ export function validateTravelResourceReferences(
     manifest.resources.map((resource) => [resource.id, resource]),
   )
 
-  return travel.documents.flatMap((document, index) => {
+  const documentIssues = travel.documents.flatMap((document, index) => {
     const resource = resources.get(document.resourceId)
     if (!resource) {
       return [
@@ -42,4 +43,39 @@ export function validateTravelResourceReferences(
           ),
         ]
   })
+
+  const illustrationIssues = travel.illustrations.flatMap((illustration, index) => {
+    const resource = resources.get(illustration.resourceId)
+    if (!resource) {
+      return [
+        importIssue(
+          'resource',
+          'ILLUSTRATION_RESOURCE_UNKNOWN',
+          `L’illustration « ${illustration.alt} » référence une ressource absente du manifest.`,
+          {
+            file: 'voyage.json',
+            field: `/illustrations/${index}/resourceId`,
+            hint: 'Déclarez la ressource image dans manifest.json avec le même identifiant.',
+          },
+        ),
+      ]
+    }
+
+    return isAllowedImageMediaType(resource.mediaType)
+      ? []
+      : [
+          importIssue(
+            'resource',
+            'ILLUSTRATION_RESOURCE_NOT_IMAGE',
+            `La ressource de l’illustration « ${illustration.alt} » n’est pas une image passive autorisée.`,
+            {
+              file: 'voyage.json',
+              field: `/illustrations/${index}/resourceId`,
+              hint: 'Référencez une ressource image/png, image/jpeg ou image/webp placée dans assets/.',
+            },
+          ),
+        ]
+  })
+
+  return [...documentIssues, ...illustrationIssues]
 }

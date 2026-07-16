@@ -24,7 +24,7 @@ paquet-voyage.zip
 Les seules versions acceptées sont :
 
 - format du paquet : `1.0.0` ;
-- modèles de contenu de `voyage.json` : `1.0.0`, `1.1.0` et `1.2.0`.
+- modèles de contenu de `voyage.json` : `1.0.0`, `1.1.0`, `1.2.0` et `1.3.0`.
 
 Le schéma Draft 2020-12 du manifest se trouve dans [`contracts/package/1.0.0/schema.json`](../contracts/package/1.0.0/schema.json). Ce manifest technique ne configure pas l'installation de la PWA et ne remplace pas `public/manifest.webmanifest`.
 
@@ -46,6 +46,8 @@ L'import contrôle la cohérence du type, de l'extension, de la signature binair
 `guide-standalone.html` constitue la seule exception de structure. Il n'est pas déclaré comme ressource, n'est jamais analysé, renvoyé comme HTML, exécuté, injecté dans le DOM ou chargé dans une iframe. Sa présence est seulement signalée par un booléen technique.
 
 Le contrat `voyage.json` `1.0.0` ne porte aucune association métier vers les ressources. Le contrat `1.1.0` ajoute des documents dont le `resourceId` doit résoudre une ressource déclarée `application/pdf`, ainsi que des réservations et associations explicites par identifiant. Le contrat `1.2.0` ajoute les définitions de checklists ; celles-ci ne référencent aucune ressource et leur état coché n’est pas importé. Aucun rapprochement par chemin, libellé ou position n'est réalisé.
+
+Le contrat `1.3.0` ajoute des illustrations dont le `resourceId` doit résoudre une ressource déclarée `image/png`, `image/jpeg` ou `image/webp`. Une ressource PDF est refusée comme illustration. La couverture, les journées et les étapes utilisent uniquement des références explicites. Les URL HTTPS de provenance ne sont jamais téléchargées et ne remplacent jamais les octets locaux validés.
 
 ## Limites de sécurité
 
@@ -83,7 +85,7 @@ L'import suit ces étapes, sans exposer de résultat intermédiaire :
 10. réutilisation du schéma et des politiques de l'étape 2 ;
 11. réutilisation des invariants métier de l'étape 2 ;
 12. normalisation versionnée vers le modèle interne ;
-13. vérification des références documentaires contre le manifest ;
+13. vérification des références documentaires et d’illustration contre le manifest ;
 14. vérification des ressources déclarées, signatures, tailles et SHA-256 ;
 15. production atomique du paquet validé en mémoire.
 
@@ -91,7 +93,7 @@ Tout échec retourne uniquement un résultat `{ ok: false }`. Aucun champ `packa
 
 ## Normalisation et migrations
 
-`src/import/migrations/registry.ts` contient un registre explicite et sans effet de bord. Les entrées `1.0.0`, `1.1.0` et `1.2.0` utilisent chacune leur propre validateur de schéma et leur propre normaliseur vers le modèle interne courant. Les normaliseurs 1.0.0 et 1.1.0 initialisent les checklists avec une collection vide ; le normaliseur 1.2.0 conserve leurs cibles et l’ordre de leurs éléments.
+`src/import/migrations/registry.ts` contient un registre explicite et sans effet de bord. Les entrées `1.0.0` à `1.3.0` utilisent chacune leur propre validateur de schéma et leur propre normaliseur vers le modèle interne courant. Les versions antérieures initialisent les capacités absentes avec des collections vides ; le normaliseur 1.3.0 conserve les illustrations, leurs associations et leurs provenances dans le modèle interne 4.
 
 Aucune ancienne version fictive n'a été inventée. Une version inconnue est refusée avant interprétation ; un normaliseur absent ou en échec produit respectivement `MIGRATION_UNAVAILABLE` ou `MIGRATION_FAILED`.
 
@@ -105,7 +107,7 @@ Chaque erreur expose :
 - le fichier et le champ JSON Pointer lorsqu'ils sont connus ;
 - une indication de correction destinée à l'interface.
 
-Les codes propres au paquet couvrent notamment `ARCHIVE_CORRUPTED`, `ARCHIVE_EMPTY`, `FILE_COUNT_EXCEEDED`, `TOTAL_SIZE_EXCEEDED`, `COMPRESSION_RATIO_EXCEEDED`, `PATH_TRAVERSAL`, `PATH_ABSOLUTE`, `PATH_DUPLICATE`, `PATH_CASE_COLLISION`, `REQUIRED_FILE_MISSING`, `PACKAGE_VERSION_UNSUPPORTED`, `TRAVEL_VERSION_UNSUPPORTED`, `RESOURCE_UNDECLARED`, `RESOURCE_MISSING`, `RESOURCE_SIZE_MISMATCH`, `RESOURCE_HASH_MISMATCH`, `RESOURCE_TYPE_UNSUPPORTED`, `DOCUMENT_RESOURCE_UNKNOWN`, `DOCUMENT_RESOURCE_NOT_PDF`, `MIGRATION_UNAVAILABLE` et `MIGRATION_FAILED`.
+Les codes propres au paquet couvrent notamment `ARCHIVE_CORRUPTED`, `ARCHIVE_EMPTY`, `FILE_COUNT_EXCEEDED`, `TOTAL_SIZE_EXCEEDED`, `COMPRESSION_RATIO_EXCEEDED`, `PATH_TRAVERSAL`, `PATH_ABSOLUTE`, `PATH_DUPLICATE`, `PATH_CASE_COLLISION`, `REQUIRED_FILE_MISSING`, `PACKAGE_VERSION_UNSUPPORTED`, `TRAVEL_VERSION_UNSUPPORTED`, `RESOURCE_UNDECLARED`, `RESOURCE_MISSING`, `RESOURCE_SIZE_MISMATCH`, `RESOURCE_HASH_MISMATCH`, `RESOURCE_TYPE_UNSUPPORTED`, `DOCUMENT_RESOURCE_UNKNOWN`, `DOCUMENT_RESOURCE_NOT_PDF`, `ILLUSTRATION_RESOURCE_UNKNOWN`, `ILLUSTRATION_RESOURCE_NOT_IMAGE`, `MIGRATION_UNAVAILABLE` et `MIGRATION_FAILED`.
 
 Les codes structurés du contrat et du domaine, tels que `SCHEMA_REQUIRED`, `DUPLICATE_ID`, `UNKNOWN_PLACE_REFERENCE` et `UNSUPPORTED_URL_PROTOCOL`, sont conservés et contextualisés avec `voyage.json`.
 

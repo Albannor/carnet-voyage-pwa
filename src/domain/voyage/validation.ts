@@ -5,6 +5,11 @@ import type {
   TravelStep,
 } from './model'
 import { CHECKLIST_LIMITS } from './checklistLimits'
+import {
+  ILLUSTRATION_LIMITS,
+  isAllowedIllustrationLicense,
+  isHttpsUrl,
+} from './illustrationRules'
 
 export type DomainIssueCode =
   | 'ACCOMMODATION_DATE_RANGE'
@@ -14,6 +19,10 @@ export type DomainIssueCode =
   | 'DAY_OUTSIDE_TRAVEL'
   | 'DUPLICATE_ID'
   | 'INVALID_TIME_ZONE'
+  | 'ILLUSTRATION_LIMIT_EXCEEDED'
+  | 'ILLUSTRATION_PROVENANCE_INVALID'
+  | 'ILLUSTRATION_PROVENANCE_URL_UNSUPPORTED'
+  | 'ILLUSTRATION_TEXT_INVALID'
   | 'STEP_END_WITHOUT_START'
   | 'STEP_ORDER'
   | 'STEP_TIME_RANGE'
@@ -21,6 +30,7 @@ export type DomainIssueCode =
   | 'UNKNOWN_ACCOMMODATION_REFERENCE'
   | 'UNKNOWN_CHECKLIST_TARGET'
   | 'UNKNOWN_DOCUMENT_REFERENCE'
+  | 'UNKNOWN_ILLUSTRATION_REFERENCE'
   | 'UNKNOWN_PLACE_REFERENCE'
   | 'UNKNOWN_RESERVATION_REFERENCE'
   | 'UNKNOWN_VARIANT_TARGET'
@@ -153,6 +163,9 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
   const reservationIds = new Set(
     travel.reservations.map((reservation) => reservation.id),
   )
+  const illustrationIds = new Set(
+    travel.illustrations.map((illustration) => illustration.id),
+  )
 
   issues.push(
     ...duplicateIdIssues(entityItems(travel.places, '/places')),
@@ -162,7 +175,87 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
     ...duplicateIdIssues(entityItems(travel.documents, '/documents')),
     ...duplicateIdIssues(entityItems(travel.reservations, '/reservations')),
     ...duplicateIdIssues(entityItems(travel.checklists, '/checklists')),
+    ...duplicateIdIssues(entityItems(travel.illustrations, '/illustrations')),
   )
+
+  if (travel.illustrations.length > ILLUSTRATION_LIMITS.maxIllustrations) {
+    issues.push(issue(
+      'ILLUSTRATION_LIMIT_EXCEEDED',
+      '/illustrations',
+      `Un voyage ne peut pas contenir plus de ${ILLUSTRATION_LIMITS.maxIllustrations} illustrations.`,
+    ))
+  }
+
+  if (
+    travel.coverIllustrationId &&
+    !illustrationIds.has(travel.coverIllustrationId)
+  ) {
+    issues.push(issue(
+      'UNKNOWN_ILLUSTRATION_REFERENCE',
+      '/coverIllustrationId',
+      `L’illustration de couverture « ${travel.coverIllustrationId} » n’existe pas.`,
+    ))
+  }
+
+  travel.illustrations.forEach((illustration, illustrationIndex) => {
+    const illustrationPath = `/illustrations/${illustrationIndex}`
+    if (
+      illustration.alt.length === 0 ||
+      illustration.alt.length > ILLUSTRATION_LIMITS.maxAltLength
+    ) {
+      issues.push(issue(
+        'ILLUSTRATION_TEXT_INVALID',
+        `${illustrationPath}/alt`,
+        `Le texte alternatif doit contenir entre 1 et ${ILLUSTRATION_LIMITS.maxAltLength} caractères.`,
+      ))
+    }
+    if (
+      illustration.caption !== undefined &&
+      (illustration.caption.length === 0 ||
+        illustration.caption.length > ILLUSTRATION_LIMITS.maxCaptionLength)
+    ) {
+      issues.push(issue(
+        'ILLUSTRATION_TEXT_INVALID',
+        `${illustrationPath}/caption`,
+        `La légende doit contenir entre 1 et ${ILLUSTRATION_LIMITS.maxCaptionLength} caractères.`,
+      ))
+    }
+
+    const provenance = illustration.provenance
+    if (provenance.type === 'licensed') {
+      if (
+        provenance.creator.length === 0 ||
+        !isAllowedIllustrationLicense(provenance.licenseCode)
+      ) {
+        issues.push(issue(
+          'ILLUSTRATION_PROVENANCE_INVALID',
+          `${illustrationPath}/provenance`,
+          'La provenance sous licence est incomplète ou utilise une licence non autorisée.',
+        ))
+      }
+      for (const [field, value] of [
+        ['sourceUrl', provenance.sourceUrl],
+        ['licenseUrl', provenance.licenseUrl],
+      ] as const) {
+        if (!isHttpsUrl(value)) {
+          issues.push(issue(
+            'ILLUSTRATION_PROVENANCE_URL_UNSUPPORTED',
+            `${illustrationPath}/provenance/${field}`,
+            'Les URL de provenance doivent utiliser HTTPS.',
+          ))
+        }
+      }
+    } else if (
+      provenance.type === 'ai-generated' &&
+      provenance.provider.length === 0
+    ) {
+      issues.push(issue(
+        'ILLUSTRATION_PROVENANCE_INVALID',
+        `${illustrationPath}/provenance/provider`,
+        'Le fournisseur de l’image générée doit être renseigné.',
+      ))
+    }
+  })
 
   if (travel.checklists.length > CHECKLIST_LIMITS.maxChecklists) {
     issues.push(issue(
@@ -302,6 +395,16 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
   travel.days.forEach((day, dayIndex) => {
     const dayPath = `/days/${dayIndex}`
 
+    day.illustrationIds.forEach((illustrationId, referenceIndex) => {
+      if (!illustrationIds.has(illustrationId)) {
+        issues.push(issue(
+          'UNKNOWN_ILLUSTRATION_REFERENCE',
+          `${dayPath}/illustrationIds/${referenceIndex}`,
+          `L’illustration « ${illustrationId} » référencée par la journée n’existe pas.`,
+        ))
+      }
+    })
+
     day.documentIds.forEach((documentId, referenceIndex) => {
       if (!documentIds.has(documentId)) {
         issues.push(
@@ -350,6 +453,16 @@ export function validateTravel(travel: Travel): DomainValidationIssue[] {
     day.steps.forEach((step, stepIndex) => {
       const stepPath = `${dayPath}/steps/${stepIndex}`
       issues.push(...stepTimeIssues(step, stepPath))
+
+      step.illustrationIds.forEach((illustrationId, referenceIndex) => {
+        if (!illustrationIds.has(illustrationId)) {
+          issues.push(issue(
+            'UNKNOWN_ILLUSTRATION_REFERENCE',
+            `${stepPath}/illustrationIds/${referenceIndex}`,
+            `L’illustration « ${illustrationId} » référencée par l’étape n’existe pas.`,
+          ))
+        }
+      })
 
       if (step.startsAt) {
         if (previousStepTime && step.startsAt < previousStepTime) {

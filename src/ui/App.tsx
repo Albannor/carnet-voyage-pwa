@@ -8,6 +8,7 @@ import {
 import { importTravelPackageToLibrary } from '../application/importTravelPackageToLibrary'
 import { systemClock, type Clock } from '../application/travelConsultation'
 import type { ImportIssue } from '../import/errors'
+import { isAllowedImageMediaType } from '../import/packageManifest'
 import type { TravelDocument } from '../domain/voyage/model'
 import { openIndexedDbTravelRepository } from '../persistence/indexedDbTravelRepository'
 import type { PersistedTravel, TravelLibraryEntry, TravelPersonalState } from '../persistence/model'
@@ -19,6 +20,7 @@ import type {
 import {
   TravelConsultation,
   type ContextActionFeedback,
+  type IllustrationResourceLoadResult,
   type TravelView,
 } from './travel/TravelConsultation'
 import {
@@ -290,6 +292,25 @@ export function App({
       : { status: 'error', message: 'Ce document local ne peut pas être ouvert en sécurité.' })
   }
 
+  const loadIllustrationResource = useCallback(async (
+    travelId: string,
+    resourceId: string,
+  ): Promise<IllustrationResourceLoadResult> => {
+    const repository = repositoryRef.current
+    if (!repository) {
+      return { ok: false, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const loaded = await repository.getResource(travelId, resourceId)
+    if (!loaded.ok) return { ok: false, message: loaded.error.message }
+    if (!isAllowedImageMediaType(loaded.value.mediaType)) {
+      return {
+        ok: false,
+        message: 'Cette ressource locale n’est pas une image passive autorisée.',
+      }
+    }
+    return { ok: true, resource: loaded.value }
+  }, [])
+
   async function setChecklistItemChecked(
     checklistId: string,
     itemId: string,
@@ -391,6 +412,7 @@ export function App({
             onBackToLibrary={backToLibrary}
             onCopyAddress={(address, label) => void copyAddress(address, label)}
             onOpenDocument={(document) => void openDocument(document)}
+            onLoadIllustrationResource={loadIllustrationResource}
             onSetChecklistItemChecked={setChecklistItemChecked}
             onSaveNote={saveTravelNote}
           />

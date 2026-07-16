@@ -104,6 +104,8 @@ L'aspect professionnel du guide Madrid provient d'une hiérarchie stable plus qu
 
 Le thème éventuel ne doit pas varier selon le voyage au point d'altérer la cohérence ou l'accessibilité de l'application.
 
+Les illustrations utilisent une présentation commune contrôlée par l’application. Une couverture peut soutenir la synthèse et des images peuvent accompagner une journée ou une étape, sans devenir nécessaires à la compréhension. Le texte alternatif est obligatoire pour une image informative, la légende reste éditoriale, et les crédits sont regroupés sans transformer les URL de provenance en sources d’image.
+
 ## Accessibilité et robustesse
 
 - Utiliser une structure sémantique et un ordre de lecture logique.

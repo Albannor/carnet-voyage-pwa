@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PersistedTravel } from '../../persistence/model'
 import { TravelConsultation, type TravelView } from './TravelConsultation'
 import {
@@ -18,7 +18,21 @@ const consultationStyles = readFileSync(
   'utf8',
 ).replace(/\s+/g, ' ')
 
-afterEach(() => cleanup())
+beforeEach(() => {
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: vi.fn((blob: Blob) => `blob:test-${blob.type}`),
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: vi.fn(),
+  })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 function ConsultationHarness({
   travel = persistedConsultationTravel,
@@ -28,6 +42,18 @@ function ConsultationHarness({
   online = true,
   onCopyAddress = vi.fn(),
   onOpenDocument = vi.fn(),
+  onLoadIllustrationResource = vi.fn().mockResolvedValue({
+    ok: true,
+    resource: {
+      travelId: consultationTravel.id,
+      resourceId: 'image-test',
+      path: 'assets/test.png',
+      mediaType: 'image/png',
+      size: 8,
+      sha256: 'a'.repeat(64),
+      bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    },
+  }),
   personalState = { checkedItemKeys: [], note: '' },
   onSetChecklistItemChecked = vi.fn().mockResolvedValue({ ok: true }),
   onSaveNote = vi.fn().mockResolvedValue({ ok: true }),
@@ -39,6 +65,21 @@ function ConsultationHarness({
   online?: boolean
   onCopyAddress?: (address: string, label: string) => void
   onOpenDocument?: (document: typeof consultationTravel.documents[number]) => void
+  onLoadIllustrationResource?: (
+    travelId: string,
+    resourceId: string,
+  ) => Promise<
+    | { ok: true; resource: {
+      travelId: string
+      resourceId: string
+      path: string
+      mediaType: 'image/png'
+      size: number
+      sha256: string
+      bytes: Uint8Array
+    } }
+    | { ok: false; message: string }
+  >
   personalState?: { checkedItemKeys: readonly string[]; note: string }
   onSetChecklistItemChecked?: (checklistId: string, itemId: string, checked: boolean) => Promise<{ ok: true } | { ok: false; message: string }>
   onSaveNote?: (text: string) => Promise<{ ok: true } | { ok: false; message: string }>
@@ -54,6 +95,7 @@ function ConsultationHarness({
       onBackToLibrary={onBack}
       onCopyAddress={onCopyAddress}
       onOpenDocument={onOpenDocument}
+      onLoadIllustrationResource={onLoadIllustrationResource}
       personalState={personalState}
       noteSaveDelayMs={10}
       onSetChecklistItemChecked={onSetChecklistItemChecked}
@@ -76,6 +118,52 @@ function reservationCardForHeading(name: string) {
   }
   return card
 }
+
+const illustratedTravel = persistedWith({
+  coverIllustrationId: 'illustration-cover',
+  illustrations: [
+    {
+      id: 'illustration-cover',
+      resourceId: 'image-cover',
+      alt: 'Vue panoramique du port',
+      caption: 'Le port au début du séjour.',
+      provenance: {
+        type: 'licensed',
+        creator: 'Camille Exemple',
+        sourceUrl: 'https://example.org/source',
+        licenseCode: 'CC-BY-4.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+        modified: true,
+      },
+    },
+    {
+      id: 'illustration-day',
+      resourceId: 'image-day',
+      alt: 'Quai pendant la journée',
+      provenance: { type: 'user-provided', credit: 'Collection personnelle' },
+    },
+    {
+      id: 'illustration-step',
+      resourceId: 'image-step',
+      alt: 'Promenade illustrée',
+      caption: 'Repère de l’étape.',
+      provenance: {
+        type: 'ai-generated',
+        provider: 'Fournisseur de test',
+        generatedAt: '2026-06-01',
+      },
+    },
+  ],
+  days: consultationTravel.days.map((day, dayIndex) => ({
+    ...day,
+    illustrationIds: dayIndex === 0 ? ['illustration-day'] : [],
+    steps: day.steps.map((step, stepIndex) => ({
+      ...step,
+      illustrationIds:
+        dayIndex === 0 && stepIndex === 0 ? ['illustration-step'] : [],
+    })),
+  })),
+})
 
 describe('synthèse du voyage', () => {
   it('affiche le titre, la destination, les dates et le résumé', () => {
@@ -421,6 +509,115 @@ describe('variantes contextuelles', () => {
 
     expect(screen.getByText(/Aucune variante n’est proposée/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pluie' })).not.toBeInTheDocument()
+  })
+})
+
+describe('illustrations locales', () => {
+  it('affiche la couverture locale, sa légende et les crédits des trois provenances', async () => {
+    const loader = vi.fn(async (_travelId: string, resourceId: string) => ({
+      ok: true as const,
+      resource: {
+        travelId: consultationTravel.id,
+        resourceId,
+        path: `assets/${resourceId}.png`,
+        mediaType: 'image/png' as const,
+        size: 4,
+        sha256: 'a'.repeat(64),
+        bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      },
+    }))
+    render(<ConsultationHarness
+      travel={illustratedTravel}
+      onLoadIllustrationResource={loader}
+    />)
+
+    const cover = await screen.findByRole('img', { name: 'Vue panoramique du port' })
+    expect(cover).not.toHaveAttribute('loading')
+    expect(screen.getAllByText('Le port au début du séjour.')).toHaveLength(2)
+    expect(screen.getByRole('heading', { name: 'Crédits photographiques' })).toBeInTheDocument()
+    expect(screen.getByText('Auteur : Camille Exemple')).toBeInTheDocument()
+    expect(screen.getByText(/Photographie personnelle · Collection personnelle/)).toBeInTheDocument()
+    expect(screen.getByText(/Image générée par IA · Fournisseur de test/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Service externe · Source de l’image' }))
+      .toHaveAttribute('href', 'https://example.org/source')
+    expect(loader).toHaveBeenCalledWith(consultationTravel.id, 'image-cover')
+    expect(URL.createObjectURL).toHaveBeenCalled()
+  })
+
+  it('affiche les images de journée et d’étape en chargement différé', async () => {
+    render(<ConsultationHarness
+      travel={illustratedTravel}
+      initialView={{ kind: 'day', dayId: 'day-arrival' }}
+    />)
+
+    expect(await screen.findByRole('img', { name: 'Quai pendant la journée' }))
+      .toHaveAttribute('loading', 'lazy')
+    expect(await screen.findByRole('img', { name: 'Promenade illustrée' }))
+      .toHaveAttribute('loading', 'lazy')
+    expect(screen.getByText('Repère de l’étape.')).toBeInTheDocument()
+  })
+
+  it('ne crée aucun emplacement ni crédit pour un ancien voyage', () => {
+    render(<ConsultationHarness />)
+    expect(screen.queryByRole('figure')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Crédits photographiques' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('neutralise défensivement une URL de provenance dangereuse', () => {
+    const cover = illustratedTravel.travel.illustrations[0]!
+    if (cover.provenance.type !== 'licensed') throw new Error('Fixture invalide')
+    render(<ConsultationHarness travel={persistedWith({
+      ...illustratedTravel.travel,
+      illustrations: [{
+        ...cover,
+        provenance: { ...cover.provenance, sourceUrl: 'javascript:alert(1)' },
+      }, ...illustratedTravel.travel.illustrations.slice(1)],
+    })} />)
+
+    expect(screen.getByText('Source de l’image · lien refusé')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Source de l’image/ })).not.toBeInTheDocument()
+  })
+
+  it('désactive les crédits externes hors connexion sans bloquer l’image locale', async () => {
+    render(<ConsultationHarness travel={illustratedTravel} online={false} />)
+    expect(await screen.findByRole('img', { name: 'Vue panoramique du port' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('Source de l’image · indisponible hors connexion'))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Source de l’image/ }))
+      .not.toBeInTheDocument()
+  })
+
+  it('révoque l’URL d’objet au démontage et garde le texte si la ressource échoue', async () => {
+    const { unmount } = render(<ConsultationHarness travel={illustratedTravel} />)
+    await screen.findByRole('img', { name: 'Vue panoramique du port' })
+    unmount()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-image/png')
+
+    render(<ConsultationHarness
+      travel={illustratedTravel}
+      onLoadIllustrationResource={vi.fn().mockResolvedValue({
+        ok: false,
+        message: 'Ressource introuvable',
+      })}
+    />)
+    expect(await screen.findByText(
+      'Illustration locale indisponible : Vue panoramique du port',
+    )).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Escapade Atlantique' })).toBeInTheDocument()
+  })
+
+  it('définit une grille responsive sans débordement horizontal', () => {
+    expect(consultationStyles).toMatch(
+      /\.illustration-grid \{[^}]*min-width: 0;[^}]*grid-template-columns: minmax\(0, 1fr\);/,
+    )
+    expect(consultationStyles).toMatch(
+      /\.travel-illustration img \{[^}]*object-fit: cover;/,
+    )
+    expect(consultationStyles).toContain(
+      '.illustration-grid:not(.cover-illustration) { grid-template-columns: repeat(2, minmax(0, 1fr));',
+    )
   })
 })
 

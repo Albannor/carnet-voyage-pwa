@@ -80,6 +80,14 @@ Le changement de case fournit un retour immédiat, attend la fin de l’écritur
 
 La zone « Notes personnelles » expose une seule note générale par voyage. Son `textarea` charge la valeur locale, conserve le texte comme texte brut et déclenche un enregistrement temporisé de la dernière valeur. Une perte de focus force l’écriture en attente. Les états « modification », « enregistrement », « enregistré » et « échec » sont annoncés, et l’interface rappelle que la note reste sur cet appareil. Ni la note ni les cases ne sont stockées dans l’URL ou `localStorage`.
 
+## Illustrations et crédits
+
+`voyage.json` 1.3.0 peut associer une couverture au voyage et des illustrations aux journées ou étapes. L’interface relit toujours les octets validés depuis `travelResources` avec le `travelId` courant ; elle ne charge jamais `sourceUrl` ou `licenseUrl` comme image. La couverture est chargée normalement et les images secondaires en différé.
+
+Le rendu utilise `figure`, `img` et `figcaption`, le texte alternatif importé, un ratio visuel 16:9 et `object-fit: cover`. L’absence d’illustration ne crée aucun emplacement. Une ressource exceptionnellement illisible produit un remplacement textuel sans masquer le programme. Les URL d’objet temporaires sont révoquées au démontage ou au changement de ressource.
+
+La synthèse regroupe sans doublon les illustrations effectivement référencées et affiche leur provenance : auteur, source et licence HTTPS, photographie personnelle ou génération par IA. Ces liens sont explicitement externes et désactivés hors connexion ; la ressource locale affichée reste disponible.
+
 ## États vides et erreurs
 
 La consultation gère :
@@ -109,13 +117,14 @@ Les règles pures de date et d’hébergement, les vues React et l’orchestrati
 npm run test
 ```
 
-La suite couvre la synthèse, la chronologie, les étapes sans heure, les états vides, les hébergements successifs, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, ainsi que l’absence de surface d’exécution du HTML importé.
+La suite couvre la synthèse, la chronologie, les étapes sans heure, les états vides, les hébergements successifs, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, les illustrations et crédits, la révocation des URL d’objet, ainsi que l’absence de surface d’exécution du HTML importé.
 
 ## Limites actuelles
 
 Restent hors périmètre :
 
-- l’installation et le fonctionnement hors ligne complet de l’étape 8 ;
+- l’installation et le fonctionnement hors ligne complet de l’étape 9 ;
+- toute galerie, visionneuse plein écran, édition ou téléchargement distant d’image ;
 - les notes multiples, riches, partagées ou avec pièces jointes ;
 - toute carte, navigation GPS, modification de réservation ou lecteur PDF intégré ;
 - la conservation du mode choisi après un rechargement.

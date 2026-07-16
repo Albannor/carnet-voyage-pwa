@@ -47,6 +47,7 @@ export interface TravelStep {
   links: readonly TravelLink[]
   documentIds: readonly EntityId[]
   reservationIds: readonly EntityId[]
+  illustrationIds: readonly EntityId[]
 }
 
 export interface TravelDay {
@@ -57,6 +58,40 @@ export interface TravelDay {
   steps: readonly TravelStep[]
   documentIds: readonly EntityId[]
   reservationIds: readonly EntityId[]
+  illustrationIds: readonly EntityId[]
+}
+
+export type LicensedIllustrationProvenance = {
+  readonly type: 'licensed'
+  readonly creator: string
+  readonly sourceUrl: string
+  readonly licenseCode: string
+  readonly licenseUrl: string
+  readonly modified: boolean
+}
+
+export type UserProvidedIllustrationProvenance = {
+  readonly type: 'user-provided'
+  readonly credit?: string
+}
+
+export type AiGeneratedIllustrationProvenance = {
+  readonly type: 'ai-generated'
+  readonly provider: string
+  readonly generatedAt?: IsoDate
+}
+
+export type TravelIllustrationProvenance =
+  | LicensedIllustrationProvenance
+  | UserProvidedIllustrationProvenance
+  | AiGeneratedIllustrationProvenance
+
+export interface TravelIllustration {
+  readonly id: EntityId
+  readonly resourceId: EntityId
+  readonly alt: string
+  readonly caption?: string
+  readonly provenance: TravelIllustrationProvenance
 }
 
 export interface TravelDocument {
@@ -130,4 +165,6 @@ export interface Travel {
   documents: readonly TravelDocument[]
   reservations: readonly TravelReservation[]
   checklists: readonly TravelChecklist[]
+  illustrations: readonly TravelIllustration[]
+  coverIllustrationId?: EntityId
 }

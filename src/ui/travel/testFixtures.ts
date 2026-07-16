@@ -87,6 +87,7 @@ export const consultationTravel: Travel = {
           ],
           documentIds: [],
           reservationIds: [],
+          illustrationIds: [],
         },
         {
           id: 'step-check-in',
@@ -97,6 +98,7 @@ export const consultationTravel: Travel = {
           links: [],
           documentIds: ['document-booking'],
           reservationIds: ['reservation-stay'],
+          illustrationIds: [],
         },
         {
           id: 'step-flexible',
@@ -104,10 +106,12 @@ export const consultationTravel: Travel = {
           links: [],
           documentIds: [],
           reservationIds: [],
+          illustrationIds: [],
         },
       ],
       documentIds: [],
       reservationIds: [],
+      illustrationIds: [],
     },
     {
       id: 'day-harbour',
@@ -116,6 +120,7 @@ export const consultationTravel: Travel = {
       steps: [],
       documentIds: ['document-booking'],
       reservationIds: ['reservation-stay'],
+      illustrationIds: [],
     },
     {
       id: 'day-island',
@@ -131,10 +136,12 @@ export const consultationTravel: Travel = {
           links: [],
           documentIds: [],
           reservationIds: [],
+          illustrationIds: [],
         },
       ],
       documentIds: [],
       reservationIds: [],
+      illustrationIds: [],
     },
   ],
   variants: [
@@ -199,6 +206,7 @@ export const consultationTravel: Travel = {
       items: [{ id: 'item-bag', label: 'Prendre un sac' }],
     },
   ],
+  illustrations: [],
 }
 
 export const persistedConsultationTravel: PersistedTravel = {

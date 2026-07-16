@@ -52,6 +52,7 @@ const travel: Travel = {
   documents: [],
   reservations: [],
   checklists: [],
+  illustrations: [],
 }
 
 let repository: TravelLibraryRepository

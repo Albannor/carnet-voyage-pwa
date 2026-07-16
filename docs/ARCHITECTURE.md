@@ -62,6 +62,8 @@ Depuis l’étape 6, les contenus `voyage.json` `1.0.0` et `1.1.0` convergent ve
 
 Depuis l’étape 7, `voyage.json` `1.2.0` ajoute les définitions de checklists et converge, avec les versions 1.0.0 et 1.1.0, vers la version 3 du modèle interne. Les versions antérieures reçoivent une collection de checklists vide. L’état coché et la note générale ne font jamais partie du modèle importé : l’application les charge et les écrit par l’interface du dépôt dans `personalStates`. Les composants React ne connaissent pas l’API IndexedDB.
 
+Depuis l’étape 8, `voyage.json` `1.3.0` ajoute des illustrations locales et leur provenance. Les quatre contrats convergent vers la version 4 du modèle interne ; les versions 1.0.0 à 1.2.0 reçoivent des collections et associations d’illustrations vides. Les images sont relues par `[travelId, resourceId]`, contrôlées comme PNG, JPEG ou WebP, puis transformées temporairement en URL d’objet par le composant de rendu. Ces URL sont révoquées au démontage ou au changement de ressource et ne sont jamais persistées. Les URL de provenance sont uniquement des métadonnées HTTPS : elles ne servent jamais de source d’image.
+
 ## Stockage local
 
 IndexedDB est la source de vérité locale pour :
@@ -146,7 +148,7 @@ Les cas d'usage orchestrent import, liste, ouverture, suppression, sélection de
 
 ### Domaine
 
-Le domaine porte les entités normalisées, leurs identifiants, relations et invariants : voyage, journées, étapes, lieux, hébergements, variantes, liens, réservations, documents et définitions de checklists. Il ne dépend ni de React ni du stockage et ne représente aucun état personnel.
+Le domaine porte les entités normalisées, leurs identifiants, relations et invariants : voyage, journées, étapes, lieux, hébergements, variantes, liens, réservations, documents, définitions de checklists, illustrations et provenances. Il ne dépend ni de React ni du stockage et ne représente aucun état personnel.
 
 ### Import, validation et migration
 

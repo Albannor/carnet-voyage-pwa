@@ -1,0 +1,85 @@
+{
+  "contentModelVersion": "1.3.0",
+  "id": "illustrated-coast-2026",
+  "title": "Escapade illustrée",
+  "destination": { "name": "La Rochelle", "countryCode": "FR" },
+  "language": "fr-FR",
+  "timeZone": "Europe/Paris",
+  "startDate": "2026-07-14",
+  "endDate": "2026-07-15",
+  "summary": "Deux journées structurées avec des illustrations locales.",
+  "accommodations": [
+    { "id": "hotel-port", "name": "Maison du port", "placeId": "place-port", "startDate": "2026-07-14", "endDate": "2026-07-15" }
+  ],
+  "places": [
+    { "id": "place-port", "name": "Vieux port", "address": "Quai du port", "links": [] }
+  ],
+  "days": [
+    {
+      "id": "day-arrival",
+      "date": "2026-07-14",
+      "title": "Arrivée au port",
+      "summary": "Premiers repères.",
+      "illustrationIds": ["day-photo"],
+      "steps": [
+        {
+          "id": "step-walk",
+          "title": "Promenade",
+          "startTime": "15:00",
+          "placeId": "place-port",
+          "links": [],
+          "illustrationIds": ["step-image"]
+        }
+      ]
+    },
+    {
+      "id": "day-return",
+      "date": "2026-07-15",
+      "title": "Retour",
+      "steps": []
+    }
+  ],
+  "variants": [],
+  "checklists": [
+    {
+      "id": "check-departure",
+      "title": "Avant de partir",
+      "target": { "type": "travel" },
+      "items": [{ "id": "item-ticket", "label": "Billet" }]
+    }
+  ],
+  "illustrations": [
+    {
+      "id": "cover-photo",
+      "resourceId": "image-cover",
+      "alt": "Vue générale d’un port atlantique.",
+      "caption": "Le port, point de départ du séjour.",
+      "provenance": {
+        "type": "licensed",
+        "creator": "Camille Exemple",
+        "sourceUrl": "https://example.org/photos/port",
+        "licenseCode": "CC-BY-4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "modified": true
+      }
+    },
+    {
+      "id": "day-photo",
+      "resourceId": "image-day",
+      "alt": "Quai observé pendant la première journée.",
+      "provenance": { "type": "user-provided", "credit": "Collection personnelle" }
+    },
+    {
+      "id": "step-image",
+      "resourceId": "image-step",
+      "alt": "Illustration stylisée d’une promenade sur le port.",
+      "caption": "Repère visuel de l’étape.",
+      "provenance": {
+        "type": "ai-generated",
+        "provider": "Fournisseur de test",
+        "generatedAt": "2026-06-01"
+      }
+    }
+  ],
+  "coverIllustrationId": "cover-photo"
+}

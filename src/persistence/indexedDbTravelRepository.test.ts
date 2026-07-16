@@ -1,13 +1,16 @@
 import validTravelDocument from '../../examples/voyage/1.0.0/valid/madrid-weekend.json'
 import validTravelDocumentV1_1 from '../../examples/voyage/1.1.0/valid/coastal-trip.json'
 import validTravelDocumentV1_2 from '../../examples/voyage/1.2.0/valid/coastal-checklists.json'
+import validTravelDocumentV1_3 from '../../examples/voyage/1.3.0/valid/illustrated-coast.json'
 import type { TravelDocumentV1 } from '../contracts/voyage/v1/document'
 import { importTravelPackage, type ValidatedTravelPackage } from '../import/importTravelPackage'
 import {
   createPackageArchive,
   selectedPackageFile,
   TEST_PDF_BYTES,
+  TEST_JPEG_BYTES,
   TEST_PNG_BYTES,
+  TEST_WEBP_BYTES,
 } from '../import/test/packageFixtures'
 import { sha256Hex } from '../import/sha256'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -175,6 +178,41 @@ async function validatedChecklistPackage(suffix: string): Promise<ValidatedTrave
   return imported.package
 }
 
+async function validatedIllustratedPackage(suffix: string): Promise<ValidatedTravelPackage> {
+  const travel = structuredClone(validTravelDocumentV1_3)
+  travel.id = `illustrated-${suffix}`
+  travel.title = `Voyage illustré ${suffix}`
+  const fixtureResources = [
+    ['image-cover', 'assets/cover.png', 'image/png', TEST_PNG_BYTES],
+    ['image-day', 'assets/day.jpg', 'image/jpeg', TEST_JPEG_BYTES],
+    ['image-step', 'assets/step.webp', 'image/webp', TEST_WEBP_BYTES],
+  ] as const
+  const resources = await Promise.all(fixtureResources.map(
+    async ([id, path, mediaType, bytes]) => ({
+      id,
+      path,
+      mediaType,
+      size: bytes.length,
+      sha256: await sha256Hex(bytes),
+    }),
+  ))
+  const archive = await createPackageArchive({
+    travel,
+    includeDefaultResource: false,
+    manifest: {
+      id: travel.id,
+      travelModelVersion: '1.3.0',
+      resources,
+    },
+    extraFiles: Object.fromEntries(
+      fixtureResources.map(([, path, , bytes]) => [path, bytes]),
+    ),
+  })
+  const imported = await importTravelPackage(selectedPackageFile(archive))
+  if (!imported.ok) throw new Error(imported.errors[0]?.code)
+  return imported.package
+}
+
 async function seedPersonalState(state: PersistedPersonalState) {
   const database = await openRawDatabase(databaseName)
   const transaction = database.transaction(TRAVEL_STORES.personalStates, 'readwrite')
@@ -272,12 +310,16 @@ describe('IndexedDbTravelRepository', () => {
     delete legacyTravel.documents
     delete legacyTravel.reservations
     delete legacyTravel.checklists
+    delete legacyTravel.illustrations
+    delete legacyTravel.coverIllustrationId
     for (const day of legacyTravel.days as Array<Record<string, unknown>>) {
       delete day.documentIds
       delete day.reservationIds
+      delete day.illustrationIds
       for (const step of day.steps as Array<Record<string, unknown>>) {
         delete step.documentIds
         delete step.reservationIds
+        delete step.illustrationIds
       }
     }
     legacyContent.internalModelVersion = 1
@@ -293,8 +335,11 @@ describe('IndexedDbTravelRepository', () => {
     expect(result.ok && result.value.travel.documents).toEqual([])
     expect(result.ok && result.value.travel.reservations).toEqual([])
     expect(result.ok && result.value.travel.checklists).toEqual([])
+    expect(result.ok && result.value.travel.illustrations).toEqual([])
     expect(result.ok && result.value.travel.days[0]?.documentIds).toEqual([])
+    expect(result.ok && result.value.travel.days[0]?.illustrationIds).toEqual([])
     expect(result.ok && result.value.travel.days[0]?.steps[0]?.reservationIds).toEqual([])
+    expect(result.ok && result.value.travel.days[0]?.steps[0]?.illustrationIds).toEqual([])
   })
 
   it('persiste le contrat 1.1.0 et permet de relire son PDF local', async () => {
@@ -321,6 +366,65 @@ describe('IndexedDbTravelRepository', () => {
     expect(resource.ok && Array.from(resource.value.bytes)).toEqual(
       Array.from(TEST_PDF_BYTES),
     )
+  })
+
+  it('stocke et relit une illustration locale isolée par voyage', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedIllustratedPackage('alpha'))
+    await repository.importPackage(await validatedIllustratedPackage('beta'))
+    repository.close()
+
+    const reopened = await openRepository()
+    const alpha = await reopened.getTravel('illustrated-alpha')
+    const alphaImage = await reopened.getResource('illustrated-alpha', 'image-day')
+    const betaImage = await reopened.getResource('illustrated-beta', 'image-day')
+
+    expect(alpha.ok && alpha.value.travel.coverIllustrationId).toBe('cover-photo')
+    expect(alpha.ok && alpha.value.travel.illustrations).toHaveLength(3)
+    expect(alphaImage.ok && alphaImage.value.mediaType).toBe('image/jpeg')
+    expect(betaImage.ok && betaImage.value.travelId).toBe('illustrated-beta')
+
+    await reopened.deleteTravel('illustrated-alpha')
+    expect(await reopened.getResource('illustrated-alpha', 'image-day')).toMatchObject({
+      ok: false,
+      error: { code: 'RESOURCE_NOT_FOUND' },
+    })
+    expect(await reopened.getResource('illustrated-beta', 'image-day')).toMatchObject({
+      ok: true,
+    })
+  })
+
+  it('adapte en mémoire un contenu interne v3 vers v4 sans migration de base', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedChecklistPackage('v3'))
+    repository.close()
+
+    const database = await openRawDatabase(databaseName)
+    const transaction = database.transaction(TRAVEL_STORES.contents, 'readwrite')
+    const store = transaction.objectStore(TRAVEL_STORES.contents)
+    const content = await requestResult<Record<string, unknown>>(
+      store.get('travel-v3'),
+    )
+    const travel = content.travel as Record<string, unknown>
+    delete travel.illustrations
+    delete travel.coverIllustrationId
+    for (const day of travel.days as Array<Record<string, unknown>>) {
+      delete day.illustrationIds
+      for (const step of day.steps as Array<Record<string, unknown>>) {
+        delete step.illustrationIds
+      }
+    }
+    content.internalModelVersion = 3
+    store.put(content)
+    await transactionCompletion(transaction)
+    database.close()
+
+    const reopened = await openRepository()
+    const result = await reopened.getTravel('travel-v3')
+    expect(result.ok && result.value.travel.illustrations).toEqual([])
+    expect(result.ok && result.value.travel.checklists).toHaveLength(3)
+    expect(result.ok && result.value.travel.days[0]?.illustrationIds).toEqual([])
+    expect(result.ok && result.value.travel.days[0]?.steps[0]?.illustrationIds).toEqual([])
   })
 
   it('fait coexister plusieurs voyages', async () => {

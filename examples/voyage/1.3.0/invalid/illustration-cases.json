@@ -1,0 +1,16 @@
+{
+  "unknownProperty": { "unexpectedLayout": "hero" },
+  "duplicateIllustrationId": "cover-photo",
+  "unknownCoverIllustrationId": "missing-cover",
+  "unknownDayIllustrationId": "missing-day-image",
+  "unknownStepIllustrationId": "missing-step-image",
+  "unknownResourceId": "missing-resource",
+  "pdfResourceId": "resource-pdf",
+  "incompleteProvenance": { "type": "licensed", "creator": "Auteur" },
+  "unsupportedLicenseCode": "ALL-RIGHTS-RESERVED",
+  "nonHttpsSourceUrl": "http://example.org/photo",
+  "emptyAlt": "",
+  "tooLongAltLength": 301,
+  "tooManyIllustrations": 101,
+  "tooManyReferences": 101
+}

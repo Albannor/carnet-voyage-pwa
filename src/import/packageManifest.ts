@@ -9,6 +9,20 @@ export const ALLOWED_RESOURCE_MEDIA_TYPES = [
   'application/pdf',
 ] as const
 
+export const ALLOWED_IMAGE_MEDIA_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+] as const
+
+export type AllowedImageMediaType = (typeof ALLOWED_IMAGE_MEDIA_TYPES)[number]
+
+export function isAllowedImageMediaType(
+  value: string,
+): value is AllowedImageMediaType {
+  return (ALLOWED_IMAGE_MEDIA_TYPES as readonly string[]).includes(value)
+}
+
 export type AllowedResourceMediaType =
   (typeof ALLOWED_RESOURCE_MEDIA_TYPES)[number]
 

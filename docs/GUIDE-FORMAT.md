@@ -51,6 +51,7 @@ Il est destiné à représenter les entités conceptuelles suivantes :
 - **Réservation** : référence utile, horaire, statut éditorial et document associé, sans fonction de paiement ;
 - **Document** : métadonnées et référence vers un fichier passif du répertoire `documents/` ;
 - **Checklist** : définition d'éléments à cocher ;
+- **Illustration** : référence explicite vers une image passive, texte alternatif, légende éventuelle et provenance structurée ;
 - **Lien utile** : libellé, destination, contexte et indication qu'une connexion peut être nécessaire.
 
 Le contenu utilise des identifiants stables et uniques dans le paquet. Les relations sont exprimées par ces identifiants plutôt que par la position visuelle ou le nom d'un élément.
@@ -149,12 +150,14 @@ La version mineure `1.1.0`, documentée dans [`contracts/voyage/1.1.0/README.md`
 
 La version mineure `1.2.0`, documentée dans [`contracts/voyage/1.2.0/README.md`](../contracts/voyage/1.2.0/README.md), ajoute des checklists optionnelles ciblant explicitement le voyage, une journée ou une étape. Elle limite le voyage à 100 checklists et chaque checklist à 100 éléments. Les identifiants de checklist sont uniques dans le voyage ; les identifiants d’élément sont uniques dans leur checklist. L’ordre du tableau définit l’ordre des éléments. Les notes et états cochés restent exclus de `voyage.json`.
 
+La version mineure `1.3.0`, documentée dans [`contracts/voyage/1.3.0/README.md`](../contracts/voyage/1.3.0/README.md), ajoute jusqu’à 100 illustrations optionnelles. Une couverture, une journée ou une étape référence ces illustrations uniquement par identifiant. Chaque illustration référence une ressource PNG, JPEG ou WebP déclarée dans le manifest et possède un texte alternatif ainsi qu’une provenance `licensed`, `user-provided` ou `ai-generated`. Les URL de provenance HTTPS sont des crédits externes, jamais des sources de chargement.
+
 Le contrat externe décrit la forme acceptée à la frontière de l'application. Le modèle interne TypeScript, situé dans `src/domain/voyage/`, décrit les concepts utilisés par le domaine et leurs invariants sans dépendre de JSON Schema, de React ou du stockage. Une conversion explicite relie les deux ; leur ressemblance actuelle n'en fait pas une seule couche.
 
-Les trois contrats refusent toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
+Les quatre contrats refusent toute propriété inconnue. Une extension du contenu exige donc une nouvelle version déclarée du contrat, au lieu d'être interprétée silencieusement. La référence Madrid fournit uniquement des cas d'usage et une inspiration éditoriale : son HTML et son manifest PWA ne servent pas de schéma implicite.
 
 ## Import implémenté
 
-La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte le paquet `1.0.0` et les contenus `voyage.json` `1.0.0`, `1.1.0` ou `1.2.0`. La version déclarée dans le manifest doit être exactement celle du contenu.
+La chaîne d'import ZIP, ses limites de sécurité, les types de ressources passives autorisées et le registre de normalisation sont documentés dans [`docs/IMPORT.md`](IMPORT.md). Elle accepte le paquet `1.0.0` et les contenus `voyage.json` `1.0.0`, `1.1.0`, `1.2.0` ou `1.3.0`. La version déclarée dans le manifest doit être exactement celle du contenu.
 
 Après validation complète, l'étape 4 conserve le modèle normalisé et les ressources passives dans des espaces IndexedDB isolés par voyage. Le ZIP brut et `guide-standalone.html` ne sont pas stockés. Cette persistance est documentée dans [`docs/PERSISTENCE.md`](PERSISTENCE.md).

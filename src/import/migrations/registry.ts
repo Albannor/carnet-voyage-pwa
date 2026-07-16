@@ -6,6 +6,8 @@ import { toTravelV1_1 } from '../../contracts/voyage/v1_1/toTravel'
 import type { Travel } from '../../domain/voyage/model'
 import type { TravelDocumentV1_2 } from '../../contracts/voyage/v1_2/document'
 import { toTravelV1_2 } from '../../contracts/voyage/v1_2/toTravel'
+import type { TravelDocumentV1_3 } from '../../contracts/voyage/v1_3/document'
+import { toTravelV1_3 } from '../../contracts/voyage/v1_3/toTravel'
 import { importIssue, type ImportIssue } from '../errors'
 
 export type TravelNormalizer = (document: SupportedTravelDocument) => Travel
@@ -15,6 +17,7 @@ export const TRAVEL_NORMALIZERS: TravelNormalizerRegistry = Object.freeze({
   '1.0.0': (document) => toTravel(document as TravelDocumentV1),
   '1.1.0': (document) => toTravelV1_1(document as TravelDocumentV1_1),
   '1.2.0': (document) => toTravelV1_2(document as TravelDocumentV1_2),
+  '1.3.0': (document) => toTravelV1_3(document as TravelDocumentV1_3),
 })
 
 export type TravelNormalizationResult =

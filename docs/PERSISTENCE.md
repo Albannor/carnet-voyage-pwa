@@ -10,7 +10,7 @@ La couche se trouve dans `src/persistence/`. Elle utilise directement l'API Inde
 
 - nom par défaut : `carnet-voyage` ;
 - version IndexedDB : `1` ;
-- version du modèle interne normalisé : `3`.
+- version du modèle interne normalisé : `4`.
 
 La version IndexedDB évolue séparément des versions externes `manifest.json` et `voyage.json`. La création de la version 1 n'efface aucune base existante. Une base portant une version future est refusée avec `DATABASE_VERSION_INCOMPATIBLE` ; une évolution ultérieure devra ajouter une migration ordonnée au lieu de supprimer silencieusement les données.
 
@@ -63,7 +63,7 @@ Cette politique évite une mise à jour implicite et protège les états personn
 
 La liste charge seulement `travelMetadata`. L'ouverture récupère les métadonnées et le contenu correspondant au même `travelId`. Une ressource se récupère obligatoirement avec la clé composite `[travelId, resourceId]`, ce qui permet à deux voyages de posséder le même identifiant de ressource sans collision.
 
-L'interface de consultation relit le voyage normalisé et récupère chaque PDF avec la clé composite du voyage courant. Les anciens contenus internes sans collections documentaires ou checklists sont adaptés en mémoire vers la version 3, sans modifier la version 1 de la structure IndexedDB. Un ancien voyage sans état personnel retourne une note vide et aucune case cochée.
+L'interface de consultation relit le voyage normalisé et récupère chaque PDF ou image avec la clé composite du voyage courant. Les anciens contenus internes v3 sont adaptés en mémoire vers la version 4 en ajoutant des collections d’illustrations vides, sans modifier la version 1 de la structure IndexedDB. Une image reste stockée avec son type MIME validé et ses octets ; aucune URL d’objet n’est persistée. Un ancien voyage sans état personnel retourne une note vide et aucune case cochée.
 
 ## Suppression
 
@@ -117,5 +117,5 @@ npm run build
 - une seule note générale en texte brut par voyage ; aucune note multiple, riche, partagée ou avec pièce jointe ;
 - aucune fusion ni mise à jour automatique d’un voyage existant ;
 - l’enregistrement automatique de la note est temporisé dans l’interface et les cases sont écrites individuellement ;
-- aucun service worker ni installation hors ligne complète avant l'étape 8 ;
+- aucun service worker ni installation hors ligne complète avant l'étape 9 ;
 - aucune migration de structure IndexedDB, mise à jour ou fusion de voyage, puisqu'une seule version de base existe ;

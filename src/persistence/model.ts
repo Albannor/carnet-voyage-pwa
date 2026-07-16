@@ -1,7 +1,7 @@
 import type { Travel } from '../domain/voyage/model'
 import type { AllowedResourceMediaType } from '../import/packageManifest'
 
-export const INTERNAL_TRAVEL_MODEL_VERSION = 3 as const
+export const INTERNAL_TRAVEL_MODEL_VERSION = 4 as const
 export const PERSONAL_STATE_RECORD_VERSION = 1 as const
 export const PERSONAL_STATE_NAMESPACES = Object.freeze({
   checklist: 'checklist',
