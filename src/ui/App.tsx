@@ -6,6 +6,10 @@ import {
   type ChangeEvent,
 } from 'react'
 import { importTravelPackageToLibrary } from '../application/importTravelPackageToLibrary'
+import {
+  loadTravelCover,
+  type TravelCoverLoadResult,
+} from '../application/loadTravelCover'
 import { systemClock, type Clock } from '../application/travelConsultation'
 import type { ImportIssue } from '../import/errors'
 import { isAllowedImageMediaType } from '../import/packageManifest'
@@ -31,6 +35,7 @@ import {
   readTravelLocation,
   writeTravelLocation,
 } from './travel/navigation'
+import { TravelLibraryCard } from './library/TravelLibraryCard'
 
 const principles = [
   {
@@ -311,6 +316,18 @@ export function App({
     return { ok: true, resource: loaded.value }
   }, [])
 
+  const loadLibraryCover = useCallback(async (
+    travelId: string,
+  ): Promise<TravelCoverLoadResult> => {
+    const repository = repositoryRef.current
+    return repository
+      ? loadTravelCover(repository, travelId)
+      : {
+          status: 'error',
+          message: 'La bibliothèque locale n’est pas disponible.',
+        }
+  }, [])
+
   async function setChecklistItemChecked(
     checklistId: string,
     itemId: string,
@@ -465,32 +482,13 @@ export function App({
               {libraryState.status === 'ready' && libraryState.entries.length > 0 && (
                 <ul className="travel-list">
                   {libraryState.entries.map((entry) => (
-                    <li className="travel-card" key={entry.travelId}>
-                      <div>
-                        <h4>{entry.title}</h4>
-                        <p>{entry.destination}</p>
-                        <p className="travel-dates">
-                          <time dateTime={entry.startDate}>{entry.startDate}</time> au{' '}
-                          <time dateTime={entry.endDate}>{entry.endDate}</time>
-                        </p>
-                      </div>
-                      <div className="travel-actions">
-                        <button
-                          className="primary-button"
-                          type="button"
-                          onClick={() => void openTravel(entry.travelId)}
-                        >
-                          Ouvrir {entry.title}
-                        </button>
-                        <button
-                          className="danger-button"
-                          type="button"
-                          onClick={() => void deleteTravel(entry)}
-                        >
-                          Supprimer {entry.title}
-                        </button>
-                      </div>
-                    </li>
+                    <TravelLibraryCard
+                      key={entry.travelId}
+                      entry={entry}
+                      onLoadCover={loadLibraryCover}
+                      onOpen={(travelId) => void openTravel(travelId)}
+                      onDelete={(travel) => void deleteTravel(travel)}
+                    />
                   ))}
                 </ul>
               )}

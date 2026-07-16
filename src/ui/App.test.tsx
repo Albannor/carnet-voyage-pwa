@@ -64,7 +64,10 @@ beforeEach(() => {
   repository = {
     importPackage: vi.fn(),
     listTravels: vi.fn().mockResolvedValue({ ok: true, value: [] }),
-    getTravel: vi.fn(),
+    getTravel: vi.fn().mockResolvedValue({
+      ok: true,
+      value: { metadata: entry, travel },
+    }),
     getResource: vi.fn(),
     getPersonalState: vi.fn().mockResolvedValue({
       ok: true,

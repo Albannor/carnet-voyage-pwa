@@ -226,7 +226,9 @@ h4 {
 }
 
 .travel-card {
+  min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem;
   border: 0.0625rem solid #b9c8c6;
@@ -234,9 +236,55 @@ h4 {
   background: #f8fbf9;
 }
 
+.travel-card > * {
+  min-width: 0;
+}
+
+.travel-card-cover {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 0.7rem;
+  background: #dfe9e5;
+}
+
+.travel-card-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.travel-card-cover-fallback {
+  min-height: 4.75rem;
+  aspect-ratio: auto;
+  display: grid;
+  place-items: center;
+  color: #52676c;
+  background:
+    linear-gradient(135deg, #edf3f1 0 50%, #e3ece8 50% 100%);
+}
+
+.travel-card-cover-fallback span {
+  font-size: 1rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.travel-card-content {
+  min-width: 0;
+}
+
+.travel-card-content h4 {
+  overflow-wrap: anywhere;
+}
+
 .travel-card p {
   color: #455b62;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .travel-dates {
@@ -244,9 +292,15 @@ h4 {
 }
 
 .travel-actions {
-  display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
+}
+
+.travel-actions > button {
+  min-width: 0;
+  width: 100%;
 }
 
 .primary-button,
@@ -1170,12 +1224,20 @@ footer p {
   }
 
   .travel-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
+    grid-template-columns:
+      minmax(8rem, 11rem)
+      minmax(0, 1fr)
+      minmax(7rem, 9rem);
+    align-items: start;
   }
 
   .travel-actions {
+    grid-template-columns: minmax(0, 1fr);
     justify-content: flex-end;
+  }
+
+  .travel-card-cover-fallback {
+    min-height: 6.25rem;
   }
 
   .travel-workspace {
