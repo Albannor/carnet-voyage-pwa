@@ -4,14 +4,17 @@
 
 La consultation commune de l’étape 5 rend exclusivement le modèle métier normalisé relu depuis IndexedDB. Elle ne lit pas l’archive ZIP, ne reconstruit rien depuis `guide-standalone.html` et n’interprète aucun HTML importé. Tous les textes du voyage sont rendus comme du texte par React.
 
-Le parcours disponible est :
+Le parcours de consultation est structuré autour de quatre sections :
 
 ```text
-Bibliothèque → synthèse du voyage → journée → synthèse → bibliothèque
-                           ↘ vue Aujourd’hui
+Bibliothèque
+  └─ Vue d’ensemble
+  └─ Programme → journée / Aujourd’hui
+  └─ Infos pratiques
+  └─ Préparation
 ```
 
-La synthèse présente le titre, la destination, les dates, le résumé, le fuseau horaire, le point d’ancrage pertinent et la liste concise des journées. Une journée présente son titre, sa date, son intention éventuelle, son hébergement et ses étapes dans l’ordre du modèle normalisé.
+La **Vue d’ensemble** reste volontairement concise : couverture éventuelle, titre, destination, dates, résumé et réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. Les **Infos pratiques** centralisent les hébergements, lieux, réservations, documents et crédits photographiques. La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
 
 ## Navigation et rechargement
 
@@ -19,7 +22,9 @@ L’état de consultation distingue la bibliothèque, le chargement, l’erreur 
 
 - `summary` pour la synthèse ;
 - `today` pour « Aujourd’hui » ;
-- `day` avec un identifiant stable de journée.
+- `day` avec un identifiant stable de journée ;
+- `practical` pour les infos pratiques ;
+- `preparation` pour les checklists, confirmations et notes.
 
 L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view` et `day` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
 
@@ -40,53 +45,51 @@ Dans tous les cas, les journées existantes restent accessibles. Les changements
 
 Les étapes sont rendues dans l’ordre du tableau du modèle interne, déjà contrôlé par les invariants métier lors de l’import. L’interface ne déduit pas l’ordre d’une présentation source et ne réordonne pas visuellement le contenu.
 
-Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire indiqué ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable et leurs éventuelles adresses sont affichées comme du texte.
+Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable. Dans le programme, leur libellé sert de repère et leurs liens utiles restent accessibles au point d’usage. Les infos pratiques offrent en complément un index global des mêmes lieux et liens ; elles ne constituent pas une seconde source de données et ne sont jamais le seul accès à une action utile au programme.
 
-## Hébergement comme point d’ancrage
+## Hébergements et informations pratiques
 
-Pour une journée, l’application sélectionne le premier hébergement normalisé dont la période inclut la date de cette journée. Elle résout ensuite son lieu par identifiant. Un hébergement n’est jamais prolongé hors de sa période.
+Chaque hébergement possède une fiche unique dans les infos pratiques. La fiche résout son lieu par `placeId` et les réservations ou documents associés uniquement depuis les `reservationIds` et `documentIds` des étapes qui portent explicitement son `accommodationId`. Aucun rapprochement n’est déduit d’un libellé, d’un chemin ou d’un nom de fichier.
 
-Pour la synthèse, la date d’ancrage est :
-
-- la date locale du voyage lorsqu’elle appartient au séjour ;
-- la date de début avant le séjour ;
-- la date de fin après le séjour.
-
-L’absence d’hébergement est annoncée explicitement. Son adresse peut être copiée localement et ses liens HTTPS sont présentés dans ce contexte, sans carte intégrée.
+Dans le programme, une étape liée à un hébergement conserve son titre éditorial et un lien discret vers les infos pratiques. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
 
 ## Actions contextuelles et documents
 
 Les actions sont distinguées par leur libellé et leur comportement :
 
-- une **action locale** copie une adresse et reste disponible sans réseau ;
+- un **lien pratique ordinaire** conserve le libellé éditorial importé et apparaît comme un lien compact auprès de l’étape ;
+- une **action locale** telle que la copie d’une adresse reste un bouton de type lien et fonctionne sans réseau ;
 - un **document local** récupère uniquement le PDF rattaché au voyage courant dans IndexedDB ;
-- un **service externe** ouvre un lien HTTPS dans un nouvel onglet avec `noopener noreferrer` et indique qu'une connexion est requise.
+- une **réservation** conserve sa structure et ses références propres ;
+- un **service externe** ouvre un lien HTTPS dans un nouvel onglet avec `noopener noreferrer` et indique de manière accessible qu'une connexion est requise.
 
 Hors connexion, les liens externes sont désactivés mais le programme, les réservations et les PDF déjà importés restent consultables. Une seconde vérification d'URL à l'affichage neutralise toute valeur non HTTPS, en complément du schéma et de la validation métier. Aucun HTML importé, SVG actif ou document exécutable n'est rendu.
 
 Documents et réservations sont reliés aux journées ou étapes exclusivement par identifiants stables. Le document référence à son tour une ressource PDF déclarée dans le manifest. Aucun nom de fichier, chemin ou libellé ne sert à déduire une association.
 
+Dans le déroulé, les liens explicitement portés par l’étape sont suivis des liens de son lieu résolu par `placeId`, puis dédupliqués de manière stable par URL sans modifier les données. Ils restent des liens textuels souples, soulignés et sans carte ou bouton pleine largeur. Les documents gardent une action locale explicite et les réservations directement associées restent présentées comme des détails repliables. Une information descriptive reste du texte.
+
+La première illustration d’une étape peut porter un lien pratique selon une règle déterministe : l’unique lien HTTPS valide de l’étape est prioritaire ; à défaut, et seulement lorsque l’étape ne déclare aucun lien, l’unique lien HTTPS valide de son lieu peut être utilisé. Dès que plusieurs cibles sont possibles, l’image n’est pas interactive et les liens sont tous présentés sous forme textuelle. Les liens de provenance photographique (`sourceUrl` et `licenseUrl`) ne participent jamais à cette résolution. L’image locale reste visible hors connexion, mais sa cible externe est désactivée et annoncée sobrement.
+
 ## Variantes
 
-Le mode standard est toujours disponible. Les modes « Économe en marche » et « Pluie » ne sont proposés que si le voyage contient au moins une variante correspondante. Une variante décrit une adaptation ciblant explicitement une journée ou une étape ; elle ne remplace pas silencieusement le programme standard.
-
-Le choix est un état de consultation React en mémoire. Changer de mode ne modifie ni le voyage, ni l'URL, ni la vue active : la synthèse, la journée, l'étape visible et la vue « Aujourd'hui » restent dans leur contexte. Lorsqu'aucune adaptation du mode choisi ne concerne la journée, l'interface l'explique et conserve le programme standard.
+Les variantes ne remplacent jamais le programme standard. Les adaptations « Économe en marche » et « Pluie » qui ciblent la journée ou l’une de ses étapes sont réunies dans un bloc repliable « Plans B ». Le bloc n’apparaît pas lorsqu’aucune variante ne concerne la journée affichée.
 
 ## Checklists et note locale
 
-Les définitions de checklists proviennent uniquement de `voyage.json` 1.2.0. Une checklist générale apparaît dans la synthèse, une checklist de journée dans la journée ciblée et une checklist d’étape auprès de l’étape ciblée. Aucune section vide n’est rendue. Les cases natives sont accessibles au clavier et leur état est identifié par `travelId`, `checklistId` et `itemId` dans IndexedDB, sans modifier le contenu importé.
+Les définitions de checklists proviennent uniquement de `voyage.json` 1.2.0. Une checklist de journée reste disponible dans les compléments de la journée et une checklist d’étape auprès de l’étape ciblée. La section Préparation offre en plus une vue regroupée : checklists du voyage, puis checklists de journées et d’étapes organisées par cible. La vue d’ensemble ne mélange pas ces tâches au résumé du séjour. Aucune section vide n’est rendue.
 
 Le changement de case fournit un retour immédiat, attend la fin de l’écriture locale puis annonce la réussite. En cas d’échec, la valeur persistée précédente est rétablie et une erreur est annoncée. Les voyages 1.0.0 et 1.1.0 n’ont simplement aucune checklist.
 
-La zone « Notes personnelles » expose une seule note générale par voyage. Son `textarea` charge la valeur locale, conserve le texte comme texte brut et déclenche un enregistrement temporisé de la dernière valeur. Une perte de focus force l’écriture en attente. Les états « modification », « enregistrement », « enregistré » et « échec » sont annoncés, et l’interface rappelle que la note reste sur cet appareil. Ni la note ni les cases ne sont stockées dans l’URL ou `localStorage`.
+La zone « Notes personnelles », placée dans Préparation, expose une seule note générale par voyage. Son `textarea` charge la valeur locale, conserve le texte comme texte brut et déclenche un enregistrement temporisé de la dernière valeur. Une perte de focus force l’écriture en attente. Les états « modification », « enregistrement », « enregistré » et « échec » sont annoncés, et l’interface rappelle que la note reste sur cet appareil. Ni la note ni les cases ne sont stockées dans l’URL ou `localStorage`.
 
 ## Illustrations et crédits
 
-`voyage.json` 1.3.0 peut associer une couverture au voyage et des illustrations aux journées ou étapes. L’interface relit toujours les octets validés depuis `travelResources` avec le `travelId` courant ; elle ne charge jamais `sourceUrl` ou `licenseUrl` comme image. La couverture est chargée normalement et les images secondaires en différé.
+`voyage.json` 1.3.0 peut associer une couverture au voyage et des illustrations aux journées ou étapes. L’interface relit toujours les octets validés depuis `travelResources` avec le `travelId` courant ; elle ne charge jamais `sourceUrl` ou `licenseUrl` comme image ou comme action pratique. La couverture est chargée normalement et les images secondaires en différé.
 
 Le rendu utilise `figure`, `img` et `figcaption`, le texte alternatif importé, un ratio visuel 16:9 et `object-fit: cover`. L’absence d’illustration ne crée aucun emplacement. Une ressource exceptionnellement illisible produit un remplacement textuel sans masquer le programme. Les URL d’objet temporaires sont révoquées au démontage ou au changement de ressource.
 
-La synthèse regroupe sans doublon les illustrations effectivement référencées et affiche leur provenance : auteur, source et licence HTTPS, photographie personnelle ou génération par IA. Ces liens sont explicitement externes et désactivés hors connexion ; la ressource locale affichée reste disponible.
+Les infos pratiques regroupent sans doublon les illustrations effectivement référencées et affichent leur provenance : auteur, source et licence HTTPS, photographie personnelle ou génération par IA. Ces liens sont explicitement externes et désactivés hors connexion ; la ressource locale affichée reste disponible.
 
 ## États vides et erreurs
 
@@ -97,7 +100,7 @@ La consultation gère :
 - une erreur IndexedDB ou un voyage introuvable ;
 - un voyage sans journée ;
 - une journée sans étape ;
-- une journée ou une synthèse sans hébergement applicable ;
+- un voyage sans hébergement ;
 - l’absence de champs facultatifs ;
 - une date actuelle située avant, après ou dans un jour non décrit du séjour.
 
@@ -107,7 +110,7 @@ Un retour vers la bibliothèque reste disponible lorsque le voyage ne peut pas �
 
 Les vues utilisent des régions, titres, listes ordonnées, articles, éléments `time`, `address` et navigations nommées. Les contrôles sont des boutons natifs utilisables au clavier avec un focus visible et une hauteur tactile minimale. La vue et la journée actives sont annoncées par du texte et `aria-current`, jamais uniquement par une couleur.
 
-La navigation des journées peut défiler horizontalement dans sa propre région sur petit écran. Les cartes et la chronologie conservent un ordre HTML logique, restent lisibles sans animation et n’imposent aucun défilement horizontal au contenu essentiel.
+La navigation des journées peut défiler horizontalement dans sa propre région sur petit écran. Les flèches gauche et droite changent de journée depuis le sélecteur, tandis que des boutons précédent et suivant restent disponibles. La journée active combine texte et `aria-current`. Les cartes et la chronologie conservent un ordre HTML logique, restent lisibles sans animation et n’imposent aucun défilement horizontal au contenu essentiel.
 
 ## Tests
 
@@ -117,7 +120,7 @@ Les règles pures de date et d’hébergement, les vues React et l’orchestrati
 npm run test
 ```
 
-La suite couvre la synthèse, la chronologie, les étapes sans heure, les états vides, les hébergements successifs, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, les illustrations et crédits, la révocation des URL d’objet, ainsi que l’absence de surface d’exécution du HTML importé.
+La suite couvre les quatre sections, la chronologie, les étapes sans heure, le sélecteur de journées, les états vides, la centralisation des hébergements, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, les illustrations et crédits, la règle des images cliquables, la déduplication des liens d’étape et de lieu, leur comportement hors connexion, la révocation des URL d’objet, le rendu à petite largeur ainsi que l’absence de surface d’exécution du HTML importé.
 
 ## Limites actuelles
 
@@ -127,4 +130,5 @@ Restent hors périmètre :
 - toute galerie, visionneuse plein écran, édition ou téléchargement distant d’image ;
 - les notes multiples, riches, partagées ou avec pièces jointes ;
 - toute carte, navigation GPS, modification de réservation ou lecteur PDF intégré ;
-- la conservation du mode choisi après un rechargement.
+- une taxonomie métier dédiée aux transports : les lieux non liés à un hébergement sont regroupés sous « Lieux et transports utiles » sans déduction sémantique ;
+- un statut de réservation structuré : les éléments « à confirmer » reposent actuellement sur le texte facultatif de statut déjà présent dans le contrat.

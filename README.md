@@ -70,7 +70,7 @@ npm run build
 - [Contrat `voyage.json` 1.3.0](contracts/voyage/1.3.0/README.md) : illustrations locales, associations explicites et provenances.
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
-- [Consultation](docs/CONSULTATION.md) : parcours, vue « Aujourd’hui », fuseaux horaires, chronologie, hébergements et états vides.
+- [Consultation](docs/CONSULTATION.md) : quatre sections de consultation, vue « Aujourd’hui », programme chronologique, infos pratiques et préparation.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.

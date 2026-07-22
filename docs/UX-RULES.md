@@ -11,12 +11,15 @@ Ces règles traduisent en principes réutilisables les qualités fonctionnelles 
 La première vue d'un voyage donne immédiatement :
 
 - la destination et les dates ;
-- le contexte essentiel du séjour ;
-- l'hébergement ou le point d'ancrage principal ;
-- le rythme et les contraintes importantes ;
-- un accès direct à la journée pertinente.
+- le résumé du séjour ;
+- les principaux repères datés ;
+- un accès direct au programme pertinent.
 
 La synthèse aide à décider et à agir. Elle évite de reproduire tout le programme ou d'accumuler des informations secondaires.
+
+La consultation sépare quatre responsabilités lisibles : vue d’ensemble, programme, infos pratiques et préparation. Une information ne doit pas être répétée dans plusieurs sections uniquement pour exposer les relations techniques du modèle.
+
+Cette séparation ne doit toutefois pas éloigner une action de son contexte : les infos pratiques constituent un index récapitulatif, tandis que le programme conserve un accès direct aux liens réellement utiles à l’étape affichée.
 
 ### Organiser le voyage par journées
 
@@ -34,7 +37,7 @@ Une frise peut soutenir la lecture, mais le sens ne doit jamais dépendre seulem
 
 ### Utiliser l'hébergement comme ancre
 
-L'hébergement sert de repère logistique lorsque le programme part de ce lieu, y revient ou nécessite une décision de transport. Son adresse et ses actions utiles restent faciles à retrouver depuis la synthèse et les journées concernées.
+L'hébergement sert de repère logistique lorsque le programme part de ce lieu, y revient ou nécessite une décision de transport. Sa fiche complète, son adresse et ses actions utiles sont centralisées dans les infos pratiques. Le programme peut proposer un accès discret à cette fiche sans en répéter tous les détails.
 
 Si un voyage comporte plusieurs hébergements, l'ancre affichée est celle qui correspond à la date et au contexte, sans supposer un hôtel unique.
 
@@ -42,7 +45,11 @@ Si un voyage comporte plusieurs hébergements, l'ancre affichée est celle qui c
 
 Un lien d'itinéraire apparaît auprès de l'étape ou du groupe d'étapes qu'il dessert. Son libellé décrit la destination ou le trajet ; il ne se limite pas à « Ouvrir ».
 
-L'interface indique qu'il s'agit d'un service externe et qu'une connexion peut être nécessaire. Une liste pratique peut regrouper les adresses, mais ne remplace pas les actions contextuelles.
+Les liens explicitement portés par l’étape et ceux du lieu qu’elle référence sont réunis sans doublon. Ils prennent la forme de liens éditoriaux compacts : libellé fourni par le contenu, affordance explicite, retour à la ligne propre et cible tactile suffisante, sans grand fond coloré ni carte d’action répétitive.
+
+L'interface indique de manière accessible qu'il s'agit d'un service externe et qu'une connexion peut être nécessaire, sans répéter un avertissement visuellement dominant pour chaque lien. Une liste pratique peut regrouper les adresses, mais ne remplace pas les actions contextuelles.
+
+Une illustration d’étape ne devient interactive que si sa cible est non ambiguë : exactement un lien HTTPS valide porté par l’étape, ou, lorsque l’étape ne porte aucun lien, exactement un lien HTTPS valide porté par son lieu. Plusieurs cibles laissent l’image non interactive et rendent tous les liens sous forme textuelle. Les URL de source et de licence photographiques ne sont jamais des liens pratiques.
 
 ### Rapprocher documents et réservations de l'action
 
@@ -52,17 +59,18 @@ Une réservation ou un document est accessible depuis la journée, l'étape ou l
 
 Les actions principales sont peu nombreuses, clairement libellées et visuellement différenciées des informations. Copier une adresse, ouvrir un trajet ou consulter un document doit produire un retour immédiat compréhensible.
 
+Un lien externe ordinaire reste un lien, une copie d’adresse reste une action locale compacte, un PDF reste un document local et une réservation conserve son propre bloc structuré. Leur apparence ne doit pas les rendre interchangeables.
+
 ## Variantes et plans B
 
 Le programme standard est le point de départ. Les variantes « économe en marche » et « pluie » modifient ou complètent le conseil sans dupliquer toute la journée.
 
 Les règles sont :
 
-- afficher le mode actif sans dépendre uniquement de la couleur ;
-- conserver le contexte de la journée lors du changement de mode ;
+- regrouper les adaptations d’une journée sous un intitulé clair « Plans B » ;
 - montrer uniquement les adaptations réellement fournies par le dossier ;
-- ne pas masquer une contrainte critique lorsqu'un autre mode est sélectionné ;
-- conserver localement le dernier mode choisi lorsque cela aide la consultation.
+- ne pas masquer le programme standard ni une contrainte critique ;
+- ne pas afficher de bloc vide lorsqu’aucune variante ne concerne le contexte.
 
 Un plan B est une alternative concrète rattachée à une étape ou une période, pas une rubrique générique sans contexte.
 
@@ -122,6 +130,7 @@ L'utilisateur doit savoir ce qui est disponible localement et ce qui dépend d'u
 
 - Un voyage importé et validé ne change pas de présentation de manière imprévisible.
 - Une action externe est annoncée avant de quitter l'application.
+- Hors connexion, une illustration locale reste visible même si son éventuel lien pratique externe est désactivé.
 - Une ressource non disponible hors ligne produit une explication et laisse le reste du voyage utilisable.
 - Les erreurs d'import nomment le problème et, lorsque possible, l'élément concerné.
 - Aucun contenu importé ne peut introduire une interface trompeuse, un script ou un contrôle actif.

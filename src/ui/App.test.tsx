@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Travel } from '../domain/voyage/model'
 import type { TravelLibraryEntry } from '../persistence/model'
@@ -226,7 +233,7 @@ describe('App', () => {
     fireEvent.click(openButton)
 
     expect(await screen.findByText(travel.summary)).toBeInTheDocument()
-    expect(screen.getByText('Vue active : Synthèse du voyage')).toBeInTheDocument()
+    expect(screen.getByText('Section active : Vue d’ensemble')).toBeInTheDocument()
     expect(window.location.search).toContain('travel=travel-alpha')
     fireEvent.click(
       screen.getByRole('button', { name: 'Retour à la bibliothèque' }),
@@ -341,8 +348,12 @@ describe('App', () => {
     render(<App repositoryFactory={repositoryFactory} platformActions={platformActions} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
-    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir la journée Arrivée au port/ }))
-    fireEvent.click(screen.getAllByRole('button', { name: /Document local · Ouvrir Confirmation/ })[0]!)
+    fireEvent.click(await screen.findByRole('button', { name: 'Programme' }))
+    const daySelector = await screen.findByRole('navigation', { name: 'Choisir une journée' })
+    fireEvent.click(within(daySelector).getByRole('button', { name: /Arrivée au port/ }))
+    fireEvent.click(screen.getByRole('button', {
+      name: /Ouvrir le document Confirmation d’hébergement pour Installation/,
+    }))
 
     await waitFor(() => expect(repository.getResource).toHaveBeenCalledWith(
       persistedConsultationTravel.travel.id,
@@ -373,6 +384,7 @@ describe('App', () => {
     render(<App repositoryFactory={repositoryFactory} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Préparation' }))
     const checkbox = await screen.findByRole('checkbox', { name: 'Prendre les pièces d’identité' })
     fireEvent.click(checkbox)
     await waitFor(() => expect(repository.setChecklistItemChecked).toHaveBeenCalledWith(
