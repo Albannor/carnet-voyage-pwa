@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,6 +17,7 @@ import type {
 import { App } from './App'
 import { TEST_PDF_BYTES } from '../import/test/packageFixtures'
 import { persistedConsultationTravel } from './travel/testFixtures'
+import type { ConnectivityAdapter } from '../services/connectivity'
 
 const { importToLibraryMock } = vi.hoisted(() => ({
   importToLibraryMock: vi.fn(),
@@ -109,6 +111,35 @@ describe('App', () => {
       'href',
       '#contenu-principal',
     )
+  })
+
+  it('annonce les transitions réseau sans masquer la bibliothèque locale', async () => {
+    let notify: ((online: boolean) => void) | undefined
+    const connectivity: ConnectivityAdapter = {
+      isOnline: () => true,
+      subscribe: (listener) => {
+        notify = listener
+        return () => undefined
+      },
+    }
+    render(
+      <App
+        repositoryFactory={repositoryFactory}
+        connectivity={connectivity}
+      />,
+    )
+
+    expect(await screen.findByText(/aucun voyage enregistré/i)).toBeInTheDocument()
+    expect(screen.queryByText('Hors connexion.')).not.toBeInTheDocument()
+
+    act(() => notify?.(false))
+
+    expect(screen.getByText('Hors connexion.')).toBeInTheDocument()
+    expect(screen.getByText(/contenus enregistrés restent consultables/)).toBeInTheDocument()
+    expect(screen.getByText(/aucun voyage enregistré/i)).toBeInTheDocument()
+
+    act(() => notify?.(true))
+    expect(screen.queryByText('Hors connexion.')).not.toBeInTheDocument()
   })
 
   it('recharge l’interface avec les voyages déjà conservés', async () => {

@@ -117,5 +117,5 @@ npm run build
 - une seule note générale en texte brut par voyage ; aucune note multiple, riche, partagée ou avec pièce jointe ;
 - aucune fusion ni mise à jour automatique d’un voyage existant ;
 - l’enregistrement automatique de la note est temporisé dans l’interface et les cases sont écrites individuellement ;
-- aucun service worker ni installation hors ligne complète avant l'étape 9 ;
+- le service worker de l’étape 9 ne manipule aucun object store : il met uniquement en cache le shell dans Cache Storage ;
 - aucune migration de structure IndexedDB, mise à jour ou fusion de voyage, puisqu'une seule version de base existe ;

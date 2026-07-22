@@ -151,6 +151,51 @@ main {
   box-shadow: 0 1.25rem 3.75rem rgb(20 54 66 / 12%);
 }
 
+.system-status {
+  position: relative;
+  z-index: 1;
+  margin-top: -2rem;
+  margin-bottom: 1rem;
+  color: #143642;
+}
+
+.system-status + .foundation {
+  margin-top: 0;
+}
+
+.system-status__notice {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border: 0.0625rem solid #8ba99c;
+  border-radius: 0.75rem;
+  background: #edf5f1;
+  box-shadow: 0 0.5rem 1.5rem rgb(20 54 66 / 10%);
+  line-height: 1.45;
+}
+
+.system-status__notice + .system-status__notice {
+  margin-top: 0.65rem;
+}
+
+.system-status__notice p {
+  min-width: 0;
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.system-status__actions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 .section-label {
   color: #a0441e;
 }

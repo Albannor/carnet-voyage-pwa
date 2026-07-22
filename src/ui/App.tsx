@@ -36,6 +36,15 @@ import {
   writeTravelLocation,
 } from './travel/navigation'
 import { TravelLibraryCard } from './library/TravelLibraryCard'
+import {
+  browserConnectivity,
+  type ConnectivityAdapter,
+} from '../services/connectivity'
+import {
+  browserPwaLifecycle,
+} from '../services/browserPwa'
+import type { PwaLifecycleController } from '../services/pwaLifecycle'
+import { PwaStatusPanel } from './system/PwaStatusPanel'
 
 const principles = [
   {
@@ -85,6 +94,8 @@ interface AppProps {
   repositoryFactory?: TravelRepositoryFactory
   clock?: Clock
   platformActions?: TravelPlatformActions
+  connectivity?: ConnectivityAdapter
+  pwaLifecycle?: PwaLifecycleController
 }
 
 type ConsultationUiState =
@@ -97,6 +108,8 @@ export function App({
   repositoryFactory = openIndexedDbTravelRepository,
   clock = systemClock,
   platformActions = browserTravelPlatformActions,
+  connectivity = browserConnectivity,
+  pwaLifecycle = browserPwaLifecycle,
 }: AppProps) {
   const repositoryRef = useRef<TravelLibraryRepository | null>(null)
   const [libraryState, setLibraryState] = useState<LibraryUiState>({
@@ -108,7 +121,8 @@ export function App({
     status: 'library',
   })
   const [contextActionFeedback, setContextActionFeedback] = useState<ContextActionFeedback>()
-  const [online, setOnline] = useState(() => navigator.onLine)
+  const [online, setOnline] = useState(() => connectivity.isOnline())
+  const [pwaState, setPwaState] = useState(() => pwaLifecycle.getState())
 
   async function refreshLibrary(repository: TravelLibraryRepository) {
     const listed = await repository.listTravels()
@@ -187,15 +201,15 @@ export function App({
     }
   }, [loadTravel, repositoryFactory])
 
-  useEffect(() => {
-    const updateNetworkState = () => setOnline(navigator.onLine)
-    window.addEventListener('online', updateNetworkState)
-    window.addEventListener('offline', updateNetworkState)
-    return () => {
-      window.removeEventListener('online', updateNetworkState)
-      window.removeEventListener('offline', updateNetworkState)
-    }
-  }, [])
+  useEffect(
+    () => connectivity.subscribe(setOnline),
+    [connectivity],
+  )
+
+  useEffect(
+    () => pwaLifecycle.subscribe(setPwaState),
+    [pwaLifecycle],
+  )
 
   async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
@@ -398,6 +412,12 @@ export function App({
       </header>
 
       <main id="contenu-principal" tabIndex={-1}>
+        <PwaStatusPanel
+          online={online}
+          pwaStatus={pwaState.status}
+          onDismissPwaStatus={() => pwaLifecycle.dismiss()}
+          onApplyUpdate={() => void pwaLifecycle.applyUpdate()}
+        />
         {consultationState.status === 'loading' && (
           <section className="foundation consultation-state" aria-live="polite">
             <p role="status">Chargement du voyage…</p>

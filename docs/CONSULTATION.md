@@ -126,7 +126,7 @@ La suite couvre les quatre sections, la chronologie, les étapes sans heure, le 
 
 Restent hors périmètre :
 
-- l’installation et le fonctionnement hors ligne complet de l’étape 9 ;
+- la validation de l’installation depuis une adresse HTTPS réelle et la recette sur iPhone de l’étape 9 ;
 - toute galerie, visionneuse plein écran, édition ou téléchargement distant d’image ;
 - les notes multiples, riches, partagées ou avec pièces jointes ;
 - toute carte, navigation GPS, modification de réservation ou lecteur PDF intégré ;

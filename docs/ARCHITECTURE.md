@@ -86,6 +86,15 @@ Le `localStorage` n'est pas utilisé pour les voyages, les notes ou les checklis
 
 Le service worker met en cache une version cohérente du shell applicatif et gère sa mise à jour. Les données de voyage restent dans IndexedDB ; elles ne doivent pas être confondues avec le cache réseau.
 
+Depuis l’étape 9, `vite-plugin-pwa` génère ce service worker avec Workbox pendant le build de production. La configuration `generateSW` précache uniquement les fichiers produits ou copiés par Vite : document HTML, modules JavaScript, styles, manifeste et icônes. Elle ne définit aucune stratégie de cache à l’exécution pour les URL externes ou les ressources métier. `guide-standalone.html` est exclu de la navigation de secours. Le service worker n’est pas enregistré par le serveur de développement et le build utilise des chemins relatifs afin de rester publiable à la racine comme sous un répertoire.
+
+Cache Storage et IndexedDB ont des responsabilités disjointes :
+
+- **Cache Storage** contient une révision cohérente et remplaçable du shell ; Workbox supprime ses anciens précaches devenus inutiles ;
+- **IndexedDB** conserve la bibliothèque, le contenu normalisé, les images, les PDF, les notes et les états de checklist ; ni l’installation ni l’activation du service worker ne modifient ces object stores.
+
+La nouvelle version du shell reste en attente. L’application annonce sa disponibilité et ne demande son activation avec rechargement qu’après une action explicite de l’utilisateur. Ce mécanisme ne force donc pas de rechargement au milieu d’une interaction. Un adaptateur de connectivité limité à `navigator.onLine` et aux événements `online`/`offline` pilote l’indication locale : il signale une absence de réseau, mais un état « en ligne » ne constitue jamais une preuve qu’un service distant répond.
+
 Les règles suivantes s'appliquent :
 
 - après installation réussie, le shell démarre sans réseau ;

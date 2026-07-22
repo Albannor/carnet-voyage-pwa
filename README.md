@@ -4,7 +4,7 @@ Carnet de voyage PWA est une application web progressive en construction, statiq
 
 ## État du projet
 
-Le dépôt prend désormais en charge les illustrations locales structurées de `voyage.json` `1.3.0` : couverture, images de journée et d’étape, textes alternatifs, légendes et crédits de provenance. Les versions `1.0.0` à `1.2.0` restent compatibles sans emplacement vide. La prochaine étape est l'installation et le fonctionnement hors ligne du shell à l'étape 9.
+L’étape 9 est implémentée techniquement : le build de production génère un manifeste installable, un service worker Workbox et un cache versionné du shell. Les voyages, illustrations, PDF, checklists et notes restent dans IndexedDB et sont consultables sans réseau après un premier chargement réussi. La publication HTTPS et la recette sur un iPhone réel restent à effectuer avant de considérer l’étape comme entièrement validée ; le projet ne passe donc pas encore à l’étape 10.
 
 ## Prérequis
 
@@ -47,12 +47,12 @@ npm run build
 - `lint` contrôle les fichiers TypeScript et React avec ESLint.
 - `typecheck` vérifie les contrats TypeScript sans produire de fichiers.
 - `test` exécute les tests Vitest une fois.
-- `build` vérifie TypeScript puis produit l'application statique dans `dist/`.
+- `build` vérifie TypeScript, produit l'application statique dans `dist/`, puis contrôle le manifeste, les icônes, les chemins relatifs et le précache généré.
 
 ## Principes directeurs
 
 - L'application fonctionne sans backend dans le MVP et conserve les voyages sur l'appareil.
-- Le stockage métier repose sur IndexedDB ; le service worker et le Cache Storage assureront la disponibilité hors ligne du shell à l’étape 9.
+- Le stockage métier repose sur IndexedDB ; le service worker et Cache Storage ne conservent que le shell applicatif versionné.
 - L'application et les dossiers de voyage restent strictement séparés : un voyage importé est une donnée, jamais du code.
 - Chaque import est structuré, versionné et validé avant toute écriture locale.
 - Aucun script ou HTML actif provenant d'un guide importé n'est exécuté par l'application.
@@ -71,6 +71,7 @@ npm run build
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
 - [Consultation](docs/CONSULTATION.md) : quatre sections de consultation, vue « Aujourd’hui », programme chronologique, infos pratiques et préparation.
+- [Installation et hors ligne](docs/OFFLINE.md) : installation, cache du shell, mises à jour, recette locale et procédure iPhone.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
@@ -92,16 +93,17 @@ npm run build
 ├── package-lock.json
 ├── package.json
 ├── public/
-│   ├── icons/
-│   │   └── carnet.svg
-│   └── manifest.webmanifest
+│   ├── favicon.png
+│   └── icons/           # SVG source et icônes PNG PWA/iOS
+├── scripts/
+│   └── verify-pwa-build.mjs
 ├── src/
 │   ├── application/     # cas d'usage entre import, persistance et interface
 │   ├── contracts/       # types externes, validation du schéma et conversion
 │   ├── domain/          # modèle métier et invariants indépendants de React
 │   ├── import/          # lecture ZIP, sécurité, ressources et migrations
 │   ├── persistence/     # dépôt IndexedDB, modèles stockés et erreurs
-│   ├── services/        # futurs adaptateurs techniques et hors ligne
+│   ├── services/        # adaptateurs navigateur, connectivité et cycle PWA
 │   ├── test/            # configuration commune des tests
 │   ├── ui/              # interface React, styles et tests de rendu
 │   └── main.tsx         # point de composition de l'application
@@ -115,6 +117,7 @@ npm run build
 │   ├── CONSULTATION.md
 │   ├── GUIDE-FORMAT.md
 │   ├── IMPORT.md
+│   ├── OFFLINE.md
 │   ├── PERSISTENCE.md
 │   ├── PRODUCT.md
 │   ├── ROADMAP.md
@@ -133,4 +136,4 @@ Son code n'est ni un socle technique ni un format d'import. Le fichier est conse
 
 ## Limites actuelles
 
-Les contrats `voyage.json` `1.0.0` à `1.3.0` restent des sous-ensembles versionnés, pas le format définitif complet. Une seule note personnelle en texte brut est disponible par voyage ; il n’existe ni note riche, ni pièce jointe, ni fusion de réimport. Les actions externes nécessitent un réseau et aucun lecteur PDF, carrousel ou moteur cartographique n'est intégré. L’étape 9 ajoutera le service worker et le fonctionnement hors ligne complet du shell. La recherche de photographies et la génération des futurs paquets relèvent du processus de génération externe, qui sera mis à jour séparément.
+Les contrats `voyage.json` `1.0.0` à `1.3.0` restent des sous-ensembles versionnés, pas le format définitif complet. Une seule note personnelle en texte brut est disponible par voyage ; il n’existe ni note riche, ni pièce jointe, ni fusion de réimport. Les actions externes nécessitent un réseau et aucun lecteur PDF, carrousel ou moteur cartographique n'est intégré. Le premier chargement du shell exige une connexion et l’implémentation PWA doit encore être validée depuis une adresse HTTPS réelle et sur iPhone. La recherche de photographies et la génération des futurs paquets relèvent du processus de génération externe, qui sera mis à jour séparément.
