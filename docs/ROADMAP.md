@@ -66,7 +66,7 @@ Le périmètre reste celui du MVP défini dans `PRODUCT.md`. Les étapes ci-dess
 
 **Vérification :** installation, premier chargement contrôlé, redémarrage sans réseau, mise à jour du shell sans perte de voyages et signalement honnête des services externes indisponibles.
 
-**État :** l’implémentation technique et la recette locale du build sont prêtes. La publication sur une adresse HTTPS réelle, l’installation depuis Safari et la recette sur un iPhone physique restent nécessaires avant la clôture de l’étape.
+**État :** l’implémentation technique, la recette locale et le workflow GitHub Pages sont prêts. Le déploiement réussi sur l’adresse HTTPS réelle, l’installation depuis Safari et la recette sur un iPhone physique restent nécessaires avant la clôture de l’étape.
 
 ## Étape 10 — Durcissement du MVP
 

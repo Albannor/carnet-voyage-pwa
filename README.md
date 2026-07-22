@@ -4,7 +4,7 @@ Carnet de voyage PWA est une application web progressive en construction, statiq
 
 ## État du projet
 
-L’étape 9 est implémentée techniquement : le build de production génère un manifeste installable, un service worker Workbox et un cache versionné du shell. Les voyages, illustrations, PDF, checklists et notes restent dans IndexedDB et sont consultables sans réseau après un premier chargement réussi. La publication HTTPS et la recette sur un iPhone réel restent à effectuer avant de considérer l’étape comme entièrement validée ; le projet ne passe donc pas encore à l’étape 10.
+L’étape 9 est implémentée techniquement : le build de production génère un manifeste installable, un service worker Workbox et un cache versionné du shell. Un workflow GitHub Actions prépare son déploiement statique sur GitHub Pages à l’adresse attendue `https://albannor.github.io/carnet-voyage-pwa/`. Les voyages, illustrations, PDF, checklists et notes restent dans IndexedDB sur chaque appareil et ne font pas partie du site publié. Le déploiement HTTPS effectif et la recette sur un iPhone réel restent à confirmer avant de considérer l’étape comme entièrement validée ; le projet ne passe donc pas encore à l’étape 10.
 
 ## Prérequis
 
@@ -34,6 +34,12 @@ Pour prévisualiser le build de production après `npm run build` :
 ```bash
 npm run preview
 ```
+
+## Déploiement GitHub Pages
+
+Le workflow `.github/workflows/deploy-pages.yml` construit et vérifie l’application lors d’un push sur `main` ou d’un déclenchement manuel, puis téléverse uniquement `dist/` vers l’environnement `github-pages`. La source Pages du dépôt doit être réglée sur **GitHub Actions**.
+
+Le shell publié est public, y compris lorsque le dépôt source est privé. Il ne contient aucun voyage personnel : les voyages importés, images, PDF, checklists et notes sont créés ou conservés dans IndexedDB, localement sur chaque appareil. L’exécution et le résultat d’un déploiement se contrôlent dans l’onglet **Actions** du dépôt, dans le workflow **Deploy application to GitHub Pages**.
 
 ## Commandes de vérification
 
@@ -81,6 +87,9 @@ npm run build
 
 ```text
 .
+├── .github/
+│   └── workflows/
+│       └── deploy-pages.yml
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md

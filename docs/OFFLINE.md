@@ -17,6 +17,10 @@ Le premier chargement doit réussir en ligne afin que le navigateur télécharge
 
 Un hébergement de production doit servir le dossier `dist/` en HTTPS. Les chemins du build sont relatifs : le même résultat peut être publié à la racine d’un domaine ou sous un répertoire, sans URL de production codée dans le dépôt.
 
+Le dépôt prévoit GitHub Pages comme hébergement statique à l’adresse attendue `https://albannor.github.io/carnet-voyage-pwa/`. Le workflow `.github/workflows/deploy-pages.yml` exécute `npm ci`, les quatre contrôles du projet, configure Pages, téléverse uniquement `dist/`, puis déploie cet artefact dans l’environnement `github-pages`. Il se déclenche sur `main` et manuellement. La source Pages doit être configurée sur **GitHub Actions** dans les paramètres du dépôt.
+
+Le shell servi par GitHub Pages est public, même si le dépôt source est privé. Aucun ZIP de voyage, PDF importé, fichier Madrid ou contenu IndexedDB n’est intégré à `dist/`. Chaque appareil crée sa propre bibliothèque locale dans IndexedDB après ouverture du site et import explicite d’un paquet.
+
 Sur iPhone, la procédure prévue est :
 
 1. ouvrir l’adresse HTTPS dans Safari ;
@@ -64,8 +68,9 @@ Après `npm run build` :
 
 L’implémentation est prête pour une publication statique. Restent à effectuer hors de cette tâche :
 
-- choisir et configurer un hébergement HTTPS ;
-- publier `dist/` ;
+- régler la source GitHub Pages sur **GitHub Actions** dans les paramètres du dépôt ;
+- pousser le commit contenant le workflow ;
+- suivre les jobs `build` et `deploy` dans l’onglet **Actions**, puis confirmer l’adresse HTTPS publiée ;
 - exécuter la recette avec l’adresse réelle ;
 - installer l’application depuis Safari et valider le redémarrage hors ligne sur un iPhone physique ;
 - vérifier le cycle de mise à jour après une seconde publication.
