@@ -22,6 +22,7 @@ import type {
   TravelIllustration,
   TravelLink,
   TravelReservation,
+  TravelVariant,
   TravelVariantKind,
 } from '../../domain/voyage/model'
 import {
@@ -47,8 +48,10 @@ import {
   InfoIcon,
   ListIcon,
   MapPinIcon,
+  SwapIcon,
 } from '../icons'
 import { daysBetween, formatTravelDates, travelDurationLabel } from '../travelDates'
+import { localTimeInTimeZone, stepProgress, type StepProgress } from './stepProgress'
 import {
   linksNotCarriedByIllustration,
   stepIllustrationLink,
@@ -1093,18 +1096,14 @@ function programTarget(travel: Travel, clock: Clock): TravelView {
 function DaySelector({
   travel,
   selectedDayId,
+  todayDayId,
   onNavigate,
 }: {
   travel: Travel
   selectedDayId?: string
+  todayDayId?: string
   onNavigate(view: TravelView): void
 }) {
-  const selectedIndex = travel.days.findIndex((day) => day.id === selectedDayId)
-  const previous = selectedIndex > 0 ? travel.days[selectedIndex - 1] : undefined
-  const next = selectedIndex >= 0 && selectedIndex < travel.days.length - 1
-    ? travel.days[selectedIndex + 1]
-    : undefined
-
   function handleArrowNavigation(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
     const direction = event.key === 'ArrowLeft' ? -1 : 1
@@ -1116,51 +1115,73 @@ function DaySelector({
 
   if (travel.days.length === 0) return null
   return (
-    <div className="program-navigation">
-      <nav className="day-selector" aria-label="Choisir une journée">
-        <ol>
-          {travel.days.map((day, index) => {
-            const selected = day.id === selectedDayId
-            return (
-              <li key={day.id}>
-                <button
-                  className={selected ? 'day-choice day-choice-active' : 'day-choice'}
-                  type="button"
-                  aria-current={selected ? 'page' : undefined}
-                  aria-label={`${formatDate(day.date, travel.locale)} — ${day.title}`}
-                  onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
-                  onKeyDown={(event) => handleArrowNavigation(event, index)}
-                >
-                  <span>{formatCompactDate(day.date, travel.locale)}</span>
-                  <strong>{day.title}</strong>
-                  {selected && <em>Journée active</em>}
-                </button>
-              </li>
-            )
-          })}
-        </ol>
-      </nav>
-      <nav className="adjacent-day-controls" aria-label="Journée précédente et suivante">
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={!previous}
-          aria-label={previous ? `Journée précédente : ${previous.title}` : 'Aucune journée précédente'}
-          onClick={() => previous && onNavigate({ kind: 'day', dayId: previous.id })}
-        >
-          Précédent
-        </button>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={!next}
-          aria-label={next ? `Journée suivante : ${next.title}` : 'Aucune journée suivante'}
-          onClick={() => next && onNavigate({ kind: 'day', dayId: next.id })}
-        >
-          Suivant
-        </button>
-      </nav>
-    </div>
+    <nav className="day-selector" aria-label="Choisir une journée">
+      <ol>
+        {travel.days.map((day, index) => {
+          const selected = day.id === selectedDayId
+          const isToday = day.id === todayDayId
+          const parts = formatDayParts(day.date, travel.locale)
+          return (
+            <li key={day.id}>
+              <button
+                className={selected ? 'day-choice day-choice-active' : 'day-choice'}
+                type="button"
+                aria-current={selected ? 'page' : undefined}
+                aria-label={`${formatDate(day.date, travel.locale)}${isToday ? ' (aujourd’hui)' : ''} — ${day.title}`}
+                onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
+                onKeyDown={(event) => handleArrowNavigation(event, index)}
+              >
+                <span className="day-choice-weekday">{parts.weekday}</span>
+                <span className="day-choice-number">{parts.day}</span>
+                {isToday && <span className="day-choice-today" />}
+                {selected && <span className="visually-hidden">Journée active</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
+function AdjacentDayControls({
+  travel,
+  selectedDayId,
+  onNavigate,
+}: {
+  travel: Travel
+  selectedDayId: string
+  onNavigate(view: TravelView): void
+}) {
+  const selectedIndex = travel.days.findIndex((day) => day.id === selectedDayId)
+  const previous = selectedIndex > 0 ? travel.days[selectedIndex - 1] : undefined
+  const next = selectedIndex >= 0 && selectedIndex < travel.days.length - 1
+    ? travel.days[selectedIndex + 1]
+    : undefined
+
+  return (
+    <nav className="adjacent-day-controls" aria-label="Journée précédente et suivante">
+      <button
+        className="secondary-button"
+        type="button"
+        disabled={!previous}
+        aria-label={previous ? `Journée précédente : ${previous.title}` : 'Aucune journée précédente'}
+        onClick={() => previous && onNavigate({ kind: 'day', dayId: previous.id })}
+      >
+        <ChevronLeftIcon />
+        Précédent
+      </button>
+      <button
+        className="secondary-button"
+        type="button"
+        disabled={!next}
+        aria-label={next ? `Journée suivante : ${next.title}` : 'Aucune journée suivante'}
+        onClick={() => next && onNavigate({ kind: 'day', dayId: next.id })}
+      >
+        Suivant
+        <ChevronRightIcon />
+      </button>
+    </nav>
   )
 }
 
@@ -1236,15 +1257,68 @@ function ContextualLinkList({
   )
 }
 
+function dayVariants(travel: Travel, day: TravelDay) {
+  const stepIds = new Set(day.steps.map((step) => step.id))
+  return travel.variants.filter((variant) => (
+    variant.kind !== 'standard'
+    && (
+      variant.target.type === 'day'
+        ? variant.target.dayId === day.id
+        : stepIds.has(variant.target.stepId)
+    )
+  ))
+}
+
+function planBElementId(variantId: string) {
+  return `plan-b-${variantId}`
+}
+
+/** Mène depuis l’étape ou la journée vers l’alternative regroupée dans Plans B. */
+function PlanBHint({
+  variants,
+  context,
+}: {
+  variants: readonly TravelVariant[]
+  context: string
+}) {
+  const [first] = variants
+  if (!first) return null
+  return (
+    <button
+      className="plan-b-hint"
+      type="button"
+      aria-label={`Voir le plan B prévu pour ${context}`}
+      onClick={() => {
+        const target = document.getElementById(planBElementId(first.id))
+        target?.scrollIntoView?.({ block: 'center' })
+        target?.focus()
+      }}
+    >
+      <SwapIcon size={18} />
+      <span>
+        <strong>Plan B</strong> prévu{variants.length > 1 ? ` · ${variants.length} options` : ''}
+      </span>
+      <span className="plan-b-hint-action" aria-hidden="true">Voir</span>
+    </button>
+  )
+}
+
+const STEP_PROGRESS_BADGES: Partial<Record<StepProgress, string>> = {
+  current: 'En cours',
+  next: 'Prochaine étape',
+}
+
 function Timeline({
   travel,
   day,
+  progress,
   personalState,
   onNavigate,
   ...actions
 }: {
   travel: Travel
   day: TravelDay
+  progress?: readonly StepProgress[]
   personalState: PersonalStateProps
   onNavigate(view: TravelView): void
 } & ActionProps) {
@@ -1255,7 +1329,7 @@ function Timeline({
         <p className="empty-state">Aucune étape n’est renseignée pour cette journée.</p>
       ) : (
         <ol className="timeline">
-          {day.steps.map((step) => {
+          {day.steps.map((step, index) => {
             const place = findPlace(travel, step.placeId)
             const contextualLinks = uniqueContextualLinks(step.links, place?.links)
             const hasLocalIllustration = step.illustrationIds.some(
@@ -1274,9 +1348,21 @@ function Timeline({
               (checklist) => checklist.target.type === 'step'
                 && checklist.target.stepId === step.id,
             )
+            const stepVariants = travel.variants.filter(
+              (variant) => variant.kind !== 'standard'
+                && variant.target.type === 'step'
+                && variant.target.stepId === step.id,
+            )
+            const stepState = progress?.[index] ?? 'upcoming'
+            const badge = STEP_PROGRESS_BADGES[stepState]
             return (
-              <li key={step.id}>
-                <article aria-labelledby={`step-${step.id}`}>
+              <li key={step.id} className={`timeline-step timeline-step-${stepState}`}>
+                <span className="timeline-dot" aria-hidden="true">
+                  {stepState === 'done' && <CheckIcon size={14} />}
+                </span>
+                <article className="step-content" aria-labelledby={`step-${step.id}`}>
+                  {badge && <p className="step-badge">{badge}</p>}
+                  {stepState === 'done' && <p className="visually-hidden">Étape passée</p>}
                   <p className="step-time">
                     {step.startsAt ? (
                       <>
@@ -1292,52 +1378,52 @@ function Timeline({
                       'Sans horaire'
                     )}
                   </p>
-                  <div className="step-content">
-                    <h4 id={`step-${step.id}`}>{step.title}</h4>
-                    {step.description && <p>{step.description}</p>}
-                    {place && (
-                      <p className="step-place">
-                        <strong>Lieu</strong>
-                        <span>{place.label}</span>
-                      </p>
-                    )}
-                    <IllustrationCollection
-                      travel={travel}
-                      illustrationIds={step.illustrationIds}
-                      practicalLink={illustrationLink}
-                      practicalLinkContext={step.title}
-                      online={actions.online}
-                      onLoadResource={actions.onLoadIllustrationResource}
-                    />
-                    <ContextualLinkList
-                      links={remainingLinks}
-                      online={actions.online}
-                      context={step.title}
-                    />
-                    {step.accommodationId && (
-                      <button
-                        className="text-button"
-                        type="button"
-                        aria-label={`Voir l’hébergement associé à ${step.title}`}
-                        onClick={() => onNavigate({ kind: 'practical' })}
-                      >
-                        Voir l’hébergement
-                      </button>
-                    )}
-                    <ChecklistCollection
-                      checklists={stepChecklists}
-                      {...personalState}
-                    />
-                    <StepRelatedContent
-                      travel={travel}
-                      context={step.title}
-                      documents={documents}
-                      reservations={reservations}
-                      online={actions.online}
-                      onOpenDocument={actions.onOpenDocument}
-                      excludedDocumentIds={new Set(step.documentIds)}
-                    />
-                  </div>
+                  <h4 id={`step-${step.id}`}>{step.title}</h4>
+                  {step.description && <p className="step-description">{step.description}</p>}
+                  {place && (
+                    <p className="step-place">
+                      <MapPinIcon size={16} />
+                      <span className="visually-hidden">Lieu : </span>
+                      <span>{place.label}</span>
+                    </p>
+                  )}
+                  <IllustrationCollection
+                    travel={travel}
+                    illustrationIds={step.illustrationIds}
+                    practicalLink={illustrationLink}
+                    practicalLinkContext={step.title}
+                    online={actions.online}
+                    onLoadResource={actions.onLoadIllustrationResource}
+                  />
+                  <ContextualLinkList
+                    links={remainingLinks}
+                    online={actions.online}
+                    context={step.title}
+                  />
+                  {step.accommodationId && (
+                    <button
+                      className="text-button"
+                      type="button"
+                      aria-label={`Voir l’hébergement associé à ${step.title}`}
+                      onClick={() => onNavigate({ kind: 'practical' })}
+                    >
+                      Voir l’hébergement
+                    </button>
+                  )}
+                  <PlanBHint variants={stepVariants} context={step.title} />
+                  <ChecklistCollection
+                    checklists={stepChecklists}
+                    {...personalState}
+                  />
+                  <StepRelatedContent
+                    travel={travel}
+                    context={step.title}
+                    documents={documents}
+                    reservations={reservations}
+                    online={actions.online}
+                    onOpenDocument={actions.onOpenDocument}
+                    excludedDocumentIds={new Set(step.documentIds)}
+                  />
                 </article>
               </li>
             )
@@ -1355,30 +1441,34 @@ function PlansB({
   travel: Travel
   day: TravelDay
 }) {
-  const stepIds = new Set(day.steps.map((step) => step.id))
-  const variants = travel.variants.filter((variant) => (
-    variant.kind !== 'standard'
-    && (
-      variant.target.type === 'day'
-        ? variant.target.dayId === day.id
-        : stepIds.has(variant.target.stepId)
-    )
-  ))
+  const variants = dayVariants(travel, day)
   if (variants.length === 0) return null
 
   return (
-    <details className="day-complement plans-b">
-      <summary>Plans B</summary>
+    <section className="plans-b" aria-labelledby={`plans-b-${day.id}`}>
+      <h3 id={`plans-b-${day.id}`}>Plans B</h3>
       <ul>
-        {variants.map((variant) => (
-          <li key={variant.id}>
-            <p className="card-label">{VARIANT_LABELS[variant.kind]}</p>
-            <strong>{variant.label}</strong>
-            <p>{variant.description}</p>
-          </li>
-        ))}
+        {variants.map((variant) => {
+          const { target } = variant
+          const targetStep = target.type === 'step'
+            ? day.steps.find((step) => step.id === target.stepId)
+            : undefined
+          return (
+            <li key={variant.id} id={planBElementId(variant.id)} tabIndex={-1}>
+              <p className="plan-b-kind">
+                <SwapIcon size={16} />
+                {VARIANT_LABELS[variant.kind]}
+              </p>
+              <strong>{variant.label}</strong>
+              <p>{variant.description}</p>
+              <p className="plan-b-target">
+                {targetStep ? `Remplace ou complète : ${targetStep.title}` : 'Pour toute la journée'}
+              </p>
+            </li>
+          )
+        })}
       </ul>
-    </details>
+    </section>
   )
 }
 
@@ -1398,15 +1488,7 @@ function DayComplements({
   )
   const documents = documentsById(travel, day.documentIds)
   const reservations = reservationsById(travel, day.reservationIds)
-  const stepIds = new Set(day.steps.map((step) => step.id))
-  const hasVariants = travel.variants.some((variant) => (
-    variant.kind !== 'standard'
-    && (
-      variant.target.type === 'day'
-        ? variant.target.dayId === day.id
-        : stepIds.has(variant.target.stepId)
-    )
-  ))
+  const hasVariants = dayVariants(travel, day).length > 0
   const hasDirectDetails = documents.length > 0 || reservations.length > 0
 
   if (
@@ -1455,30 +1537,81 @@ function DayComplements({
   )
 }
 
+/** Hébergement de la date, rappelé comme repère sans répéter sa fiche. */
+function DayAnchor({
+  travel,
+  day,
+  onCopyAddress,
+}: {
+  travel: Travel
+  day: TravelDay
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
+}) {
+  const anchor = findAccommodationForDate(travel, day.date)
+  if (!anchor) return null
+  const { accommodation, place } = anchor
+  const arrival = accommodation.period.start === day.date
+
+  return (
+    <div className="day-anchor">
+      <HomeIcon size={20} className="day-anchor-icon" />
+      <p className="day-anchor-text">
+        {arrival ? 'Hébergement' : 'Départ'} : <strong>{accommodation.label}</strong>
+      </p>
+      {place?.address && (
+        <CopyAddressButton
+          address={place.address}
+          placeLabel={place.label}
+          targetLabel={accommodation.label}
+          iconOnly
+          onCopyAddress={onCopyAddress}
+        />
+      )}
+    </div>
+  )
+}
+
 function DayDetail({
   travel,
   day,
+  isToday,
+  progress,
   personalState,
   onNavigate,
-  headingPrefix,
   ...actions
 }: {
   travel: Travel
   day: TravelDay
+  isToday: boolean
+  progress?: readonly StepProgress[]
   personalState: PersonalStateProps
   onNavigate(view: TravelView): void
-  headingPrefix?: string
 } & ActionProps) {
+  const dayLevelVariants = travel.variants.filter(
+    (variant) => variant.kind !== 'standard'
+      && variant.target.type === 'day'
+      && variant.target.dayId === day.id,
+  )
+
   return (
     <div className="program-layout">
       <div className="program-main">
         <header className="day-header">
-          <p className="section-label">{headingPrefix ?? 'Programme'}</p>
-          <p className="day-heading-date">
-            <time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time>
-          </p>
-          <h2 id="day-title">{day.title}</h2>
-          {day.summary && <p className="travel-summary">{day.summary}</p>}
+          <div className="day-heading-meta">
+            {isToday && (
+              <span className="status-pill status-pill-terracotta">
+                <ClockIcon size={15} />
+                Aujourd’hui sur place
+              </span>
+            )}
+            <p className="day-heading-date">
+              <time dateTime={day.date}>{capitalize(formatDate(day.date, travel.locale))}</time>
+            </p>
+          </div>
+          <h2 id="day-title" className="day-title">{day.title}</h2>
+          {day.summary && <p className="day-summary">{day.summary}</p>}
+          <DayAnchor travel={travel} day={day} onCopyAddress={actions.onCopyAddress} />
+          <PlanBHint variants={dayLevelVariants} context="cette journée" />
           <IllustrationCollection
             travel={travel}
             illustrationIds={day.illustrationIds}
@@ -1490,10 +1623,12 @@ function DayDetail({
         <Timeline
           travel={travel}
           day={day}
+          progress={progress}
           personalState={personalState}
           onNavigate={onNavigate}
           {...actions}
         />
+        <AdjacentDayControls travel={travel} selectedDayId={day.id} onNavigate={onNavigate} />
       </div>
       <DayComplements
         travel={travel}
@@ -1520,11 +1655,25 @@ function ProgramView({
   onNavigate(view: TravelView): void
 } & ActionProps) {
   const today = getTodayState(travel, clock)
+  const todayDayId = today.status === 'day' ? today.day.id : undefined
   const day = view.kind === 'day'
     ? travel.days.find((candidate) => candidate.id === view.dayId)
     : today.status === 'day'
       ? today.day
       : undefined
+  const isToday = Boolean(day && day.id === todayDayId)
+  const [, setMinuteTick] = useState(0)
+
+  // La progression du jour suit l’heure tant que la journée reste affichée.
+  useEffect(() => {
+    if (!isToday) return
+    const timer = window.setInterval(() => setMinuteTick((tick) => tick + 1), 60_000)
+    return () => window.clearInterval(timer)
+  }, [isToday])
+
+  const progress = day && isToday
+    ? stepProgress(day.steps, localTimeInTimeZone(clock.now(), travel.timeZone))
+    : undefined
 
   let statusMessage: string | undefined
   if (view.kind === 'today' && today.status !== 'day') {
@@ -1537,10 +1686,7 @@ function ProgramView({
 
   return (
     <div className="consultation-view program-view" aria-labelledby="program-title">
-      <header className="section-heading">
-        <p className="section-label">Programme</p>
-        <h2 id="program-title">Journées du voyage</h2>
-      </header>
+      <h2 id="program-title" className="visually-hidden">Programme</h2>
       {travel.days.length === 0 ? (
         <p className="empty-state">Ce voyage ne contient aucune journée.</p>
       ) : (
@@ -1548,6 +1694,7 @@ function ProgramView({
           <DaySelector
             travel={travel}
             selectedDayId={day?.id}
+            todayDayId={todayDayId}
             onNavigate={onNavigate}
           />
           {statusMessage && (
@@ -1557,8 +1704,9 @@ function ProgramView({
             <DayDetail
               travel={travel}
               day={day}
+              isToday={isToday}
+              progress={progress}
               personalState={personalState}
-              headingPrefix={view.kind === 'today' ? 'Aujourd’hui' : undefined}
               onNavigate={onNavigate}
               {...actions}
             />
@@ -1953,6 +2101,13 @@ export function TravelConsultation({
     : view
   const programActive = safeView.kind === 'day' || safeView.kind === 'today'
   const workspaceRef = useRef<HTMLElement>(null)
+  const todayState = getTodayState(travel, clock)
+  const programDay = safeView.kind === 'day'
+    ? selectedDay
+    : safeView.kind === 'today' && todayState.status === 'day'
+      ? todayState.day
+      : undefined
+  const programDayIndex = programDay ? travel.days.indexOf(programDay) : -1
   const viewKey = safeView.kind === 'day' ? `day:${safeView.dayId}` : safeView.kind
   const previousViewKey = useRef(viewKey)
 
@@ -2026,7 +2181,14 @@ export function TravelConsultation({
       {safeView.kind !== 'summary' && (
         <header className="travel-topbar">
           <BackToLibraryButton onBackToLibrary={onBackToLibrary} />
-          <h1 className="travel-topbar-title">{travel.title}</h1>
+          <div className="travel-topbar-text">
+            <h1 className="travel-topbar-title">{travel.title}</h1>
+            {programDayIndex >= 0 && (
+              <p className="travel-topbar-subtitle">
+                Jour {programDayIndex + 1} sur {travel.days.length}
+              </p>
+            )}
+          </div>
         </header>
       )}
       <p className="visually-hidden" role="status" aria-live="polite">

@@ -322,10 +322,8 @@ describe('programme et navigation entre journées', () => {
       'Pause libre',
     ])
     expect(within(timeline as HTMLElement).getByText('Sans horaire')).toBeInTheDocument()
-    expect(consultationStyles).toMatch(
-      /\.timeline > li > article \{[^}]*grid-template-columns: minmax\(0, 1fr\);/,
-    )
-    expect(consultationStyles).toContain('grid-template-columns: 6rem minmax(0, 1fr);')
+    expect(consultationStyles).toMatch(/\.timeline-step \{[^}]*min-width: 0;[^}]*padding: 0 0 0\.875rem 2\.75rem;/)
+    expect(consultationStyles).toMatch(/\.step-content \{[^}]*min-width: 0;/)
   })
 
   it('affiche proprement une journée sans étape et un voyage sans journée', () => {
@@ -947,8 +945,8 @@ describe('associations sans répétition', () => {
     render(<ConsultationHarness travel={longTravel} initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
 
     expect(screen.getByRole('heading', { name: longTitle })).toBeInTheDocument()
-    expect(consultationStyles).toContain('grid-auto-columns: minmax(10rem, 14rem);')
-    expect(consultationStyles).toContain('overflow-wrap: anywhere;')
+    expect(consultationStyles).toMatch(/\.day-selector ol \{[^}]*width: max-content;/)
+    expect(consultationStyles).toMatch(/\.day-title \{[^}]*overflow-wrap: anywhere;/)
   })
 
   it('laisse tous les contrôles principaux accessibles au clavier', () => {
@@ -1185,5 +1183,134 @@ describe('quatre types d’actions', () => {
     expect(consultationStyles).toMatch(/\.copy-button \{[^}]*border: 0\.09375rem solid var\(--color-line-strong\);[^}]*background: var\(--color-paper\);/)
     expect(consultationStyles).toMatch(/\.document-button \{[^}]*color: var\(--color-sage\);[^}]*background: var\(--color-sage-soft\);/)
     expect(consultationStyles).toMatch(/\.reservation-card \{[^}]*border: 0\.0625rem solid var\(--color-sun\);[^}]*background: var\(--color-sun-soft\);/)
+  })
+})
+
+describe('journée : repères et progression', () => {
+  it('propose des jours compacts avec jour de semaine, numéro et repère du jour', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    const selector = screen.getByRole('navigation', { name: 'Choisir une journée' })
+    const today = within(selector).getByRole('button', { name: /Autour du port/ })
+    expect(today).toHaveAccessibleName(/\(aujourd’hui\)/)
+    expect(today.querySelector('.day-choice-today')).toBeInTheDocument()
+    expect(within(selector).getByRole('button', { name: /Arrivée au port/ }))
+      .toHaveTextContent(/mar\.?14/i)
+    expect(screen.getByText('Jour 1 sur 3')).toBeInTheDocument()
+  })
+
+  it('signale la journée du jour et l’hébergement de départ sans répéter l’adresse', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-harbour' }} />)
+
+    expect(screen.getByText('Aujourd’hui sur place')).toBeInTheDocument()
+    expect(screen.getByText('Mercredi 15 juillet 2026')).toBeInTheDocument()
+    expect(screen.getByText(/Départ :/)).toHaveTextContent('Départ : Maison du port')
+    expect(screen.queryByText('Quai du Carénage')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
+      .toBeInTheDocument()
+  })
+
+  it('présente l’hébergement comme arrivée le jour de son début', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    expect(screen.getByText(/Hébergement :/)).toHaveTextContent('Hébergement : Maison du port')
+    expect(screen.queryByText('Aujourd’hui sur place')).not.toBeInTheDocument()
+  })
+
+  it('met en avant la prochaine étape le jour même', () => {
+    render(
+      <ConsultationHarness
+        initialView={{ kind: 'day', dayId: 'day-arrival' }}
+        instant="2026-07-14T10:00:00Z"
+      />,
+    )
+
+    const market = screen.getByRole('heading', { name: 'Passage au marché' })
+      .closest('.timeline-step') as HTMLElement
+    const checkIn = screen.getByRole('heading', { name: 'Installation' })
+      .closest('.timeline-step') as HTMLElement
+    expect(market).toHaveClass('timeline-step-done')
+    expect(within(market).getByText('Étape passée')).toBeInTheDocument()
+    expect(checkIn).toHaveClass('timeline-step-next')
+    expect(within(checkIn).getByText('Prochaine étape')).toBeInTheDocument()
+  })
+
+  it('annonce une étape en cours', () => {
+    render(
+      <ConsultationHarness
+        initialView={{ kind: 'day', dayId: 'day-arrival' }}
+        instant="2026-07-14T07:30:00Z"
+      />,
+    )
+
+    const market = screen.getByRole('heading', { name: 'Passage au marché' })
+      .closest('.timeline-step') as HTMLElement
+    expect(within(market).getByText('En cours')).toBeInTheDocument()
+    expect(screen.queryByText('Prochaine étape')).not.toBeInTheDocument()
+  })
+
+  it('actualise la progression lorsque l’heure avance', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      let now = new Date('2026-07-14T06:50:00Z')
+      const clock = { now: () => now }
+      render(
+        <TravelConsultation
+          persistedTravel={persistedConsultationTravel}
+          view={{ kind: 'day', dayId: 'day-arrival' }}
+          clock={clock}
+          online
+          personalState={{ checkedItemKeys: [], note: '' }}
+          onNavigate={vi.fn()}
+          onBackToLibrary={vi.fn()}
+          onCopyAddress={vi.fn().mockResolvedValue(true)}
+          onOpenDocument={vi.fn()}
+          onLoadIllustrationResource={vi.fn().mockResolvedValue({ ok: false, message: '' })}
+          onSetChecklistItemChecked={vi.fn()}
+          onSaveNote={vi.fn()}
+        />,
+      )
+      expect(screen.getByText('Prochaine étape')).toBeInTheDocument()
+
+      now = new Date('2026-07-14T07:10:00Z')
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(screen.getByText('En cours')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ne marque aucune progression un autre jour que celui du voyage en cours', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    expect(screen.queryByText('Prochaine étape')).not.toBeInTheDocument()
+    expect(screen.queryByText('Étape passée')).not.toBeInTheDocument()
+  })
+
+  it('relie chaque étape et la journée à leur plan B regroupé', () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+      const plans = screen.getByRole('region', { name: 'Plans B' })
+      expect(within(plans).getByText('Remplace ou complète : Passage au marché')).toBeInTheDocument()
+      expect(within(plans).getByText('Pour toute la journée')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Voir le plan B prévu pour Passage au marché' }))
+      const marketPlan = within(plans).getByText('Marché sans détour').closest('li')
+      expect(marketPlan).toHaveFocus()
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Voir le plan B prévu pour cette journée' }))
+      expect(within(plans).getByText('Accueil couvert').closest('li')).toHaveFocus()
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
+  })
+
+  it('ne propose aucun lien vers un plan B absent', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-harbour' }} />)
+    expect(screen.queryByRole('button', { name: /plan B/ })).not.toBeInTheDocument()
   })
 })

@@ -196,3 +196,11 @@ export function ExternalLinkIcon(props: IconProps) {
     </Icon>
   )
 }
+
+export function SwapIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />
+    </Icon>
+  )
+}

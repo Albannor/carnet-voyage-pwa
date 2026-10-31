@@ -47,13 +47,17 @@ Dans tous les cas, les journées existantes restent accessibles. Les changements
 
 Les étapes sont rendues dans l’ordre du tableau du modèle interne, déjà contrôlé par les invariants métier lors de l’import. L’interface ne déduit pas l’ordre d’une présentation source et ne réordonne pas visuellement le contenu.
 
+Les étapes forment une frise : une pastille par étape sur un fil vertical, puis une carte avec l’heure, le titre, le lieu et les actions utiles.
+
+Lorsque la journée affichée est celle du jour dans le fuseau du voyage, la frise situe chaque étape par rapport à l’heure locale. Une étape est passée lorsque sa fin — son heure de fin, sinon le début de l’étape horodatée suivante — est atteinte ; elle reçoit une pastille cochée et la mention accessible « Étape passée ». La première étape non passée est mise en avant sur fond soleil clair avec la mention « En cours » si elle a commencé, « Prochaine étape » sinon. Cette progression se met à jour chaque minute tant que la journée reste affichée. Une journée sans aucun horaire ne reçoit aucune mise en avant, et les autres journées restent neutres.
+
 Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable. Dans le programme, leur libellé sert de repère et leurs liens utiles restent accessibles au point d’usage. Les infos pratiques offrent en complément un index global des mêmes lieux et liens ; elles ne constituent pas une seconde source de données et ne sont jamais le seul accès à une action utile au programme.
 
 ## Hébergements et informations pratiques
 
 Chaque hébergement possède une fiche unique dans les infos pratiques. La fiche résout son lieu par `placeId` et les réservations ou documents associés uniquement depuis les `reservationIds` et `documentIds` des étapes qui portent explicitement son `accommodationId`. Aucun rapprochement n’est déduit d’un libellé, d’un chemin ou d’un nom de fichier.
 
-Dans le programme, une étape liée à un hébergement conserve son titre éditorial et un lien discret vers les infos pratiques. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
+Dans le programme, l’en-tête de chaque journée rappelle l’hébergement qui couvre sa date comme point de départ (« Hébergement » le jour de son arrivée, « Départ » les autres jours), avec un bouton de copie de l’adresse. Une étape liée à un hébergement conserve son titre éditorial et un lien discret vers Pratique. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
 
 ## Actions contextuelles et documents
 
@@ -75,7 +79,7 @@ La première illustration d’une étape peut porter un lien pratique selon une 
 
 ## Variantes
 
-Les variantes ne remplacent jamais le programme standard. Les adaptations « Économe en marche » et « Pluie » qui ciblent la journée ou l’une de ses étapes sont réunies dans un bloc repliable « Plans B ». Le bloc n’apparaît pas lorsqu’aucune variante ne concerne la journée affichée.
+Les variantes ne remplacent jamais le programme standard. Les adaptations « Économe en marche » et « Pluie » qui ciblent la journée ou l’une de ses étapes sont réunies dans une section « Plans B » des compléments de la journée ; chacune indique si elle vaut pour toute la journée ou quelle étape elle remplace ou complète. Au point d’usage, l’étape ou l’en-tête de journée concerné affiche un rappel « Plan B prévu » sur fond sauge qui amène le focus sur l’alternative correspondante. Ni la section ni les rappels n’apparaissent lorsqu’aucune variante ne concerne la journée affichée.
 
 ## Checklists et note locale
 
@@ -112,7 +116,7 @@ Un retour vers la bibliothèque reste disponible lorsque le voyage ne peut pas �
 
 Les vues utilisent des régions, titres, listes ordonnées, articles, éléments `time`, `address` et navigations nommées. Les contrôles sont des boutons natifs utilisables au clavier avec un focus visible et une hauteur tactile minimale. La vue et la journée actives sont annoncées par du texte et `aria-current`, jamais uniquement par une couleur.
 
-La navigation des journées peut défiler horizontalement dans sa propre région sur petit écran. Les flèches gauche et droite changent de journée depuis le sélecteur, tandis que des boutons précédent et suivant restent disponibles. La journée active combine texte et `aria-current`. Les cartes et la chronologie conservent un ordre HTML logique, restent lisibles sans animation et n’imposent aucun défilement horizontal au contenu essentiel.
+Le sélecteur de journées présente des pastilles compactes (jour de la semaine et numéro) qui peuvent défiler horizontalement dans leur propre région sur petit écran ; le nom accessible de chaque pastille donne la date complète et le titre de la journée. La journée du jour porte un point et la mention accessible « aujourd’hui ». Les flèches gauche et droite changent de journée depuis le sélecteur, tandis que des boutons précédent et suivant restent disponibles en fin de journée. La barre de titre indique « Jour N sur M ». La journée active combine pastille inversée, texte et `aria-current`. Les cartes et la chronologie conservent un ordre HTML logique, restent lisibles sans animation et n’imposent aucun défilement horizontal au contenu essentiel.
 
 ## Tests
 
