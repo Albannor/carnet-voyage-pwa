@@ -1,6 +1,6 @@
 # Outils de la Fabrique de carnets de voyage
 
-Ces outils servent à produire, hors de l'application, des paquets ZIP importables dans Carnet de voyage PWA. Ils sont utilisés par la skill Claude « fabrique-carnet-voyage », qui les récupère depuis l'étiquette `fabrique-v1` de ce dépôt.
+Ces outils servent à produire, hors de l'application, des paquets ZIP importables dans Carnet de voyage PWA. Ils sont utilisés par la skill Claude « fabrique-carnet-voyage », qui les récupère depuis la branche `fabrique-v1` de ce dépôt. Cette branche est la version figée utilisée par la Fabrique : la faire avancer jusqu'à `main` seulement après vérification.
 
 Ils ne font pas partie de l'application : ils ne sont ni compilés, ni testés, ni déployés avec elle, et ne modifient aucun contrat. Le format des paquets reste défini par [`docs/IMPORT.md`](../../docs/IMPORT.md), [`docs/GUIDE-FORMAT.md`](../../docs/GUIDE-FORMAT.md) et les schémas de `contracts/`.
 
@@ -67,4 +67,4 @@ npx esbuild tools/fabrique/build-entry.mjs --bundle --platform=node \
 node tools/fabrique/validate-package.mjs version
 ```
 
-Puis déplacer l'étiquette utilisée par la skill, ou en créer une nouvelle et mettre la skill à jour.
+Puis, après vérification, faire avancer la branche `fabrique-v1` jusqu'à ce commit (`git push origin main:fabrique-v1`).
