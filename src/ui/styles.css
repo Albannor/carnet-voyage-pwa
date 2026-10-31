@@ -204,14 +204,6 @@ img {
   letter-spacing: -0.01em;
 }
 
-.app-header-status {
-  margin-top: var(--space-3);
-}
-
-.app-header-status:empty {
-  display: none;
-}
-
 h1,
 h2,
 h3,
@@ -389,16 +381,6 @@ main > * {
   border: 0.0625rem solid transparent;
   border-radius: var(--radius-pill);
   cursor: pointer;
-}
-
-.round-button-solid {
-  border-color: var(--color-ink);
-  color: var(--color-paper);
-  background: var(--color-ink);
-}
-
-.round-button-solid:hover {
-  background: var(--color-ink-strong);
 }
 
 .round-button-outline {

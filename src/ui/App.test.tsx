@@ -587,18 +587,28 @@ describe('App', () => {
       ])
   })
 
-  it('présente une barre compacte dont le bouton rond ouvre le sélecteur ZIP', async () => {
+  it('propose un seul accès à l’import et un seul état hors connexion', async () => {
+    let notify: ((online: boolean) => void) | undefined
+    const connectivity: ConnectivityAdapter = {
+      isOnline: () => true,
+      subscribe: (listener) => {
+        notify = listener
+        return () => undefined
+      },
+    }
     vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
-    render(<App repositoryFactory={repositoryFactory} />)
+    render(<App repositoryFactory={repositoryFactory} connectivity={connectivity} />)
 
-    const importButton = await screen.findByRole('button', { name: 'Importer un voyage' })
-    const input = screen.getByLabelText('Choisir un fichier ZIP')
-    const click = vi.spyOn(input, 'click')
+    expect(await screen.findByLabelText('Choisir un fichier ZIP')).toHaveAttribute('type', 'file')
+    expect(screen.getAllByText('Choisir un fichier ZIP')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Importer un voyage' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Disponible hors connexion')).not.toBeInTheDocument()
 
-    fireEvent.click(importButton)
+    act(() => notify?.(false))
 
-    expect(click).toHaveBeenCalledOnce()
-    expect(screen.getByText('Disponible hors connexion')).toBeInTheDocument()
+    expect(screen.getAllByRole('status').filter((status) => (
+      status.textContent?.includes('Hors connexion')
+    ))).toHaveLength(1)
   })
 
   it('guide une première importation avec un langage simple', async () => {

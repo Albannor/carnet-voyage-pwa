@@ -463,7 +463,6 @@ export function App({
   }
 
   const inLibrary = consultationState.status === 'library'
-  const libraryHasTravels = libraryState.status === 'ready' && libraryState.entries.length > 0
 
   return (
     <div className="app-shell">
@@ -472,12 +471,7 @@ export function App({
       </a>
 
       {consultationState.status !== 'ready' && (
-        <AppHeader
-          online={online}
-          pwaStatus={pwaState.status}
-          onImport={inLibrary && libraryHasTravels ? () => fileInputRef.current?.click() : undefined}
-          importDisabled={importState.status === 'processing'}
-        />
+        <AppHeader />
       )}
 
       <main
