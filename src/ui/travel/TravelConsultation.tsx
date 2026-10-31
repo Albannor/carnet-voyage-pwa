@@ -661,30 +661,13 @@ function ReservationBody({
   )
 }
 
-function ReservationDetails({
-  compact = false,
-  ...props
-}: ReservationContentProps & { compact?: boolean }) {
+function ReservationDetails(props: ReservationContentProps) {
   const { reservation } = props
-  const content = <ReservationBody {...props} />
-
-  if (compact) {
-    return (
-      <details className="reservation-disclosure">
-        <summary aria-label={`Voir la réservation ${reservation.label}`}>
-          Voir la réservation
-        </summary>
-        <h5>{reservation.label}</h5>
-        {content}
-      </details>
-    )
-  }
-
   return (
     <article className="reservation-card">
       <p className="card-label">Réservation</p>
       <h4>{reservation.label}</h4>
-      {content}
+      <ReservationBody {...props} />
     </article>
   )
 }
@@ -1245,56 +1228,6 @@ function AdjacentDayControls({
   )
 }
 
-function StepRelatedContent({
-  travel,
-  context,
-  documents,
-  reservations,
-  online,
-  onOpenDocument,
-  excludedDocumentIds,
-}: {
-  travel: Travel
-  context: string
-  documents: readonly TravelDocument[]
-  reservations: readonly TravelReservation[]
-  online: boolean
-  onOpenDocument(document: TravelDocument): void
-  excludedDocumentIds: ReadonlySet<string>
-}) {
-  if (documents.length === 0 && reservations.length === 0) {
-    return null
-  }
-  return (
-    <div className="step-related-content" aria-label={`Documents et réservations pour ${context}`}>
-      {documents.length > 0 && (
-        <ul className="compact-action-list">
-          {documents.map((document) => (
-            <li key={document.id}>
-              <DocumentButton
-                document={document}
-                context={context}
-                onOpenDocument={onOpenDocument}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-      {reservations.map((reservation) => (
-        <ReservationDetails
-          key={reservation.id}
-          travel={travel}
-          reservation={reservation}
-          online={online}
-          onOpenDocument={onOpenDocument}
-          compact
-          excludedDocumentIds={excludedDocumentIds}
-        />
-      ))}
-    </div>
-  )
-}
-
 function ContextualLinkList({
   links,
   online,
@@ -1368,18 +1301,85 @@ const STEP_PROGRESS_BADGES: Partial<Record<StepProgress, string>> = {
   next: 'Prochaine étape',
 }
 
+/** Résume ce que la page de l’étape détaille, sans le recopier dans la frise. */
+function StepDetailsHint({
+  stepTitle,
+  pieceCount,
+  checklist,
+  onOpen,
+}: {
+  stepTitle: string
+  pieceCount: number
+  checklist?: { readonly checked: number; readonly total: number }
+  onOpen(): void
+}) {
+  const visible: string[] = []
+  const spoken: string[] = []
+  if (pieceCount > 0) {
+    const pieces = pieceCount > 1 ? `${pieceCount} pièces` : '1 pièce'
+    visible.push(pieces)
+    spoken.push(pieces)
+  }
+  if (checklist) {
+    visible.push(`Checklist ${checklist.checked}/${checklist.total}`)
+    spoken.push(`checklist, ${checklist.checked} sur ${checklist.total} cochés`)
+  }
+  if (visible.length === 0) return null
+  const HintIcon = pieceCount > 0 ? PaperclipIcon : ChecklistIcon
+  return (
+    <button
+      className="step-details-hint"
+      type="button"
+      aria-label={`Voir le détail de l’étape ${stepTitle} : ${spoken.join(', ')}`}
+      onClick={onOpen}
+    >
+      <HintIcon size={18} />
+      <span>{visible.join(' · ')}</span>
+      <span className="step-details-hint-action" aria-hidden="true">Voir</span>
+    </button>
+  )
+}
+
+function checklistProgress(
+  checklists: readonly TravelChecklist[],
+  checkedItemKeys: ReadonlySet<string>,
+) {
+  const keys = checklists.flatMap((checklist) => (
+    checklist.items.map((item) => checklistItemStateKey(checklist.id, item.id))
+  ))
+  if (keys.length === 0) return undefined
+  return {
+    checked: keys.filter((key) => checkedItemKeys.has(key)).length,
+    total: keys.length,
+  }
+}
+
+function stepChecklists(travel: Travel, stepId: string) {
+  return travel.checklists.filter(
+    (checklist) => checklist.target.type === 'step'
+      && checklist.target.stepId === stepId,
+  )
+}
+
+/**
+ * Frise de la journée : chaque étape garde au point d’usage son repère, sa
+ * description, ses images et ses liens ; ses pièces, sa checklist et son
+ * hébergement sont résumés et détaillés dans la page de l’étape.
+ */
 function Timeline({
   travel,
   day,
   progress,
-  personalState,
+  pieces,
+  checkedItemKeys,
   onNavigate,
   ...actions
 }: {
   travel: Travel
   day: TravelDay
   progress?: readonly StepProgress[]
-  personalState: PersonalStateProps
+  pieces: readonly TravelPiece[]
+  checkedItemKeys: ReadonlySet<string>
   onNavigate(view: TravelView): void
 } & ActionProps) {
   return (
@@ -1402,12 +1402,9 @@ function Timeline({
               contextualLinks,
               illustrationLink,
             )
-            const documents = documentsById(travel, step.documentIds)
-            const reservations = reservationsById(travel, step.reservationIds)
-            const stepChecklists = travel.checklists.filter(
-              (checklist) => checklist.target.type === 'step'
-                && checklist.target.stepId === step.id,
-            )
+            const pieceCount = pieces.filter((piece) => piece.attachments.some(
+              (attachment) => attachment.type === 'step' && attachment.step.id === step.id,
+            )).length
             const stepVariants = travel.variants.filter(
               (variant) => variant.kind !== 'standard'
                 && variant.target.type === 'step'
@@ -1471,26 +1468,12 @@ function Timeline({
                     online={actions.online}
                     context={step.title}
                   />
-                  {step.accommodationId && (
-                    <AccommodationLink
-                      accommodationId={step.accommodationId}
-                      stepTitle={step.title}
-                      onNavigate={onNavigate}
-                    />
-                  )}
                   <PlanBHint variants={stepVariants} context={step.title} />
-                  <ChecklistCollection
-                    checklists={stepChecklists}
-                    {...personalState}
-                  />
-                  <StepRelatedContent
-                    travel={travel}
-                    context={step.title}
-                    documents={documents}
-                    reservations={reservations}
-                    online={actions.online}
-                    onOpenDocument={actions.onOpenDocument}
-                    excludedDocumentIds={new Set(step.documentIds)}
+                  <StepDetailsHint
+                    stepTitle={step.title}
+                    pieceCount={pieceCount}
+                    checklist={checklistProgress(stepChecklists(travel, step.id), checkedItemKeys)}
+                    onOpen={openStep}
                   />
                 </article>
               </li>
@@ -1629,6 +1612,7 @@ function DayDetail({
       && variant.target.type === 'day'
       && variant.target.dayId === day.id,
   )
+  const pieces = listTravelPieces(travel, userPieces)
 
   return (
     <div className="program-layout">
@@ -1657,12 +1641,13 @@ function DayDetail({
             onLoadResource={actions.onLoadIllustrationResource}
           />
         </header>
-        <DayPieces travel={travel} day={day} userPieces={userPieces} onNavigate={onNavigate} />
+        <DayPieces travel={travel} day={day} pieces={pieces} onNavigate={onNavigate} />
         <Timeline
           travel={travel}
           day={day}
           progress={progress}
-          personalState={personalState}
+          pieces={pieces}
+          checkedItemKeys={personalState.checkedItemKeys}
           onNavigate={onNavigate}
           {...actions}
         />
@@ -2191,15 +2176,15 @@ function dayAttachmentsText(piece: TravelPiece, day: TravelDay, locale: string) 
 function DayPieces({
   travel,
   day,
-  userPieces,
+  pieces: travelPieces,
   onNavigate,
 }: {
   travel: Travel
   day: TravelDay
-  userPieces: readonly UserPieceMetadata[]
+  pieces: readonly TravelPiece[]
   onNavigate(view: TravelView): void
 }) {
-  const pieces = piecesForDay(listTravelPieces(travel, userPieces), day.id)
+  const pieces = piecesForDay(travelPieces, day.id)
   if (pieces.length === 0) return null
   const titleId = `day-pieces-${day.id}`
 
@@ -2252,12 +2237,13 @@ function DayPieces({
   )
 }
 
-/** Espace d’une étape : son horaire, ses réservations, ses pièces et ses liens. */
+/** Espace d’une étape : son horaire, ses réservations, ses pièces, ses liens et sa checklist. */
 function StepView({
   travel,
   day,
   step,
   userPieces,
+  personalState,
   online,
   onNavigate,
   onOpenDocument,
@@ -2266,6 +2252,7 @@ function StepView({
   day: TravelDay
   step: TravelStep
   userPieces: readonly UserPieceMetadata[]
+  personalState: PersonalStateProps
   online: boolean
   onNavigate(view: TravelView): void
   onOpenDocument(document: TravelDocument): void
@@ -2274,6 +2261,7 @@ function StepView({
   const links = uniqueContextualLinks(step.links, place?.links)
   const reservations = reservationsById(travel, step.reservationIds)
   const filePieces = filePiecesForStep(listTravelPieces(travel, userPieces), step.id)
+  const checklists = stepChecklists(travel, step.id)
   // Les documents de l’étape sont listés une fois, dans « Pièces de cette étape ».
   const listedDocumentIds = new Set(
     filePieces.flatMap((piece) => (piece.kind === 'document' ? [piece.id] : [])),
@@ -2363,6 +2351,12 @@ function StepView({
         <section className="step-view-links" aria-labelledby="step-links-title">
           <h3 className="pieces-group-title" id="step-links-title">Liens utiles</h3>
           <ContextualLinkList links={links} online={online} context={step.title} />
+        </section>
+      )}
+      {checklists.length > 0 && (
+        <section className="step-view-checklists" aria-labelledby="step-checklists-title">
+          <h3 className="pieces-group-title" id="step-checklists-title">Checklist de l’étape</h3>
+          <ChecklistCollection checklists={checklists} {...personalState} />
         </section>
       )}
       {step.accommodationId && (
@@ -3173,6 +3167,7 @@ export function TravelConsultation({
           day={selectedStep.day}
           step={selectedStep.step}
           userPieces={userPieces}
+          personalState={checklistState}
           online={online}
           onNavigate={onNavigate}
           onOpenDocument={onOpenDocument}

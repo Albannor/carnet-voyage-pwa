@@ -50,7 +50,9 @@ Dans tous les cas, les journées existantes restent accessibles. Les changements
 
 Les étapes sont rendues dans l’ordre du tableau du modèle interne, déjà contrôlé par les invariants métier lors de l’import. L’interface ne déduit pas l’ordre d’une présentation source et ne réordonne pas visuellement le contenu.
 
-Les étapes forment une frise : une pastille par étape sur un fil vertical, puis une carte avec l’heure, le titre, le lieu et les actions utiles. Toucher la zone horaire, titre et lieu ouvre l’espace de l’étape : un bouton natif « Ouvrir l’étape … », signalé par un chevron, couvre cette zone sans englober les liens, documents et réservations de la carte, qui restent des actions distinctes.
+Les étapes forment une frise : une pastille par étape sur un fil vertical, puis une carte allégée avec l’heure, le titre, le lieu, la description, les illustrations, les liens utiles et l’éventuel accès au plan B. Toucher la zone horaire, titre et lieu ouvre l’espace de l’étape : un bouton natif « Ouvrir l’étape … », signalé par un chevron, couvre cette zone sans englober les liens de la carte, qui restent des actions distinctes.
+
+La carte ne recopie ni les documents, ni les réservations, ni la checklist, ni le lien vers l’hébergement de l’étape : ils sont détaillés dans l’espace de l’étape, et les pièces de la journée restent accessibles par la bande « Pièces du jour ». Un résumé cliquable, par exemple « 2 pièces · Checklist 1/3 », signale ce que l’espace de l’étape contient et l’ouvre ; son nom accessible est « Voir le détail de l’étape … ». Le nombre de pièces compte, par identifiant, les documents, réservations et pièces ajoutées rattachés à l’étape ; la progression de la checklist compte les cases cochées sur l’appareil. Une étape sans pièce ni checklist n’affiche aucun résumé.
 
 Lorsque la journée affichée est celle du jour dans le fuseau du voyage, la frise situe chaque étape par rapport à l’heure locale. Une étape est passée lorsque sa fin — son heure de fin, sinon le début de l’étape horodatée suivante — est atteinte ; elle reçoit une pastille cochée et la mention accessible « Étape passée ». La première étape non passée est mise en avant sur fond soleil clair avec la mention « En cours » si elle a commencé, « Prochaine étape » sinon. Cette progression se met à jour chaque minute tant que la journée reste affichée. Une journée sans aucun horaire ne reçoit aucune mise en avant, et les autres journées restent neutres.
 
@@ -60,7 +62,7 @@ Une étape sans heure reste à sa position normalisée et porte la mention « Sa
 
 Chaque hébergement possède une fiche unique dans l’espace Pièces, sous la liste des pièces : dates, adresse avec sa copie et liens du lieu. La fiche résout son lieu par `placeId` et ses pièces uniquement par les rattachements aux étapes qui portent explicitement son `accommodationId`. Ces pièces n’y sont pas recopiées : la fiche propose un lien vers la fiche de chacune, de sorte que chaque pièce n’est présentée qu’une fois sur l’écran. Aucun rapprochement n’est déduit d’un libellé, d’un chemin ou d’un nom de fichier. Suivent les « Lieux et transports utiles » qui ne sont pas des hébergements.
 
-Dans le programme, l’en-tête de chaque journée rappelle l’hébergement qui couvre sa date comme point de départ (« Hébergement » le jour de son arrivée, « Départ » les autres jours), avec un bouton de copie de l’adresse. Une étape liée à un hébergement conserve son titre éditorial et un lien discret « Voir l’hébergement » qui ouvre Pièces sur la fiche de cet hébergement. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
+Dans le programme, l’en-tête de chaque journée rappelle l’hébergement qui couvre sa date comme point de départ (« Hébergement » le jour de son arrivée, « Départ » les autres jours), avec un bouton de copie de l’adresse. Une étape liée à un hébergement conserve son titre éditorial ; son espace propose un lien discret « Voir l’hébergement » qui ouvre Pièces sur la fiche de cet hébergement. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
 
 ## Actions contextuelles et documents
 
@@ -76,7 +78,7 @@ Hors connexion, les liens externes sont désactivés mais le programme, les rés
 
 Documents et réservations sont reliés aux journées ou étapes exclusivement par identifiants stables. Le document référence à son tour une ressource PDF déclarée dans le manifest. Aucun nom de fichier, chemin ou libellé ne sert à déduire une association.
 
-Dans le déroulé, les liens explicitement portés par l’étape sont suivis des liens de son lieu résolu par `placeId`, puis dédupliqués de manière stable par URL sans modifier les données. Ils restent des liens textuels souples, soulignés et sans carte ou bouton pleine largeur. Les documents gardent une action locale explicite et les réservations directement associées restent présentées comme des détails repliables. Une information descriptive reste du texte.
+Dans le déroulé, les liens explicitement portés par l’étape sont suivis des liens de son lieu résolu par `placeId`, puis dédupliqués de manière stable par URL sans modifier les données. Ils restent des liens textuels souples, soulignés et sans carte ou bouton pleine largeur. Les documents et réservations de l’étape sont ouverts depuis l’espace de l’étape ou leur fiche, pas depuis la frise. Une information descriptive reste du texte.
 
 La première illustration d’une étape peut porter un lien pratique selon une règle déterministe : l’unique lien HTTPS valide de l’étape est prioritaire ; à défaut, et seulement lorsque l’étape ne déclare aucun lien, l’unique lien HTTPS valide de son lieu peut être utilisé. Dès que plusieurs cibles sont possibles, l’image n’est pas interactive et les liens sont tous présentés sous forme textuelle. Les liens de provenance photographique (`sourceUrl` et `licenseUrl`) ne participent jamais à cette résolution. L’image locale reste visible hors connexion, mais sa cible externe est désactivée et annoncée sobrement.
 
@@ -108,13 +110,13 @@ Sous l’en-tête de la journée, une bande « Pièces du jour · N » présente
 
 La bande remplace l’ancien bloc « Informations associées à la journée » des compléments, afin que les documents et réservations de la journée ne soient pas présentés deux fois. Chaque carte ouvre la fiche de sa pièce.
 
-Dans la frise, chaque étape garde ses actions au point d’usage : documents en boutons « document local », réservations en détail repliable et liens externes en liens textuels, sans répéter l’adresse ou les liens déjà présentés.
+Dans la frise, chaque étape garde ses liens externes au point d’usage, en liens textuels, sans répéter l’adresse ou les liens déjà présentés. Ses pièces ne sont pas répétées sous l’étape : la bande du jour et le résumé de l’étape y mènent.
 
 ## Espace de l’étape
 
 La vue `step` affiche, sous la barre de titre « Jour N sur M », un bouton « Retour à la journée » (date et titre de la journée), puis l’horaire ou « Sans horaire », le titre, le lieu résolu par `placeId` et la description éventuelle. Chaque réservation de l’étape conserve son bloc structuré sur fond soleil clair ; seuls les champs présents dans les données sont affichés (référence, date, heure, statut). Le contrat ne porte pas de point de rendez-vous : aucun n’est inventé.
 
-La liste « Pièces de cette étape · N » réunit les documents rattachés à l’étape, directement ou par l’une de ses réservations ; ces documents ne sont pas répétés dans le bloc de réservation et chaque ligne ouvre la fiche de la pièce. Les « Liens utiles » regroupent sans doublon les liens de l’étape et de son lieu. Une section sans contenu n’est pas rendue. Une étape inconnue ramène à l’aperçu, comme une journée inconnue.
+La liste « Pièces de cette étape · N » réunit les documents rattachés à l’étape, directement ou par l’une de ses réservations ; ces documents ne sont pas répétés dans le bloc de réservation et chaque ligne ouvre la fiche de la pièce. Les « Liens utiles » regroupent sans doublon les liens de l’étape et de son lieu. La « Checklist de l’étape » présente les checklists qui ciblent cette étape, avec le même état local que dans Préparation. Une étape liée à un hébergement propose « Voir l’hébergement ». Une section sans contenu n’est pas rendue. Une étape inconnue ramène à l’aperçu, comme une journée inconnue.
 
 ## Fiche d’une pièce
 
@@ -140,7 +142,7 @@ Les variantes ne remplacent jamais le programme standard. Les adaptations « Éc
 
 ## Checklists et note locale
 
-Les définitions de checklists proviennent uniquement de `voyage.json` 1.2.0. Une checklist de journée reste disponible dans les compléments de la journée et une checklist d’étape auprès de l’étape ciblée. La section Préparation offre en plus une vue regroupée : checklists du voyage, puis checklists de journées et d’étapes organisées par cible. La vue d’ensemble ne mélange pas ces tâches au résumé du séjour. Aucune section vide n’est rendue.
+Les définitions de checklists proviennent uniquement de `voyage.json` 1.2.0. Une checklist de journée reste disponible dans les compléments de la journée et une checklist d’étape dans l’espace de l’étape ciblée, la frise n’en affichant que la progression. La section Préparation offre en plus une vue regroupée : checklists du voyage, puis checklists de journées et d’étapes organisées par cible. La vue d’ensemble ne mélange pas ces tâches au résumé du séjour. Aucune section vide n’est rendue.
 
 Le changement de case fournit un retour immédiat, attend la fin de l’écriture locale puis annonce la réussite. En cas d’échec, la valeur persistée précédente est rétablie et une erreur est annoncée. Les voyages 1.0.0 et 1.1.0 n’ont simplement aucune checklist.
 

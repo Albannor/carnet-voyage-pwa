@@ -372,17 +372,22 @@ describe('déroulé, actions et compléments', () => {
   it('ne répète pas la fiche complète de l’hôtel dans le programme', () => {
     render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
 
+    expect(screen.queryByRole('button', { name: /Voir l’hébergement associé à Installation/ }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByText('Quai du Carénage')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Maison du port' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’étape Installation' }))
     expect(screen.getByRole('button', { name: /Voir l’hébergement associé à Installation/ }))
       .toBeInTheDocument()
     expect(screen.queryByText('Quai du Carénage')).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Maison du port' })).not.toBeInTheDocument()
   })
 
   it('mène depuis l’étape à la fiche de son hébergement dans Pièces', () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
     try {
-      render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+      render(<ConsultationHarness initialView={{ kind: 'step', stepId: 'step-check-in' }} />)
 
       fireEvent.click(screen.getByRole('button', { name: /Voir l’hébergement associé à Installation/ }))
       expect(screen.getByText('Section active : Pièces')).toBeInTheDocument()
@@ -395,18 +400,28 @@ describe('déroulé, actions et compléments', () => {
     }
   })
 
-  it('distingue les documents et réservations des liens pratiques ordinaires', () => {
+  it('résume les pièces de l’étape dans la frise sans les recopier', () => {
     render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
 
     const installation = screen.getByRole('heading', { name: 'Installation' })
       .closest('.step-content') as HTMLElement
-    const relatedContent = installation.querySelector('.step-related-content') as HTMLElement
-    expect(relatedContent).toBeInTheDocument()
-    expect(within(installation).getAllByRole('button', { name: /Ouvrir le document/ })).toHaveLength(1)
-    expect(within(installation).getByRole('button', { name: /Ouvrir le document/ }))
-      .toHaveTextContent(/^Confirmation d’hébergement$/)
-    expect(within(installation).getByText('Voir la réservation')).toBeInTheDocument()
+    expect(within(installation).queryByRole('button', { name: /Ouvrir le document/ }))
+      .not.toBeInTheDocument()
+    expect(within(installation).queryByText('PORT-2026')).not.toBeInTheDocument()
     expect(within(installation).queryByText('Quai du Carénage')).not.toBeInTheDocument()
+    const hint = within(installation).getByRole('button', {
+      name: 'Voir le détail de l’étape Installation : 2 pièces',
+    })
+    expect(hint).toHaveTextContent('2 pièces')
+    const pause = screen.getByRole('heading', { name: 'Pause libre' })
+      .closest('.step-content') as HTMLElement
+    expect(pause.querySelector('.step-details-hint')).not.toBeInTheDocument()
+
+    fireEvent.click(hint)
+    expect(screen.getByText('Section active : Étape — Installation')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Voir la fiche Confirmation d’hébergement/ }))
+      .toBeInTheDocument()
   })
 
   it('conserve le libellé éditorial du lien et son contexte dans aria-label', () => {
@@ -771,13 +786,25 @@ describe('préparation et états personnels', () => {
   })
 
   it('conserve les checklists de journée et d’étape dans leur contexte du programme', () => {
-    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+    render(
+      <ConsultationHarness
+        initialView={{ kind: 'day', dayId: 'day-arrival' }}
+        personalState={{ checkedItemKeys: ['checklist-step/item-bag'], note: '' }}
+      />,
+    )
 
     expect(screen.getByText('Pour l’arrivée')).toBeInTheDocument()
     const marketStep = screen.getByRole('heading', { name: 'Passage au marché' })
       .closest('.step-content') as HTMLElement
-    expect(within(marketStep).getByText('Au marché')).toBeInTheDocument()
+    expect(within(marketStep).queryByText('Au marché')).not.toBeInTheDocument()
+    expect(within(marketStep).getByRole('button', {
+      name: 'Voir le détail de l’étape Passage au marché : checklist, 1 sur 1 cochés',
+    })).toHaveTextContent('Checklist 1/1')
     expect(screen.queryByText('Avant le départ')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’étape Passage au marché' }))
+    expect(screen.getByRole('heading', { name: 'Checklist de l’étape' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Prendre un sac' })).toBeChecked()
   })
 
   it('persiste une case cochée et n’annonce la réussite qu’après l’écriture', async () => {
@@ -1197,7 +1224,9 @@ describe('navigation du bas', () => {
 
 describe('quatre types d’actions', () => {
   it('distingue lien externe, copie, document local et réservation', () => {
-    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+    const { unmount } = render(
+      <ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />,
+    )
 
     const link = screen.getAllByRole('link', { name: /service externe/ })[0]
     expect(link).toHaveClass('contextual-link')
@@ -1205,12 +1234,21 @@ describe('quatre types d’actions', () => {
     expect(link).not.toHaveTextContent('↗')
     expect(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
       .toHaveClass('copy-button')
-    const documentButton = screen.getAllByRole('button', { name: /Ouvrir le document/ })[0]
-    expect(documentButton).toHaveClass('document-button')
-    expect(documentButton.querySelector('svg')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’étape Installation' }))
     expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })
       .closest('.reservation-card')).toBeInTheDocument()
+    unmount()
+
+    render(
+      <ConsultationHarness
+        initialView={{ kind: 'piece', pieceKind: 'reservation', pieceId: 'reservation-stay' }}
+      />,
+    )
+    const documentButton = screen.getByRole('button', {
+      name: /Ouvrir le document Confirmation d’hébergement/,
+    })
+    expect(documentButton).toHaveClass('document-button')
+    expect(documentButton.querySelector('svg')).toBeInTheDocument()
 
     expect(consultationStyles).toMatch(/\.contextual-link \{[^}]*text-decoration: underline;/)
     expect(consultationStyles).toMatch(/\.copy-button \{[^}]*border: 0\.09375rem solid var\(--color-line-strong\);[^}]*background: var\(--color-paper\);/)

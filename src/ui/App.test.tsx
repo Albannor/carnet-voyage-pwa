@@ -388,9 +388,9 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Programme' }))
     const daySelector = await screen.findByRole('navigation', { name: 'Choisir une journée' })
     fireEvent.click(within(daySelector).getByRole('button', { name: /Arrivée au port/ }))
-    fireEvent.click(screen.getByRole('button', {
-      name: /Ouvrir le document Confirmation d’hébergement pour Installation/,
-    }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’étape Installation' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Voir la fiche Confirmation d’hébergement/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir le PDF Confirmation d’hébergement' }))
 
     await waitFor(() => expect(repository.getResource).toHaveBeenCalledWith(
       persistedConsultationTravel.travel.id,
