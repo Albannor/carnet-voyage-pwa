@@ -354,6 +354,8 @@ describe('programme et navigation entre journées', () => {
       <ConsultationHarness initialView={{ kind: 'today' }} instant="2026-07-15T10:00:00Z" />,
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Autour du port' })).toBeInTheDocument()
+    // Pendant le voyage, « Aujourd’hui » est la journée du jour, sous le même nom.
+    expect(screen.getByText('Section active : Programme — Autour du port')).toBeInTheDocument()
 
     rerender(<ConsultationHarness initialView={{ kind: 'today' }} instant="2026-06-01T10:00:00Z" />)
     expect(screen.getByText(/n’a pas encore commencé/)).toBeInTheDocument()
@@ -1136,7 +1138,7 @@ describe('aperçu du voyage', () => {
     const card = screen.getByRole('region', { name: 'Aujourd’hui' })
     expect(card).toHaveTextContent('Mercredi 15 juillet · Autour du port')
     fireEvent.click(within(card).getByRole('button', { name: 'Voir la journée' }))
-    expect(screen.getByText('Section active : Programme d’aujourd’hui')).toBeInTheDocument()
+    expect(screen.getByText('Section active : Programme — Autour du port')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Autour du port' })).toBeInTheDocument()
   })
 

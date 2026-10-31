@@ -45,23 +45,6 @@ export function OfflineReadyIcon(props: IconProps) {
   return <Icon {...props}><path d="M12 4v10M8 10l4 4 4-4M5 20h14" /></Icon>
 }
 
-export function OfflineIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M3 3l18 18M8.6 6.4A6 6 0 0 1 17.7 10H18a3.5 3.5 0 0 1 2.4 6M17 18H7a4 4 0 0 1-1.4-7.75" />
-    </Icon>
-  )
-}
-
-export function UpdateIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5M12 8h.01" />
-    </Icon>
-  )
-}
-
 export function CalendarIcon(props: IconProps) {
   return (
     <Icon {...props}>

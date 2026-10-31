@@ -45,7 +45,7 @@ Lorsqu’un nouveau shell est téléchargé, il reste en attente. L’applicatio
 
 ## Connectivité et services externes
 
-L’adaptateur de connectivité observe `navigator.onLine` et les événements `online` et `offline`. Lorsque le navigateur signale une absence de réseau, l’application rappelle que les contenus locaux restent disponibles et neutralise les actions externes avec un libellé accessible.
+L’adaptateur de connectivité observe `navigator.onLine` et les événements `online` et `offline`. Lorsque le navigateur signale une absence de réseau, l’application rappelle que les contenus locaux restent disponibles et neutralise les actions externes avec un libellé accessible. L’absence de réseau, la disponibilité hors ligne et les mises à jour sont annoncées une seule fois, par le panneau d’état visible dans la bibliothèque comme dans un voyage ; l’en-tête de la bibliothèque ne répète pas cet état.
 
 Inversement, `navigator.onLine === true` signifie seulement qu’une interface réseau est disponible. Les cartes, itinéraires et autres services restent toujours présentés comme externes et dépendants d’une connexion ; l’application ne garantit pas leur joignabilité.
 

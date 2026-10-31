@@ -39,12 +39,12 @@ La date courante est calculée à partir d’une horloge injectable et du fuseau
 
 La vue applique quatre états déterministes :
 
-1. une journée porte la date locale du voyage : son programme est affiché ;
+1. une journée porte la date locale du voyage : la vue s’affiche exactement comme cette journée (`day`), avec le même titre de section, et l’encart « Aujourd’hui » de l’aperçu y mène directement ;
 2. la date précède le séjour : la date de début est rappelée ;
 3. la date suit le séjour : la date de fin est rappelée ;
 4. la date appartient au séjour sans journée correspondante : cette absence est expliquée sans inventer de programme.
 
-Dans tous les cas, les journées existantes restent accessibles. Les changements de jour à minuit dans le fuseau du voyage et les différences entre plusieurs fuseaux sont couverts par des tests avec une horloge fixe.
+La vue `today` ne reste distincte que dans les trois derniers cas ; l’URL `view=today` demeure un raccourci qui ouvre toujours la journée du jour. Dans tous les cas, les journées existantes restent accessibles. Les changements de jour à minuit dans le fuseau du voyage et les différences entre plusieurs fuseaux sont couverts par des tests avec une horloge fixe.
 
 ## Chronologie
 

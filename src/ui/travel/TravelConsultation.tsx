@@ -939,7 +939,7 @@ function TimelinessCard({
   if (today.status === 'day') {
     label = 'Aujourd’hui'
     detail = `${formatDayHeading(today.day.date, travel.locale)} · ${today.day.title}`
-    action = { label: 'Voir la journée', view: { kind: 'today' } }
+    action = { label: 'Voir la journée', view: { kind: 'day', dayId: today.day.id } }
   } else if (today.status === 'before') {
     const remaining = daysBetween(today.date, travel.period.start)
     label = remaining === 1 ? 'Départ demain' : `Départ dans ${remaining} jours`
@@ -1680,11 +1680,10 @@ function ProgramView({
 } & ActionProps) {
   const today = getTodayState(travel, clock)
   const todayDayId = today.status === 'day' ? today.day.id : undefined
+  // La vue `today` n’arrive ici que pour une date sans journée prévue.
   const day = view.kind === 'day'
     ? travel.days.find((candidate) => candidate.id === view.dayId)
-    : today.status === 'day'
-      ? today.day
-      : undefined
+    : undefined
   const isToday = Boolean(day && day.id === todayDayId)
   const [, setMinuteTick] = useState(0)
 
@@ -2994,32 +2993,35 @@ export function TravelConsultation({
   const [checklistFeedback, setChecklistFeedback] = useState<
     Record<string, 'saving' | 'saved' | 'error'>
   >({})
-  const selectedDay = view.kind === 'day'
-    ? travel.days.find((day) => day.id === view.dayId)
-    : undefined
-  const selectedStep = view.kind === 'step'
-    ? findStepWithDay(travel, view.stepId)
-    : undefined
-  const selectedPiece = view.kind === 'piece'
-    ? findTravelPiece(travel, view.pieceKind, view.pieceId, userPieces)
-    : undefined
-  const safeView = (view.kind === 'day' && !selectedDay)
-    || (view.kind === 'step' && !selectedStep)
-    || (view.kind === 'piece' && !selectedPiece)
-    ? { kind: 'summary' } as const
+  const todayState = getTodayState(travel, clock)
+  // « Aujourd’hui » n’est qu’un raccourci : pendant le voyage, il affiche la
+  // journée du jour comme n’importe quelle journée.
+  const requestedView: TravelView = view.kind === 'today' && todayState.status === 'day'
+    ? { kind: 'day', dayId: todayState.day.id }
     : view
+  const selectedDay = requestedView.kind === 'day'
+    ? travel.days.find((day) => day.id === requestedView.dayId)
+    : undefined
+  const selectedStep = requestedView.kind === 'step'
+    ? findStepWithDay(travel, requestedView.stepId)
+    : undefined
+  const selectedPiece = requestedView.kind === 'piece'
+    ? findTravelPiece(travel, requestedView.pieceKind, requestedView.pieceId, userPieces)
+    : undefined
+  const safeView = (requestedView.kind === 'day' && !selectedDay)
+    || (requestedView.kind === 'step' && !selectedStep)
+    || (requestedView.kind === 'piece' && !selectedPiece)
+    ? { kind: 'summary' } as const
+    : requestedView
   const programActive = safeView.kind === 'day'
     || safeView.kind === 'today'
     || safeView.kind === 'step'
   const workspaceRef = useRef<HTMLElement>(null)
-  const todayState = getTodayState(travel, clock)
   const programDay = safeView.kind === 'day'
     ? selectedDay
     : safeView.kind === 'step'
       ? selectedStep?.day
-      : safeView.kind === 'today' && todayState.status === 'day'
-        ? todayState.day
-        : undefined
+      : undefined
   const programDayIndex = programDay ? travel.days.indexOf(programDay) : -1
   const viewKey = safeView.kind === 'day'
     ? `day:${safeView.dayId}`
