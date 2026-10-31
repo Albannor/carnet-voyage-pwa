@@ -191,3 +191,40 @@ export function allDocumentsStoredLocally(
   const required = documentResourceIds(travel)
   return required.length > 0 && required.every((id) => localResourceIds.has(id))
 }
+
+/** Pièces rattachées à une journée, directement ou par l’une de ses étapes. */
+export function piecesForDay(
+  pieces: readonly TravelPiece[],
+  dayId: EntityId,
+): readonly TravelPiece[] {
+  return pieces.filter((piece) => (
+    piece.attachments.some((attachment) => attachment.day.id === dayId)
+  ))
+}
+
+/** Documents rattachés à une étape, directement ou par l’une de ses réservations. */
+export function documentPiecesForStep(
+  pieces: readonly TravelPiece[],
+  stepId: EntityId,
+): readonly Extract<TravelPiece, { kind: 'document' }>[] {
+  return pieces.flatMap((piece) => (
+    piece.kind === 'document'
+    && piece.attachments.some((attachment) => (
+      attachment.type === 'step' && attachment.step.id === stepId
+    ))
+      ? [piece]
+      : []
+  ))
+}
+
+/** Retrouve une étape et sa journée par identifiant stable. */
+export function findStepWithDay(
+  travel: Travel,
+  stepId: EntityId,
+): { readonly day: TravelDay; readonly step: TravelStep } | undefined {
+  for (const day of travel.days) {
+    const step = day.steps.find((candidate) => candidate.id === stepId)
+    if (step) return { day, step }
+  }
+  return undefined
+}

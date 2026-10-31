@@ -40,6 +40,25 @@ describe('navigation de consultation dans l’URL', () => {
     expect(window.location.search).toBe('?travel=travel-test&view=preparation')
   })
 
+  it('écrit puis relit une étape identifiée, sans paramètre résiduel', () => {
+    writeTravelLocation({ travelId: 'travel-test', view: { kind: 'step', stepId: 'step-1' } })
+    expect(window.location.search).toBe('?travel=travel-test&view=step&step=step-1')
+    expect(readTravelLocation(window.location.search)).toEqual({
+      travelId: 'travel-test',
+      view: { kind: 'step', stepId: 'step-1' },
+    })
+
+    writeTravelLocation({ travelId: 'travel-test', view: { kind: 'day', dayId: 'day-1' } })
+    expect(window.location.search).toBe('?travel=travel-test&view=day&day=day-1')
+  })
+
+  it('revient à l’aperçu pour une étape sans identifiant', () => {
+    expect(readTravelLocation('?travel=travel-test&view=step')).toEqual({
+      travelId: 'travel-test',
+      view: { kind: 'summary' },
+    })
+  })
+
   it('écrit puis relit l’espace Pièces pour préserver le retour d’un service externe', () => {
     writeTravelLocation({ travelId: 'travel-test', view: { kind: 'pieces' } })
     expect(window.location.search).toBe('?travel=travel-test&view=pieces')

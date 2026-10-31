@@ -182,3 +182,118 @@ describe('espace Pièces', () => {
     expect(screen.queryByText('Toutes disponibles hors connexion')).not.toBeInTheDocument()
   })
 })
+
+describe('pièces du jour', () => {
+  it('présente une bande des pièces de la journée avec un accès à l’espace Pièces', () => {
+    render(<PiecesHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    const strip = screen.getByRole('region', { name: 'Pièces du jour · 2' })
+    const cards = within(strip).getAllByRole('button', { name: /Ouvrir le document|Voir la réservation/ })
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toHaveAccessibleName(
+      'Ouvrir le document Confirmation d’hébergement — Étape 14:00 · Installation — PDF',
+    )
+
+    fireEvent.click(within(strip).getByRole('button', { name: 'Toutes les pièces' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Pièces du voyage' })).toBeVisible()
+  })
+
+  it('ouvre le PDF depuis une carte et mène une réservation à son étape', () => {
+    const onOpenDocument = vi.fn()
+    render(
+      <PiecesHarness
+        initialView={{ kind: 'day', dayId: 'day-arrival' }}
+        onOpenDocument={onOpenDocument}
+      />,
+    )
+    const strip = screen.getByRole('region', { name: 'Pièces du jour · 2' })
+
+    fireEvent.click(within(strip).getByRole('button', { name: /^Ouvrir le document/ }))
+    expect(onOpenDocument).toHaveBeenCalledWith(consultationTravel.documents[0])
+
+    fireEvent.click(within(strip).getByRole('button', { name: /^Voir la réservation/ }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Installation' })).toBeVisible()
+  })
+
+  it('ne répète plus les pièces de la journée dans ses compléments', () => {
+    render(<PiecesHarness initialView={{ kind: 'day', dayId: 'day-harbour' }} />)
+
+    expect(screen.getByRole('region', { name: 'Pièces du jour · 2' })).toBeVisible()
+    expect(screen.queryByText('Informations associées à la journée')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Ouvrir le document Confirmation/ }))
+      .toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Voir la réservation/ }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Pièces du voyage' })).toBeVisible()
+  })
+
+  it('n’affiche aucune bande pour une journée sans pièce', () => {
+    render(<PiecesHarness initialView={{ kind: 'day', dayId: 'day-island' }} />)
+
+    expect(screen.queryByText(/Pièces du jour/)).not.toBeInTheDocument()
+  })
+})
+
+describe('espace de l’étape', () => {
+  it('s’ouvre en touchant l’étape puis revient à sa journée', () => {
+    render(<PiecesHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’étape Installation' }))
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Installation' })).toBeVisible()
+    expect(screen.getByText('Jour 1 sur 3')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Programme' })).toHaveAttribute('aria-current', 'page')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retour à la journée : Arrivée au port' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Arrivée au port' })).toBeVisible()
+  })
+
+  it('présente horaire, lieu, réservation, pièces et liens sans répétition', () => {
+    const onOpenDocument = vi.fn()
+    render(
+      <PiecesHarness
+        initialView={{ kind: 'step', stepId: 'step-check-in' }}
+        onOpenDocument={onOpenDocument}
+      />,
+    )
+
+    const header = screen.getByRole('heading', { level: 2, name: 'Installation' })
+      .closest('header') as HTMLElement
+    expect(within(header).getByText('14:00')).toBeVisible()
+    expect(within(header).getByText('Vieux-Port')).toBeVisible()
+    const reservation = screen.getByRole('heading', { name: 'Réservation Maison du port' })
+      .closest('.reservation-card') as HTMLElement
+    expect(within(reservation).getByText('PORT-2026')).toBeVisible()
+    expect(within(reservation).getByText('Confirmée')).toBeVisible()
+    expect(within(reservation).queryByRole('button', { name: /Ouvrir le document/ }))
+      .not.toBeInTheDocument()
+
+    const pieces = screen.getByRole('region', { name: 'Pièces de cette étape · 1' })
+    fireEvent.click(within(pieces).getByRole('button', {
+      name: 'Ouvrir le document Confirmation d’hébergement — Document du dossier — PDF, Dossier',
+    }))
+    expect(onOpenDocument).toHaveBeenCalledWith(consultationTravel.documents[0])
+
+    const links = screen.getByRole('region', { name: 'Liens utiles' })
+    expect(within(links).getByRole('link', { name: /Ouvrir l’itinéraire vers le Vieux-Port/ }))
+      .toHaveAttribute('href', 'https://example.com/route/port')
+    expect(screen.getAllByRole('link', { name: /Ouvrir l’itinéraire vers le Vieux-Port/ }))
+      .toHaveLength(1)
+  })
+
+  it('n’affiche pas de référence ni de section absente des données', () => {
+    render(<PiecesHarness initialView={{ kind: 'step', stepId: 'step-flexible' }} />)
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Pause libre' })).toBeVisible()
+    expect(screen.getByText('Sans horaire')).toBeVisible()
+    expect(screen.queryByText('Référence')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Pièces de cette étape/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Liens utiles')).not.toBeInTheDocument()
+  })
+
+  it('revient à l’aperçu pour une étape inconnue', () => {
+    render(<PiecesHarness initialView={{ kind: 'step', stepId: 'step-missing' }} />)
+
+    expect(screen.getByRole('button', { name: 'Aperçu' })).toHaveAttribute('aria-current', 'page')
+  })
+})

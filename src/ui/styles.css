@@ -1697,16 +1697,14 @@ main > * {
 }
 
 /* Journée : sélecteur, en-tête, frise horaire et plans B. */
-.reservation-disclosure,
-.day-complement {
+.reservation-disclosure {
   min-width: 0;
   border: 0.0625rem solid var(--color-line);
   border-radius: var(--radius-control);
   background: var(--color-paper);
 }
 
-.reservation-disclosure > summary,
-.day-complement > summary {
+.reservation-disclosure > summary {
   min-height: var(--tap-target);
   display: flex;
   align-items: center;
@@ -1716,13 +1714,11 @@ main > * {
   cursor: pointer;
 }
 
-.reservation-disclosure[open],
-.day-complement[open] {
+.reservation-disclosure[open] {
   padding-bottom: var(--space-3);
 }
 
-.reservation-disclosure[open] > :not(summary),
-.day-complement[open] > :not(summary) {
+.reservation-disclosure[open] > :not(summary) {
   margin-right: var(--space-3);
   margin-left: var(--space-3);
 }
@@ -2418,6 +2414,176 @@ main > * {
   min-width: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+/* Étape cliquable : toute la zone horaire, titre et lieu ouvre l’espace de l’étape. */
+.step-heading {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: center;
+}
+
+.step-heading > :not(.step-open-button) {
+  grid-column: 1;
+}
+
+.step-open-button {
+  width: var(--tap-target);
+  height: var(--tap-target);
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.step-open-button::after {
+  position: absolute;
+  inset: calc(-1 * var(--space-1));
+  border-radius: var(--radius-control);
+  content: '';
+}
+
+.step-open-button:focus-visible {
+  outline: none;
+}
+
+.step-open-button:focus-visible::after {
+  outline: var(--focus-ring);
+}
+
+.step-open-button:hover {
+  color: var(--color-ink);
+}
+
+/* Bande « Pièces du jour » : défilement horizontal limité à sa propre région. */
+.day-pieces {
+  min-width: 0;
+  margin-top: var(--space-5);
+}
+
+.day-pieces-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.day-pieces-heading h3 {
+  margin: 0;
+  color: var(--color-terracotta);
+  font-family: var(--font-body);
+  font-size: var(--font-size-caption);
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.day-pieces-list {
+  min-width: 0;
+  display: flex;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  list-style: none;
+}
+
+.day-pieces-list > li {
+  width: 12.25rem;
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.day-piece-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem;
+  border: 0.0625rem solid var(--color-line);
+  border-radius: var(--radius-card-sm);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.day-piece-card:hover {
+  border-color: var(--color-line-strong);
+}
+
+.day-piece-card .piece-attachments {
+  font-size: var(--font-size-caption);
+}
+
+.day-piece-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  color: var(--color-text-muted);
+}
+
+.day-piece-format {
+  color: var(--color-sage);
+  font-size: var(--font-size-label);
+  font-weight: 700;
+}
+
+/* Espace d’une étape. */
+.step-view {
+  max-width: 48rem;
+  display: grid;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+}
+
+.back-button {
+  min-width: 0;
+  min-height: var(--tap-target);
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-2);
+  border: 0.0625rem solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.step-view-header .step-time {
+  color: var(--color-terracotta);
+}
+
+.step-view-title {
+  margin: 0.125rem 0 0;
+  font-size: var(--font-size-title-card);
+  line-height: var(--line-height-title);
+  overflow-wrap: anywhere;
+}
+
+.step-view-links {
+  min-width: 0;
 }
 
 /* Espace « Pièces » : vue dérivée des documents et réservations du dossier. */

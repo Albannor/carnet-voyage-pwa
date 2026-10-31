@@ -3,8 +3,11 @@ import type { Travel, TravelDay } from '../domain/voyage/model'
 import { consultationTravel } from '../ui/travel/testFixtures'
 import {
   allDocumentsStoredLocally,
+  documentPiecesForStep,
+  findStepWithDay,
   groupTravelPiecesByDay,
   listTravelPieces,
+  piecesForDay,
   type TravelPieceAttachment,
 } from './travelPieces'
 
@@ -138,5 +141,35 @@ describe('pièces du voyage', () => {
       travelWith({ documents: [] }),
       new Set(['pdf-booking']),
     )).toBe(false)
+  })
+
+  it('sélectionne les pièces d’une journée, qu’elles visent la journée ou une étape', () => {
+    const pieces = listTravelPieces(consultationTravel)
+
+    expect(piecesForDay(pieces, 'day-arrival').map((piece) => piece.id))
+      .toEqual(['document-booking', 'reservation-stay'])
+    expect(piecesForDay(pieces, 'day-harbour')).toHaveLength(2)
+    expect(piecesForDay(pieces, 'day-island')).toEqual([])
+  })
+
+  it('liste les documents d’une étape, y compris ceux de ses réservations', () => {
+    const travel = travelWith({
+      days: consultationTravel.days.map((day) => ({
+        ...day,
+        steps: day.steps.map((step) => ({ ...step, documentIds: [] })),
+      })),
+    })
+
+    expect(documentPiecesForStep(listTravelPieces(travel), 'step-check-in')
+      .map((piece) => piece.document.id)).toEqual(['document-booking'])
+    expect(documentPiecesForStep(listTravelPieces(travel), 'step-market')).toEqual([])
+  })
+
+  it('retrouve une étape et sa journée par identifiant', () => {
+    expect(findStepWithDay(consultationTravel, 'step-ferry')).toMatchObject({
+      day: { id: 'day-island' },
+      step: { id: 'step-ferry' },
+    })
+    expect(findStepWithDay(consultationTravel, 'step-missing')).toBeUndefined()
   })
 })

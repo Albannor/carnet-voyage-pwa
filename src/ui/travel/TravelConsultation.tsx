@@ -15,8 +15,11 @@ import {
 } from '../../application/travelConsultation'
 import {
   allDocumentsStoredLocally,
+  documentPiecesForStep,
+  findStepWithDay,
   groupTravelPiecesByDay,
   listTravelPieces,
+  piecesForDay,
   type TravelPiece,
   type TravelPieceAttachment,
 } from '../../application/travelPieces'
@@ -29,6 +32,7 @@ import type {
   TravelIllustration,
   TravelLink,
   TravelReservation,
+  TravelStep,
   TravelVariant,
   TravelVariantKind,
 } from '../../domain/voyage/model'
@@ -72,6 +76,7 @@ export type TravelView =
   | { readonly kind: 'summary' }
   | { readonly kind: 'today' }
   | { readonly kind: 'day'; readonly dayId: string }
+  | { readonly kind: 'step'; readonly stepId: string }
   | { readonly kind: 'pieces' }
   | { readonly kind: 'practical' }
   | { readonly kind: 'preparation' }
@@ -1376,6 +1381,7 @@ function Timeline({
             )
             const stepState = progress?.[index] ?? 'upcoming'
             const badge = STEP_PROGRESS_BADGES[stepState]
+            const openStep = () => onNavigate({ kind: 'step', stepId: step.id })
             return (
               <li key={step.id} className={`timeline-step timeline-step-${stepState}`}>
                 <span className="timeline-dot" aria-hidden="true">
@@ -1384,30 +1390,40 @@ function Timeline({
                 <article className="step-content" aria-labelledby={`step-${step.id}`}>
                   {badge && <p className="step-badge">{badge}</p>}
                   {stepState === 'done' && <p className="visually-hidden">Étape passée</p>}
-                  <p className="step-time">
-                    {step.startsAt ? (
-                      <>
-                        <time dateTime={step.startsAt}>{step.startsAt}</time>
-                        {step.endsAt && (
-                          <>
-                            <span aria-hidden="true">–</span>
-                            <time dateTime={step.endsAt}>{step.endsAt}</time>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      'Sans horaire'
-                    )}
-                  </p>
-                  <h4 id={`step-${step.id}`}>{step.title}</h4>
-                  {step.description && <p className="step-description">{step.description}</p>}
-                  {place && (
-                    <p className="step-place">
-                      <MapPinIcon size={16} />
-                      <span className="visually-hidden">Lieu : </span>
-                      <span>{place.label}</span>
+                  <div className="step-heading">
+                    <p className="step-time">
+                      {step.startsAt ? (
+                        <>
+                          <time dateTime={step.startsAt}>{step.startsAt}</time>
+                          {step.endsAt && (
+                            <>
+                              <span aria-hidden="true">–</span>
+                              <time dateTime={step.endsAt}>{step.endsAt}</time>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        'Sans horaire'
+                      )}
                     </p>
-                  )}
+                    <h4 id={`step-${step.id}`}>{step.title}</h4>
+                    {place && (
+                      <p className="step-place">
+                        <MapPinIcon size={16} />
+                        <span className="visually-hidden">Lieu : </span>
+                        <span>{place.label}</span>
+                      </p>
+                    )}
+                    <button
+                      className="step-open-button"
+                      type="button"
+                      aria-label={`Ouvrir l’étape ${step.title}`}
+                      onClick={openStep}
+                    >
+                      <ChevronRightIcon size={20} />
+                    </button>
+                  </div>
+                  {step.description && <p className="step-description">{step.description}</p>}
                   <IllustrationCollection
                     travel={travel}
                     illustrationIds={step.illustrationIds}
@@ -1497,26 +1513,20 @@ function DayComplements({
   travel,
   day,
   personalState,
-  ...actions
 }: {
   travel: Travel
   day: TravelDay
   personalState: PersonalStateProps
-} & ActionProps) {
+}) {
   const dayChecklists = travel.checklists.filter(
     (checklist) => checklist.target.type === 'day'
       && checklist.target.dayId === day.id,
   )
-  const documents = documentsById(travel, day.documentIds)
-  const reservations = reservationsById(travel, day.reservationIds)
   const hasVariants = dayVariants(travel, day).length > 0
-  const hasDirectDetails = documents.length > 0 || reservations.length > 0
 
-  if (
-    dayChecklists.length === 0
-    && !hasVariants
-    && !hasDirectDetails
-  ) return null
+  // Les documents et réservations de la journée sont présentés une seule fois,
+  // dans la bande « Pièces du jour ».
+  if (dayChecklists.length === 0 && !hasVariants) return null
 
   return (
     <aside className="day-sidebar" aria-label="Compléments de la journée">
@@ -1526,33 +1536,6 @@ function DayComplements({
           <h3 id={`day-checklists-${day.id}`}>Checklist de la journée</h3>
           <ChecklistCollection checklists={dayChecklists} {...personalState} />
         </section>
-      )}
-      {hasDirectDetails && (
-        <details className="day-complement">
-          <summary>Informations associées à la journée</summary>
-          <ul className="compact-action-list">
-            {documents.map((document) => (
-              <li key={document.id}>
-                <DocumentButton
-                  document={document}
-                  context={day.title}
-                  onOpenDocument={actions.onOpenDocument}
-                />
-              </li>
-            ))}
-          </ul>
-          {reservations.map((reservation) => (
-            <ReservationDetails
-              key={reservation.id}
-              travel={travel}
-              reservation={reservation}
-              online={actions.online}
-              onOpenDocument={actions.onOpenDocument}
-              compact
-              excludedDocumentIds={new Set(day.documentIds)}
-            />
-          ))}
-        </details>
       )}
     </aside>
   )
@@ -1641,6 +1624,12 @@ function DayDetail({
             onLoadResource={actions.onLoadIllustrationResource}
           />
         </header>
+        <DayPieces
+          travel={travel}
+          day={day}
+          onNavigate={onNavigate}
+          onOpenDocument={actions.onOpenDocument}
+        />
         <Timeline
           travel={travel}
           day={day}
@@ -1655,7 +1644,6 @@ function DayDetail({
         travel={travel}
         day={day}
         personalState={personalState}
-        {...actions}
       />
     </div>
   )
@@ -1859,9 +1847,12 @@ interface PieceRowProps {
   groupDayId?: string
   locale: string
   missingLocally: boolean
+  /** Remplace la liste des rattachements lorsque le contexte la rend redondante. */
+  detail?: string
 }
 
-function pieceAttachmentsText({ piece, groupDayId, locale }: PieceRowProps) {
+function pieceAttachmentsText({ piece, groupDayId, locale, detail }: PieceRowProps) {
+  if (detail) return detail
   return piece.attachments.length === 0
     ? 'Tout le voyage'
     : piece.attachments
@@ -2025,6 +2016,218 @@ function PiecesView({
           </section>
         )
       })}
+    </div>
+  )
+}
+
+/** Rattachements d’une pièce limités à la journée affichée. */
+function dayAttachmentsText(piece: TravelPiece, day: TravelDay, locale: string) {
+  return piece.attachments
+    .filter((attachment) => attachment.day.id === day.id)
+    .map((attachment) => pieceAttachmentText(attachment, day.id, locale))
+    .join(' ; ')
+}
+
+/**
+ * Bande « Pièces du jour » : accès rapide aux pièces rattachées à la journée.
+ * Dans ce lot, un document ouvre son PDF local ; une réservation mène à son
+ * étape, ou à l’espace Pièces lorsqu’elle ne vise que la journée.
+ */
+function DayPieces({
+  travel,
+  day,
+  onNavigate,
+  onOpenDocument,
+}: {
+  travel: Travel
+  day: TravelDay
+  onNavigate(view: TravelView): void
+  onOpenDocument(document: TravelDocument): void
+}) {
+  const pieces = piecesForDay(listTravelPieces(travel), day.id)
+  if (pieces.length === 0) return null
+  const titleId = `day-pieces-${day.id}`
+
+  return (
+    <section className="day-pieces" aria-labelledby={titleId}>
+      <div className="day-pieces-heading">
+        <h3 id={titleId}>Pièces du jour · {pieces.length}</h3>
+        <button
+          className="text-button"
+          type="button"
+          onClick={() => onNavigate({ kind: 'pieces' })}
+        >
+          Toutes les pièces
+        </button>
+      </div>
+      <ul className="day-pieces-list">
+        {pieces.map((piece) => {
+          const isDocument = piece.kind === 'document'
+          const detail = dayAttachmentsText(piece, day, travel.locale)
+          const format = isDocument ? 'PDF' : 'Réservation'
+          const stepAttachment = piece.attachments.find(
+            (attachment) => attachment.type === 'step' && attachment.day.id === day.id,
+          )
+          const open = () => {
+            if (piece.kind === 'document') onOpenDocument(piece.document)
+            else if (stepAttachment?.type === 'step') {
+              onNavigate({ kind: 'step', stepId: stepAttachment.step.id })
+            } else onNavigate({ kind: 'pieces' })
+          }
+          return (
+            <li key={`${piece.kind}:${piece.id}`}>
+              <button
+                className="day-piece-card"
+                type="button"
+                aria-label={[
+                  `${isDocument ? 'Ouvrir le document' : 'Voir la réservation'} ${piece.label}`,
+                  detail,
+                  format,
+                ].join(' — ')}
+                onClick={open}
+              >
+                <span
+                  className={isDocument ? 'piece-icon piece-icon-document' : 'piece-icon piece-icon-reservation'}
+                  aria-hidden="true"
+                >
+                  {isDocument ? <FileIcon size={22} /> : <TicketIcon size={22} />}
+                </span>
+                <span className="piece-text">
+                  <span className="piece-title">{piece.label}</span>
+                  <span className="piece-attachments">{detail}</span>
+                </span>
+                <span className="day-piece-footer">
+                  <span className="day-piece-format">{format}</span>
+                  <ChevronRightIcon size={18} />
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+/** Espace d’une étape : son horaire, ses réservations, ses pièces et ses liens. */
+function StepView({
+  travel,
+  day,
+  step,
+  online,
+  onNavigate,
+  onOpenDocument,
+}: {
+  travel: Travel
+  day: TravelDay
+  step: TravelStep
+  online: boolean
+  onNavigate(view: TravelView): void
+  onOpenDocument(document: TravelDocument): void
+}) {
+  const place = findPlace(travel, step.placeId)
+  const links = uniqueContextualLinks(step.links, place?.links)
+  const reservations = reservationsById(travel, step.reservationIds)
+  const documentPieces = documentPiecesForStep(listTravelPieces(travel), step.id)
+  // Les documents de l’étape sont listés une fois, dans « Pièces de cette étape ».
+  const listedDocumentIds = new Set(documentPieces.map((piece) => piece.id))
+
+  return (
+    <div className="consultation-view step-view" aria-labelledby="step-view-title">
+      <button
+        className="back-button"
+        type="button"
+        aria-label={`Retour à la journée : ${day.title}`}
+        onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
+      >
+        <ChevronLeftIcon size={20} />
+        <span>
+          <time dateTime={day.date}>{formatCompactDate(day.date, travel.locale)}</time>
+          {' · '}
+          {day.title}
+        </span>
+      </button>
+      <header className="step-view-header">
+        <p className="step-time">
+          {step.startsAt ? (
+            <>
+              <time dateTime={step.startsAt}>{step.startsAt}</time>
+              {step.endsAt && (
+                <>
+                  <span aria-hidden="true">–</span>
+                  <time dateTime={step.endsAt}>{step.endsAt}</time>
+                </>
+              )}
+            </>
+          ) : (
+            'Sans horaire'
+          )}
+        </p>
+        <h2 id="step-view-title" className="step-view-title">{step.title}</h2>
+        {place && (
+          <p className="step-place">
+            <MapPinIcon size={18} />
+            <span className="visually-hidden">Lieu : </span>
+            <span>{place.label}</span>
+          </p>
+        )}
+        {step.description && <p className="step-description">{step.description}</p>}
+      </header>
+      {reservations.map((reservation) => (
+        <ReservationDetails
+          key={reservation.id}
+          travel={travel}
+          reservation={reservation}
+          online={online}
+          onOpenDocument={onOpenDocument}
+          excludedDocumentIds={listedDocumentIds}
+        />
+      ))}
+      {documentPieces.length > 0 && (
+        <section className="pieces-group" aria-labelledby="step-pieces-title">
+          <h3 className="pieces-group-title" id="step-pieces-title">
+            Pièces de cette étape · {documentPieces.length}
+          </h3>
+          <ul className="pieces-list">
+            {documentPieces.map((piece) => {
+              const rowProps = {
+                piece,
+                locale: travel.locale,
+                missingLocally: false,
+                detail: 'Document du dossier',
+              }
+              return (
+                <li key={piece.id}>
+                  <button
+                    className="piece-row"
+                    type="button"
+                    aria-label={pieceRowLabel(rowProps)}
+                    onClick={() => onOpenDocument(piece.document)}
+                  >
+                    <PieceRowContent {...rowProps} />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+      {links.length > 0 && (
+        <section className="step-view-links" aria-labelledby="step-links-title">
+          <h3 className="pieces-group-title" id="step-links-title">Liens utiles</h3>
+          <ContextualLinkList links={links} online={online} context={step.title} />
+        </section>
+      )}
+      {step.accommodationId && (
+        <button
+          className="text-button"
+          type="button"
+          aria-label={`Voir l’hébergement associé à ${step.title}`}
+          onClick={() => onNavigate({ kind: 'practical' })}
+        >
+          Voir l’hébergement
+        </button>
+      )}
     </div>
   )
 }
@@ -2273,6 +2476,10 @@ function PreparationView({
 function viewLabel(view: TravelView, travel: Travel) {
   if (view.kind === 'summary') return 'Aperçu'
   if (view.kind === 'pieces') return 'Pièces'
+  if (view.kind === 'step') {
+    const stepTitle = findStepWithDay(travel, view.stepId)?.step.title
+    return stepTitle ? `Étape — ${stepTitle}` : 'Étape'
+  }
   if (view.kind === 'practical') return 'Pratique'
   if (view.kind === 'preparation') return 'Préparation'
   if (view.kind === 'today') return 'Programme d’aujourd’hui'
@@ -2307,19 +2514,31 @@ export function TravelConsultation({
   const selectedDay = view.kind === 'day'
     ? travel.days.find((day) => day.id === view.dayId)
     : undefined
-  const safeView = view.kind === 'day' && !selectedDay
+  const selectedStep = view.kind === 'step'
+    ? findStepWithDay(travel, view.stepId)
+    : undefined
+  const safeView = (view.kind === 'day' && !selectedDay)
+    || (view.kind === 'step' && !selectedStep)
     ? { kind: 'summary' } as const
     : view
-  const programActive = safeView.kind === 'day' || safeView.kind === 'today'
+  const programActive = safeView.kind === 'day'
+    || safeView.kind === 'today'
+    || safeView.kind === 'step'
   const workspaceRef = useRef<HTMLElement>(null)
   const todayState = getTodayState(travel, clock)
   const programDay = safeView.kind === 'day'
     ? selectedDay
-    : safeView.kind === 'today' && todayState.status === 'day'
-      ? todayState.day
-      : undefined
+    : safeView.kind === 'step'
+      ? selectedStep?.day
+      : safeView.kind === 'today' && todayState.status === 'day'
+        ? todayState.day
+        : undefined
   const programDayIndex = programDay ? travel.days.indexOf(programDay) : -1
-  const viewKey = safeView.kind === 'day' ? `day:${safeView.dayId}` : safeView.kind
+  const viewKey = safeView.kind === 'day'
+    ? `day:${safeView.dayId}`
+    : safeView.kind === 'step'
+      ? `step:${safeView.stepId}`
+      : safeView.kind
   const previousViewKey = useRef(viewKey)
 
   useEffect(() => {
@@ -2434,6 +2653,16 @@ export function TravelConsultation({
           personalState={checklistState}
           onNavigate={onNavigate}
           {...actions}
+        />
+      )}
+      {safeView.kind === 'step' && selectedStep && (
+        <StepView
+          travel={travel}
+          day={selectedStep.day}
+          step={selectedStep.step}
+          online={online}
+          onNavigate={onNavigate}
+          onOpenDocument={onOpenDocument}
         />
       )}
       {safeView.kind === 'pieces' && (

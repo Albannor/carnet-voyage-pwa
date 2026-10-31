@@ -12,9 +12,13 @@ export function readTravelLocation(search: string): TravelLocation | undefined {
 
   const view = parameters.get('view')
   const dayId = parameters.get('day')?.trim()
+  const stepId = parameters.get('step')?.trim()
   if (view === 'today') return { travelId, view: { kind: 'today' } }
   if (view === 'day' && dayId) {
     return { travelId, view: { kind: 'day', dayId } }
+  }
+  if (view === 'step' && stepId) {
+    return { travelId, view: { kind: 'step', stepId } }
   }
   if (view === 'pieces') return { travelId, view: { kind: 'pieces' } }
   if (view === 'practical') return { travelId, view: { kind: 'practical' } }
@@ -30,12 +34,16 @@ export function writeTravelLocation(
   url.searchParams.delete('travel')
   url.searchParams.delete('view')
   url.searchParams.delete('day')
+  url.searchParams.delete('step')
 
   if (location) {
     url.searchParams.set('travel', location.travelId)
     url.searchParams.set('view', location.view.kind)
     if (location.view.kind === 'day') {
       url.searchParams.set('day', location.view.dayId)
+    }
+    if (location.view.kind === 'step') {
+      url.searchParams.set('step', location.view.stepId)
     }
   }
 

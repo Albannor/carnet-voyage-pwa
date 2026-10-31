@@ -26,11 +26,12 @@ L’état de consultation distingue la bibliothèque, le chargement, l’erreur 
 - `summary` pour la synthèse ;
 - `today` pour « Aujourd’hui » ;
 - `day` avec un identifiant stable de journée ;
+- `step` avec un identifiant stable d’étape, pour l’espace de l’étape ;
 - `pieces` pour l’espace Pièces ;
 - `practical` pour la section Pratique ;
 - `preparation` pour les checklists, confirmations et notes.
 
-L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view` et `day` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
+L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view`, `day` et `step` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
 
 ## Vue « Aujourd’hui » et fuseau horaire
 
@@ -49,7 +50,7 @@ Dans tous les cas, les journées existantes restent accessibles. Les changements
 
 Les étapes sont rendues dans l’ordre du tableau du modèle interne, déjà contrôlé par les invariants métier lors de l’import. L’interface ne déduit pas l’ordre d’une présentation source et ne réordonne pas visuellement le contenu.
 
-Les étapes forment une frise : une pastille par étape sur un fil vertical, puis une carte avec l’heure, le titre, le lieu et les actions utiles.
+Les étapes forment une frise : une pastille par étape sur un fil vertical, puis une carte avec l’heure, le titre, le lieu et les actions utiles. Toucher la zone horaire, titre et lieu ouvre l’espace de l’étape : un bouton natif « Ouvrir l’étape … », signalé par un chevron, couvre cette zone sans englober les liens, documents et réservations de la carte, qui restent des actions distinctes.
 
 Lorsque la journée affichée est celle du jour dans le fuseau du voyage, la frise situe chaque étape par rapport à l’heure locale. Une étape est passée lorsque sa fin — son heure de fin, sinon le début de l’étape horodatée suivante — est atteinte ; elle reçoit une pastille cochée et la mention accessible « Étape passée ». La première étape non passée est mise en avant sur fond soleil clair avec la mention « En cours » si elle a commencé, « Prochaine étape » sinon. Cette progression se met à jour chaque minute tant que la journée reste affichée. Une journée sans aucun horaire ne reçoit aucune mise en avant, et les autres journées restent neutres.
 
@@ -97,6 +98,20 @@ Chaque ligne présente une icône propre à l’entité (fichier sur fond sauge 
 Le badge « Toutes disponibles hors connexion » n’apparaît que si le voyage contient au moins un document et que chaque ressource PDF référencée est effectivement présente dans `travelResources` pour ce voyage, vérifié par `listResourceIds` sans lire les octets. Une ressource absente est signalée sur sa ligne par « Absent de cet appareil » ; une erreur de lecture du stockage n’affiche ni badge ni avertissement.
 
 Le contrat ne porte aucun type ou catégorie sur les documents et réservations. Le regroupement « Par type » n’est donc pas proposé : il n’est jamais reconstruit à partir des titres.
+
+## Pièces du jour
+
+Sous l’en-tête de la journée, une bande « Pièces du jour · N » présente les pièces rattachées à la journée, directement ou par l’une de ses étapes, sous forme de cartes de 12,25 rem (196 px) défilant horizontalement dans leur propre région : icône, titre, rattachement dans la journée et format. Un bouton « Toutes les pièces » mène à l’espace Pièces. La bande n’existe pas pour une journée sans pièce.
+
+La bande remplace l’ancien bloc « Informations associées à la journée » des compléments, afin que les documents et réservations de la journée ne soient pas présentés deux fois. Dans l’attente de la fiche pièce, une carte de document ouvre le PDF local ; une carte de réservation mène à l’espace de son étape dans la journée, ou à l’espace Pièces lorsqu’elle ne vise que la journée.
+
+Dans la frise, chaque étape garde ses actions au point d’usage : documents en boutons « document local », réservations en détail repliable et liens externes en liens textuels, sans répéter l’adresse ou les liens déjà présentés.
+
+## Espace de l’étape
+
+La vue `step` affiche, sous la barre de titre « Jour N sur M », un bouton « Retour à la journée » (date et titre de la journée), puis l’horaire ou « Sans horaire », le titre, le lieu résolu par `placeId` et la description éventuelle. Chaque réservation de l’étape conserve son bloc structuré sur fond soleil clair ; seuls les champs présents dans les données sont affichés (référence, date, heure, statut). Le contrat ne porte pas de point de rendez-vous : aucun n’est inventé.
+
+La liste « Pièces de cette étape · N » réunit les documents rattachés à l’étape, directement ou par l’une de ses réservations ; ces documents ne sont pas répétés dans le bloc de réservation. Les « Liens utiles » regroupent sans doublon les liens de l’étape et de son lieu. Une section sans contenu n’est pas rendue. Une étape inconnue ramène à l’aperçu, comme une journée inconnue.
 
 ## Variantes
 
