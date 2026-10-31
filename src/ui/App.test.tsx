@@ -636,3 +636,50 @@ describe('App', () => {
     expect(document.body).not.toHaveTextContent(/IndexedDB|ressources passives/)
   })
 })
+
+describe('App — stockage persistant', () => {
+  it('ne demande rien pour une bibliothèque vide', async () => {
+    const requestStorage = vi.fn().mockResolvedValue('persisted')
+    render(<App repositoryFactory={repositoryFactory} requestStorage={requestStorage} />)
+
+    expect(await screen.findByText('Votre carnet est vide')).toBeInTheDocument()
+    expect(requestStorage).not.toHaveBeenCalled()
+  })
+
+  it('protège dès l’ouverture une bibliothèque déjà remplie', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
+    const requestStorage = vi.fn().mockResolvedValue('persisted')
+    render(<App repositoryFactory={repositoryFactory} requestStorage={requestStorage} />)
+
+    await screen.findByRole('button', { name: 'Ouvrir Voyage alpha' })
+    expect(requestStorage).toHaveBeenCalledOnce()
+  })
+
+  it('demande la persistance après un import réussi, pas après un refus', async () => {
+    const requestStorage = vi.fn().mockResolvedValue('best-effort')
+    importToLibraryMock.mockResolvedValueOnce({
+      ok: false,
+      source: 'persistence',
+      error: {
+        code: 'TRAVEL_ALREADY_EXISTS',
+        message: 'Ce voyage est déjà présent.',
+        hint: 'Supprimez-le avant de le réimporter.',
+      },
+    })
+    render(<App repositoryFactory={repositoryFactory} requestStorage={requestStorage} />)
+    await screen.findByText('Votre carnet est vide')
+
+    fireEvent.change(screen.getByLabelText('Choisir un fichier ZIP'), {
+      target: { files: [selectedFile] },
+    })
+    expect(await screen.findByText(/n’a pas pu être enregistré/)).toBeInTheDocument()
+    expect(requestStorage).not.toHaveBeenCalled()
+
+    importToLibraryMock.mockResolvedValueOnce({ ok: true, entry })
+    fireEvent.change(screen.getByLabelText('Choisir un fichier ZIP'), {
+      target: { files: [selectedFile] },
+    })
+    expect(await screen.findByText('Voyage enregistré')).toBeInTheDocument()
+    expect(requestStorage).toHaveBeenCalledOnce()
+  })
+})
