@@ -49,6 +49,12 @@ function PiecesHarness({
       onOpenDocument={onOpenDocument}
       onLoadIllustrationResource={vi.fn().mockResolvedValue({ ok: false, message: '' })}
       onListLocalResourceIds={onListLocalResourceIds}
+      userPieces={[]}
+      onAddUserPiece={vi.fn()}
+      onRenameUserPiece={vi.fn()}
+      onDeleteUserPiece={vi.fn()}
+      onOpenUserPiece={vi.fn()}
+      onLoadUserPieceFile={vi.fn()}
       onSetChecklistItemChecked={vi.fn().mockResolvedValue({ ok: true })}
       onSaveNote={vi.fn().mockResolvedValue({ ok: true })}
     />
@@ -194,7 +200,7 @@ describe('pièces du jour', () => {
     const cards = within(strip).getAllByRole('button', { name: /^Voir la fiche/ })
     expect(cards).toHaveLength(2)
     expect(cards[0]).toHaveAccessibleName(
-      'Voir la fiche Confirmation d’hébergement — Étape 14:00 · Installation — PDF',
+      'Voir la fiche Confirmation d’hébergement — Étape 14:00 · Installation — PDF, Dossier',
     )
 
     fireEvent.click(within(strip).getByRole('button', { name: 'Toutes les pièces' }))
@@ -285,7 +291,10 @@ describe('espace de l’étape', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Pause libre' })).toBeVisible()
     expect(screen.getByText('Sans horaire')).toBeVisible()
     expect(screen.queryByText('Référence')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Pièces de cette étape/)).not.toBeInTheDocument()
+    const pieces = screen.getByRole('region', { name: 'Pièces de cette étape' })
+    expect(within(pieces).queryByRole('list')).not.toBeInTheDocument()
+    expect(within(pieces).getByRole('button', { name: 'Ajouter une pièce à cette étape' }))
+      .toBeVisible()
     expect(screen.queryByText('Liens utiles')).not.toBeInTheDocument()
   })
 
@@ -316,7 +325,7 @@ describe('fiche d’une pièce', () => {
     expect(within(sheet).getByText('PDF enregistré avec le voyage.')).toBeVisible()
     expect(sheet.querySelector('img, iframe, object, embed, [role="img"]')).toBeNull()
     expect(within(sheet).getByText('Fournie avec le dossier du voyage')).toBeVisible()
-    expect(within(sheet).getByText('Pièce du dossier : en lecture seule.')).toBeVisible()
+    expect(within(sheet).getByText(/^Pièce du dossier : en lecture seule\./)).toBeVisible()
     expect(within(sheet).queryByRole('button', { name: /Renommer|Supprimer/ }))
       .not.toBeInTheDocument()
     expect(await within(sheet).findByText('Sur cet appareil, disponible hors connexion'))

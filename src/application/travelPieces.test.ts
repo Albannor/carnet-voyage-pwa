@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Travel, TravelDay } from '../domain/voyage/model'
+import type { UserPieceMetadata } from '../persistence/model'
 import { consultationTravel } from '../ui/travel/testFixtures'
 import {
   allDocumentsStoredLocally,
-  documentPiecesForStep,
+  filePiecesForStep,
   findStepWithDay,
   findTravelPiece,
   groupTravelPiecesByDay,
@@ -161,9 +162,9 @@ describe('pièces du voyage', () => {
       })),
     })
 
-    expect(documentPiecesForStep(listTravelPieces(travel), 'step-check-in')
-      .map((piece) => piece.document.id)).toEqual(['document-booking'])
-    expect(documentPiecesForStep(listTravelPieces(travel), 'step-market')).toEqual([])
+    expect(filePiecesForStep(listTravelPieces(travel), 'step-check-in')
+      .map((piece) => piece.id)).toEqual(['document-booking'])
+    expect(filePiecesForStep(listTravelPieces(travel), 'step-market')).toEqual([])
   })
 
   it('retrouve une étape et sa journée par identifiant', () => {
@@ -179,5 +180,43 @@ describe('pièces du voyage', () => {
       .toMatchObject({ kind: 'document', label: 'Confirmation d’hébergement' })
     expect(findTravelPiece(consultationTravel, 'reservation', 'document-booking'))
       .toBeUndefined()
+  })
+
+  it('intègre les pièces ajoutées du seul voyage courant, rattachées par identifiant', () => {
+    const added = (pieceId: string, overrides: Partial<UserPieceMetadata> = {}): UserPieceMetadata => ({
+      travelId: consultationTravel.id,
+      pieceId,
+      version: 1,
+      title: `Pièce ${pieceId}`,
+      kind: 'other',
+      attachment: { type: 'travel' },
+      mediaType: 'image/png',
+      size: 8,
+      createdAt: '2026-07-01T10:00:00.000Z',
+      updatedAt: '2026-07-01T10:00:00.000Z',
+      ...overrides,
+    })
+    const userPieces = [
+      added('added-step', { attachment: { type: 'step', stepId: 'step-ferry' } }),
+      added('added-day', { attachment: { type: 'day', dayId: 'day-harbour' } }),
+      added('added-gone', { attachment: { type: 'step', stepId: 'step-missing' } }),
+      added('added-other', { travelId: 'travel-other' }),
+      // Un titre identique à une journée ne crée aucun rattachement.
+      added('added-title', { title: 'Cap sur l’île' }),
+    ]
+
+    const pieces = listTravelPieces(consultationTravel, userPieces)
+    const byId = new Map(pieces.map((piece) => [piece.id, piece]))
+
+    expect(byId.has('added-other')).toBe(false)
+    expect(byId.get('added-step')).toMatchObject({ kind: 'added', origin: 'user' })
+    expect(attachmentKeys(byId.get('added-step')!.attachments)).toEqual(['step:step-ferry'])
+    expect(attachmentKeys(byId.get('added-day')!.attachments)).toEqual(['day:day-harbour'])
+    expect(byId.get('added-gone')!.attachments).toEqual([])
+    expect(byId.get('added-title')!.attachments).toEqual([])
+    expect(filePiecesForStep(pieces, 'step-ferry').map((piece) => piece.id)).toEqual(['added-step'])
+    expect(piecesForDay(pieces, 'day-island').map((piece) => piece.id)).toEqual(['added-step'])
+    expect(findTravelPiece(consultationTravel, 'added', 'added-day', userPieces))
+      .toMatchObject({ label: 'Pièce added-day' })
   })
 })

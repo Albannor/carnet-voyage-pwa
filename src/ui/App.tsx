@@ -14,7 +14,13 @@ import { systemClock, type Clock } from '../application/travelConsultation'
 import { isAllowedImageMediaType } from '../import/packageManifest'
 import type { TravelDocument } from '../domain/voyage/model'
 import { openIndexedDbTravelRepository } from '../persistence/indexedDbTravelRepository'
-import type { PersistedTravel, TravelLibraryEntry, TravelPersonalState } from '../persistence/model'
+import type {
+  NewUserPiece,
+  PersistedTravel,
+  TravelLibraryEntry,
+  TravelPersonalState,
+  UserPieceMetadata,
+} from '../persistence/model'
 import type {
   PersistenceIssue,
   TravelLibraryRepository,
@@ -25,6 +31,8 @@ import {
   type ContextActionFeedback,
   type IllustrationResourceLoadResult,
   type TravelView,
+  type UserPieceFileLoadResult,
+  type UserPieceSaveResult,
 } from './travel/TravelConsultation'
 import {
   browserTravelPlatformActions,
@@ -64,7 +72,13 @@ interface AppProps {
 type ConsultationUiState =
   | { status: 'library' }
   | { status: 'loading' }
-  | { status: 'ready'; persistedTravel: PersistedTravel; personalState: TravelPersonalState; view: TravelView }
+  | {
+      status: 'ready'
+      persistedTravel: PersistedTravel
+      personalState: TravelPersonalState
+      userPieces: readonly UserPieceMetadata[]
+      view: TravelView
+    }
   | { status: 'error'; error: PersistenceIssue }
 
 export function App({
@@ -103,16 +117,25 @@ export function App({
     view: TravelView,
   ) => {
     setConsultationState({ status: 'loading' })
-    const [result, personalState] = await Promise.all([
+    const [result, personalState, userPieces] = await Promise.all([
       repository.getTravel(travelId),
       repository.getPersonalState(travelId),
+      repository.listUserPieces(travelId),
     ])
     setConsultationState(
       !result.ok
         ? { status: 'error', error: result.error }
         : !personalState.ok
           ? { status: 'error', error: personalState.error }
-          : { status: 'ready', persistedTravel: result.value, personalState: personalState.value, view },
+          : !userPieces.ok
+            ? { status: 'error', error: userPieces.error }
+            : {
+                status: 'ready',
+                persistedTravel: result.value,
+                personalState: personalState.value,
+                userPieces: userPieces.value,
+                view,
+              },
     )
   }, [])
 
@@ -297,6 +320,89 @@ export function App({
     return listed?.ok ? listed.value : undefined
   }, [])
 
+  /** Met à jour la liste des pièces ajoutées du voyage affiché, sans autre effet. */
+  function updateUserPieces(
+    travelId: string,
+    update: (pieces: readonly UserPieceMetadata[]) => readonly UserPieceMetadata[],
+  ) {
+    setConsultationState((current) => (
+      current.status === 'ready' && current.persistedTravel.travel.id === travelId
+        ? { ...current, userPieces: update(current.userPieces) }
+        : current
+    ))
+  }
+
+  async function addUserPiece(piece: NewUserPiece): Promise<UserPieceSaveResult> {
+    const repository = repositoryRef.current
+    if (consultationState.status !== 'ready' || !repository) {
+      return { ok: false, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const travelId = consultationState.persistedTravel.travel.id
+    const added = await repository.addUserPiece(travelId, piece)
+    if (!added.ok) return { ok: false, message: `${added.error.message} ${added.error.hint}` }
+    updateUserPieces(travelId, (pieces) => [...pieces, added.value])
+    return { ok: true, piece: added.value }
+  }
+
+  async function renameUserPiece(pieceId: string, title: string) {
+    const repository = repositoryRef.current
+    if (consultationState.status !== 'ready' || !repository) {
+      return { ok: false as const, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const travelId = consultationState.persistedTravel.travel.id
+    const renamed = await repository.renameUserPiece(travelId, pieceId, title)
+    if (!renamed.ok) return { ok: false as const, message: renamed.error.message }
+    updateUserPieces(travelId, (pieces) => pieces.map((piece) => (
+      piece.pieceId === pieceId ? renamed.value : piece
+    )))
+    return { ok: true as const }
+  }
+
+  async function deleteUserPiece(pieceId: string) {
+    const repository = repositoryRef.current
+    if (consultationState.status !== 'ready' || !repository) {
+      return { ok: false as const, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const travelId = consultationState.persistedTravel.travel.id
+    const title = consultationState.userPieces.find((piece) => piece.pieceId === pieceId)?.title
+    const deleted = await repository.deleteUserPiece(travelId, pieceId)
+    if (!deleted.ok) return { ok: false as const, message: deleted.error.message }
+    updateUserPieces(travelId, (pieces) => pieces.filter((piece) => piece.pieceId !== pieceId))
+    setContextActionFeedback({
+      status: 'success',
+      message: title ? `« ${title} » a été supprimée de cet appareil.` : 'La pièce a été supprimée.',
+    })
+    return { ok: true as const }
+  }
+
+  async function openUserPiece(piece: UserPieceMetadata) {
+    const repository = repositoryRef.current
+    if (!repository) return
+    const loaded = await repository.getUserPieceFile(piece.travelId, piece.pieceId)
+    if (!loaded.ok) {
+      setContextActionFeedback({ status: 'error', message: loaded.error.message })
+      return
+    }
+    const opened = platformActions.openLocalPdf(loaded.value, piece.title)
+    setContextActionFeedback(opened
+      ? { status: 'success', message: `Ouverture du document local « ${piece.title} ».` }
+      : { status: 'error', message: 'Ce document local ne peut pas être ouvert en sécurité.' })
+  }
+
+  const loadUserPieceFile = useCallback(async (
+    travelId: string,
+    pieceId: string,
+  ): Promise<UserPieceFileLoadResult> => {
+    const repository = repositoryRef.current
+    if (!repository) {
+      return { ok: false, message: 'La bibliothèque locale n’est pas disponible.' }
+    }
+    const loaded = await repository.getUserPieceFile(travelId, pieceId)
+    return loaded.ok
+      ? { ok: true, file: loaded.value }
+      : { ok: false, message: loaded.error.message }
+  }, [])
+
   const loadLibraryCover = useCallback(async (
     travelId: string,
   ): Promise<TravelCoverLoadResult> => {
@@ -420,6 +526,12 @@ export function App({
             onListLocalResourceIds={listLocalResourceIds}
             onSetChecklistItemChecked={setChecklistItemChecked}
             onSaveNote={saveTravelNote}
+            userPieces={consultationState.userPieces}
+            onAddUserPiece={addUserPiece}
+            onRenameUserPiece={renameUserPiece}
+            onDeleteUserPiece={deleteUserPiece}
+            onOpenUserPiece={(piece) => void openUserPiece(piece)}
+            onLoadUserPieceFile={loadUserPieceFile}
           />
         )}
         {inLibrary && (

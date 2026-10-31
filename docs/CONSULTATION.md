@@ -28,11 +28,12 @@ L’état de consultation distingue la bibliothèque, le chargement, l’erreur 
 - `day` avec un identifiant stable de journée ;
 - `step` avec un identifiant stable d’étape, pour l’espace de l’étape ;
 - `pieces` pour l’espace Pièces ;
-- `piece` avec l’identifiant d’un document ou d’une réservation, pour la fiche d’une pièce ;
+- `piece` avec l’identifiant d’un document, d’une réservation ou d’une pièce ajoutée, pour la fiche d’une pièce ;
+- `add-piece`, avec éventuellement la journée ou l’étape à présélectionner, pour l’ajout d’une pièce ;
 - `practical` pour la section Pratique ;
 - `preparation` pour les checklists, confirmations et notes.
 
-L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view`, `day`, `step`, `document` et `reservation` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
+L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view`, `day`, `step`, `document`, `reservation` et `added` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
 
 ## Vue « Aujourd’hui » et fuseau horaire
 
@@ -83,20 +84,21 @@ La première illustration d’une étape peut porter un lien pratique selon une 
 
 ## Pièces du voyage
 
-L’espace **Pièces** est une vue dérivée, sans seconde source de vérité : il est calculé à chaque rendu depuis `travel.documents` et `travel.reservations` par `src/application/travelPieces.ts`. Il ne stocke rien et ne modifie aucune donnée importée.
+L’espace **Pièces** est une vue dérivée, sans seconde source de vérité : il est calculé à chaque rendu depuis `travel.documents`, `travel.reservations` et les pièces ajoutées relues dans IndexedDB, par `src/application/travelPieces.ts`. Il ne stocke rien et ne modifie aucune donnée importée.
 
 Règles de rattachement :
 
 - une pièce est rattachée à une journée ou une étape uniquement lorsque son identifiant figure dans les `documentIds` ou `reservationIds` de celle-ci ;
 - un document référencé par une réservation hérite, toujours par identifiant, des rattachements de cette réservation ;
 - aucun rattachement n’est déduit d’un libellé, d’un nom de fichier, d’une date de réservation ou d’une position ;
-- une pièce rattachée à plusieurs journées ou étapes n’apparaît qu’une fois et liste tous ses rattachements.
+- une pièce rattachée à plusieurs journées ou étapes n’apparaît qu’une fois et liste tous ses rattachements ;
+- une pièce ajoutée est rattachée par l’identifiant de journée ou d’étape choisi lors de l’ajout ; si cette cible n’existe pas, elle vise tout le voyage.
 
 L’écran affiche le titre « Pièces du voyage », un compteur, puis un regroupement « Par jour » : « Tout le voyage » pour les pièces sans rattachement, puis une section par journée dans l’ordre du programme. Une pièce rattachée à plusieurs journées figure sous la première ; ses autres rattachements portent leur date. Aucune section vide n’est rendue ; un voyage sans document ni réservation reçoit un état vide explicite.
 
-Chaque ligne présente une icône propre à l’entité (fichier sur fond sauge pour un document, billet sur fond soleil clair pour une réservation), le titre, les rattachements, le format (« PDF » ou « Réservation ») et l’origine « Dossier ». Son nom accessible (« Voir la fiche … ») ponctue ces fragments. Chaque ligne ouvre la fiche de la pièce.
+Chaque ligne présente une icône propre à l’entité (fichier sur fond sauge pour un document, billet sur fond soleil clair pour une réservation, fichier ou image sur fond sable pour une pièce ajoutée), le titre, les rattachements, le format (« PDF », « Image » ou « Réservation ») et l’origine, « Dossier » ou « Ajoutée », distinguée par son texte et pas seulement par sa couleur. Un bouton « Ajouter une pièce » ouvre le formulaire d’ajout. Son nom accessible (« Voir la fiche … ») ponctue ces fragments. Chaque ligne ouvre la fiche de la pièce.
 
-Le badge « Toutes disponibles hors connexion » n’apparaît que si le voyage contient au moins un document et que chaque ressource PDF référencée est effectivement présente dans `travelResources` pour ce voyage, vérifié par `listResourceIds` sans lire les octets. Une ressource absente est signalée sur sa ligne par « Absent de cet appareil » ; une erreur de lecture du stockage n’affiche ni badge ni avertissement.
+Le badge « Toutes disponibles hors connexion » n’apparaît que si le voyage contient au moins un document ou une pièce ajoutée, et que chaque ressource PDF du dossier est effectivement présente dans `travelResources` pour ce voyage, vérifié par `listResourceIds` sans lire les octets. Une ressource absente est signalée sur sa ligne par « Absent de cet appareil » ; une erreur de lecture du stockage n’affiche ni badge ni avertissement.
 
 Le contrat ne porte aucun type ou catégorie sur les documents et réservations. Le regroupement « Par type » n’est donc pas proposé : il n’est jamais reconstruit à partir des titres.
 
@@ -121,6 +123,16 @@ La vue `piece` est identifiée par la nature de la pièce et son identifiant sta
 La fiche affiche une icône, le titre et les badges de format (« PDF » ou « Réservation ») et d’origine (« Dossier »). Aucun aperçu n’est rendu : l’application n’embarque pas de lecteur PDF et ne présente jamais d’aperçu factice. Pour un document, la description éventuelle précède le bouton « Ouvrir le PDF », sur fond sauge, qui réutilise l’ouverture locale existante : relecture dans IndexedDB avec la clé du voyage courant, puis URL d’objet temporaire révoquée. Pour une réservation, son bloc structuré remplace ce bouton.
 
 Les métadonnées donnent le format, le stockage et l’origine (« Fournie avec le dossier du voyage »). Pour un document, le stockage n’annonce « Sur cet appareil, disponible hors connexion » qu’après vérification de la ressource par `listResourceIds` ; sinon il indique « Absent de cet appareil » ou « Stockage local du voyage, non vérifié ». La liste « Rattachée à » mène à chaque journée et étape rattachée par identifiant, puis à l’espace Pièces ; une pièce sans rattachement porte la mention « Tout le voyage ». La mention « Pièce du dossier : en lecture seule » rappelle qu’aucune action ne modifie le contenu importé.
+
+## Pièces ajoutées
+
+Le formulaire « Ajouter une pièce » propose deux sources : « Choisir un fichier » (PDF, JPEG, PNG ou WebP) et « Prendre une photo » (champ fichier avec `capture="environment"`). Le format est reconnu par la signature binaire, jamais par le nom du fichier ; un format refusé, un fichier vide ou de plus de 10 Mo produit un message explicite. Le titre, le type (Transport, Hébergement, Activité, Assurance, Autre) et le rattachement (tout le voyage, une journée ou une étape) utilisent de vrais `<label>`, `<input>` et `<select>`. Le formulaire rappelle : « Cette pièce reste sur cet appareil, comme vos notes et vos checklists. » Depuis l’espace d’une étape, « Ajouter une pièce à cette étape » présélectionne cette étape ; « Annuler » y ramène. Après l’enregistrement, la fiche de la nouvelle pièce s’ouvre.
+
+La fiche d’une pièce ajoutée affiche son type, sa date d’ajout et l’origine « Ajoutée sur cet appareil ». Un PDF s’ouvre par l’action document local ; une image est affichée en aperçu depuis une URL d’objet révoquée au démontage. Seules les pièces ajoutées proposent « Renommer » et « Supprimer » ; la suppression exige une confirmation explicite qui nomme la pièce et rappelle qu’elle est définitive. Aucune action n’écrit dans les pièces du dossier.
+
+## Mode présentation
+
+Le bouton « Présenter » d’une image ajoutée ouvre une boîte de dialogue modale plein écran sur fond blanc, avec le titre, l’image, le rattachement et un bouton « Fermer » qui reçoit le focus ; Échap ferme aussi la présentation et le focus revient au bouton d’origine. L’application tente de garder l’écran allumé avec l’API Screen Wake Lock (`src/services/screenWakeLock.ts`) : en l’absence de l’API ou en cas de refus, elle se replie silencieusement. La mention « Écran maintenu allumé » n’apparaît que lorsque le verrou est réellement obtenu et disparaît s’il est libéré ; il est redemandé au retour sur la page et libéré à la fermeture.
 
 ## Variantes
 
@@ -178,7 +190,7 @@ La suite couvre les cinq sections, le calcul et le regroupement des pièces, la 
 Restent hors périmètre :
 
 - la validation de l’installation depuis une adresse HTTPS réelle et la recette sur iPhone de l’étape 9 ;
-- toute galerie, visionneuse plein écran, édition ou téléchargement distant d’image ;
+- toute galerie, édition ou téléchargement distant d’image ; seul le mode présentation d’une image ajoutée occupe le plein écran ;
 - les notes multiples, riches, partagées ou avec pièces jointes ;
 - toute carte, navigation GPS, modification de réservation ou lecteur PDF intégré ;
 - une taxonomie métier dédiée aux transports : les lieux non liés à un hébergement sont regroupés sous « Lieux et transports utiles » sans déduction sémantique ;

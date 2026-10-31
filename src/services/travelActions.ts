@@ -1,8 +1,12 @@
-import type { PersistedTravelResource } from '../persistence/model'
+/** Fichier local relu depuis IndexedDB : ressource importée ou pièce ajoutée. */
+export interface LocalFile {
+  readonly mediaType: string
+  readonly bytes: Uint8Array
+}
 
 export interface TravelPlatformActions {
   copyText(value: string): Promise<boolean>
-  openLocalPdf(resource: PersistedTravelResource, label: string): boolean
+  openLocalPdf(file: LocalFile, label: string): boolean
 }
 
 export function safeExternalHttpsUrl(value: string): string | undefined {

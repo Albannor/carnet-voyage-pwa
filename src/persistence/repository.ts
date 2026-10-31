@@ -1,7 +1,10 @@
 import type { ValidatedTravelPackage } from '../import/importTravelPackage'
 import type {
+  NewUserPiece,
   PersistedTravel,
   PersistedTravelResource,
+  PersistedUserPieceFile,
+  UserPieceMetadata,
   TravelPersonalState,
   TravelLibraryEntry,
 } from './model'
@@ -18,6 +21,9 @@ export type PersistenceErrorCode =
   | 'DELETE_FAILED'
   | 'READ_FAILED'
   | 'WRITE_FAILED'
+  | 'USER_PIECE_INVALID'
+  | 'USER_PIECE_LIMIT_REACHED'
+  | 'USER_PIECE_NOT_FOUND'
 
 export interface PersistenceIssue {
   readonly code: PersistenceErrorCode
@@ -25,6 +31,7 @@ export interface PersistenceIssue {
   readonly hint: string
   readonly travelId?: string
   readonly resourceId?: string
+  readonly pieceId?: string
 }
 
 export type PersistenceResult<T> =
@@ -51,6 +58,22 @@ export interface TravelLibraryRepository {
     checked: boolean,
   ): Promise<PersistenceResult<void>>
   saveTravelNote(travelId: string, text: string): Promise<PersistenceResult<void>>
+  /** Pièces ajoutées sur l’appareil : métadonnées seules, sans leurs octets. */
+  listUserPieces(travelId: string): Promise<PersistenceResult<readonly UserPieceMetadata[]>>
+  getUserPieceFile(
+    travelId: string,
+    pieceId: string,
+  ): Promise<PersistenceResult<PersistedUserPieceFile>>
+  addUserPiece(
+    travelId: string,
+    piece: NewUserPiece,
+  ): Promise<PersistenceResult<UserPieceMetadata>>
+  renameUserPiece(
+    travelId: string,
+    pieceId: string,
+    title: string,
+  ): Promise<PersistenceResult<UserPieceMetadata>>
+  deleteUserPiece(travelId: string, pieceId: string): Promise<PersistenceResult<void>>
   deleteTravel(travelId: string): Promise<PersistenceResult<void>>
   close(): void
 }

@@ -136,7 +136,7 @@ describe('carte « Prochain voyage »', () => {
 
     const confirmation = screen.getByRole('group', { name: `Supprimer « ${entry.title} » ?` })
     expect(confirmation).toHaveFocus()
-    expect(confirmation).toHaveTextContent(/notes et checklists seront aussi supprimées/)
+    expect(confirmation).toHaveTextContent(/notes, checklists et pièces ajoutées seront aussi supprimées/)
     expect(confirmation).toHaveTextContent(/définitive/)
     expect(onDelete).not.toHaveBeenCalled()
 

@@ -6,20 +6,22 @@ import type {
   TravelReservation,
   TravelStep,
 } from '../domain/voyage/model'
+import type { UserPieceMetadata } from '../persistence/model'
 
 /**
  * Vue dérivée des « pièces » d’un voyage : documents et réservations du
  * dossier importé, rattachés aux journées et étapes uniquement par
- * identifiants (`documentIds`, `reservationIds`). Aucune association n’est
- * déduite d’un libellé, d’un nom de fichier ou d’une position.
+ * identifiants (`documentIds`, `reservationIds`), et pièces ajoutées sur
+ * l’appareil, rattachées par l’identifiant choisi par l’utilisateur. Aucune
+ * association n’est déduite d’un libellé, d’un nom de fichier ou d’une position.
  */
 
 export type TravelPieceAttachment =
   | { readonly type: 'day'; readonly day: TravelDay }
   | { readonly type: 'step'; readonly day: TravelDay; readonly step: TravelStep }
 
-/** Les pièces du lot 1 proviennent toutes du dossier importé. */
-export type TravelPieceOrigin = 'package'
+/** `package` : fournie par le dossier importé ; `user` : ajoutée sur l’appareil. */
+export type TravelPieceOrigin = 'package' | 'user'
 
 interface TravelPieceBase {
   readonly id: EntityId
@@ -36,6 +38,10 @@ export type TravelPiece =
   | (TravelPieceBase & {
       readonly kind: 'reservation'
       readonly reservation: TravelReservation
+    })
+  | (TravelPieceBase & {
+      readonly kind: 'added'
+      readonly added: UserPieceMetadata
     })
 
 export type TravelPieceGroup =
@@ -83,7 +89,10 @@ function emptyCollectors(ids: readonly EntityId[]) {
  * Un document référencé par une réservation hérite des rattachements de
  * celle-ci, toujours par identifiant.
  */
-export function listTravelPieces(travel: Travel): readonly TravelPiece[] {
+export function listTravelPieces(
+  travel: Travel,
+  userPieces: readonly UserPieceMetadata[] = [],
+): readonly TravelPiece[] {
   const documentCollectors = emptyCollectors(travel.documents.map(({ id }) => id))
   const reservationCollectors = emptyCollectors(travel.reservations.map(({ id }) => id))
   const reservationsById = new Map(
@@ -130,6 +139,16 @@ export function listTravelPieces(travel: Travel): readonly TravelPiece[] {
       reservation,
       attachments: reservationCollectors.get(reservation.id)?.attachments ?? [],
     })),
+    ...userPieces
+      .filter((added) => added.travelId === travel.id)
+      .map((added): TravelPiece => ({
+        kind: 'added',
+        id: added.pieceId,
+        label: added.title,
+        origin: 'user',
+        added,
+        attachments: userPieceAttachments(travel, added),
+      })),
   ]
 
   const positions = attachmentPositions(travel)
@@ -143,6 +162,23 @@ export function listTravelPieces(travel: Travel): readonly TravelPiece[] {
       left.position - right.position || left.index - right.index
     ))
     .map(({ piece }) => piece)
+}
+
+/** Un rattachement vers une cible disparue est ignoré : la pièce vise alors tout le voyage. */
+function userPieceAttachments(
+  travel: Travel,
+  added: UserPieceMetadata,
+): readonly TravelPieceAttachment[] {
+  const { attachment } = added
+  if (attachment.type === 'day') {
+    const day = travel.days.find((candidate) => candidate.id === attachment.dayId)
+    return day ? [{ type: 'day', day }] : []
+  }
+  if (attachment.type === 'step') {
+    const found = findStepWithDay(travel, attachment.stepId)
+    return found ? [{ type: 'step', ...found }] : []
+  }
+  return []
 }
 
 function attachmentPositions(travel: Travel) {
@@ -202,13 +238,18 @@ export function piecesForDay(
   ))
 }
 
-/** Documents rattachés à une étape, directement ou par l’une de ses réservations. */
-export function documentPiecesForStep(
+export type TravelFilePiece = Extract<TravelPiece, { kind: 'document' | 'added' }>
+
+/**
+ * Fichiers rattachés à une étape : documents du dossier (directement ou par
+ * l’une de ses réservations) et pièces ajoutées sur l’appareil.
+ */
+export function filePiecesForStep(
   pieces: readonly TravelPiece[],
   stepId: EntityId,
-): readonly Extract<TravelPiece, { kind: 'document' }>[] {
+): readonly TravelFilePiece[] {
   return pieces.flatMap((piece) => (
-    piece.kind === 'document'
+    piece.kind !== 'reservation'
     && piece.attachments.some((attachment) => (
       attachment.type === 'step' && attachment.step.id === stepId
     ))
@@ -236,6 +277,8 @@ export function findTravelPiece(
   travel: Travel,
   kind: TravelPieceKind,
   id: EntityId,
+  userPieces: readonly UserPieceMetadata[] = [],
 ): TravelPiece | undefined {
-  return listTravelPieces(travel).find((piece) => piece.kind === kind && piece.id === id)
+  return listTravelPieces(travel, userPieces)
+    .find((piece) => piece.kind === kind && piece.id === id)
 }

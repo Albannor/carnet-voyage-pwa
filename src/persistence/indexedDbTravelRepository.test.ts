@@ -16,12 +16,18 @@ import { sha256Hex } from '../import/sha256'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   deleteTravelDatabase,
+  migrateTravelDatabase,
   openIndexedDbTravelRepository,
   TRAVEL_DATABASE_VERSION,
   TRAVEL_INDEXES,
   TRAVEL_STORES,
 } from './indexedDbTravelRepository'
-import type { PersistedPersonalState } from './model'
+import {
+  MAX_USER_PIECE_BYTES,
+  MAX_USER_PIECES_PER_TRAVEL,
+  type NewUserPiece,
+  type PersistedPersonalState,
+} from './model'
 import type { TravelLibraryRepository } from './repository'
 
 let databaseCounter = 0
@@ -47,10 +53,13 @@ async function openRawDatabase(name: string) {
   return requestResult(indexedDB.open(name, TRAVEL_DATABASE_VERSION))
 }
 
+let pieceCounter = 0
+
 async function openRepository() {
   const opened = await openIndexedDbTravelRepository({
     databaseName,
     now: () => new Date('2026-07-14T12:00:00.000Z'),
+    createPieceId: () => `added-test-${++pieceCounter}`,
   })
   if (!opened.ok) throw new Error(opened.error.code)
   repositories.push(opened.value)
@@ -251,16 +260,18 @@ afterEach(async () => {
 })
 
 describe('IndexedDbTravelRepository', () => {
-  it('crée et ouvre la base versionnée avec ses quatre espaces', async () => {
+  it('crée et ouvre la base versionnée avec ses six espaces', async () => {
     await openRepository()
     const database = await openRawDatabase(databaseName)
 
-    expect(database.version).toBe(1)
+    expect(database.version).toBe(2)
     expect(Array.from(database.objectStoreNames)).toEqual([
       TRAVEL_STORES.personalStates,
       TRAVEL_STORES.contents,
       TRAVEL_STORES.metadata,
       TRAVEL_STORES.resources,
+      TRAVEL_STORES.userPieceFiles,
+      TRAVEL_STORES.userPieces,
     ])
     database.close()
   })
@@ -856,7 +867,9 @@ describe('IndexedDbTravelRepository', () => {
   })
 
   it('refuse une version future de la base sans supprimer ses données', async () => {
-    const futureDatabase = await requestResult(indexedDB.open(databaseName, 2))
+    const futureDatabase = await requestResult(
+      indexedDB.open(databaseName, TRAVEL_DATABASE_VERSION + 1),
+    )
     futureDatabase.close()
 
     const result = await openIndexedDbTravelRepository({ databaseName })
@@ -864,6 +877,191 @@ describe('IndexedDbTravelRepository', () => {
     expect(result).toMatchObject({
       ok: false,
       error: { code: 'DATABASE_VERSION_INCOMPATIBLE' },
+    })
+  })
+
+})
+
+function pdfPiece(overrides: Partial<NewUserPiece> = {}): NewUserPiece {
+  return {
+    title: 'Billet retour',
+    kind: 'transport',
+    attachment: { type: 'travel' },
+    mediaType: 'application/pdf',
+    bytes: TEST_PDF_BYTES,
+    ...overrides,
+  }
+}
+
+describe('pièces ajoutées par l’utilisateur', () => {
+  it('migre une base v1 vers v2 sans perdre le voyage ni ses états', async () => {
+    const source = await openRepository()
+    await source.importPackage(await validatedPackage('alpha'))
+    await source.saveTravelNote('travel-alpha', 'Note conservée')
+    source.close()
+    const sourceDatabase = await openRawDatabase(databaseName)
+    const records = await Promise.all([
+      TRAVEL_STORES.metadata,
+      TRAVEL_STORES.contents,
+      TRAVEL_STORES.resources,
+      TRAVEL_STORES.personalStates,
+    ].map(async (storeName) => {
+      const transaction = sourceDatabase.transaction(storeName, 'readonly')
+      return [storeName, await requestResult(transaction.objectStore(storeName).getAll())] as const
+    }))
+    sourceDatabase.close()
+    await deleteTravelDatabase(databaseName)
+
+    const request = indexedDB.open(databaseName, 1)
+    request.onupgradeneeded = (event) => migrateTravelDatabase(request.result, event.oldVersion, 1)
+    const legacy = await requestResult(request)
+    expect(Array.from(legacy.objectStoreNames)).not.toContain(TRAVEL_STORES.userPieces)
+    const transaction = legacy.transaction(records.map(([name]) => name), 'readwrite')
+    for (const [storeName, values] of records) {
+      for (const value of values) transaction.objectStore(storeName).put(value)
+    }
+    await transactionCompletion(transaction)
+    legacy.close()
+
+    const migrated = await openRepository()
+    const database = await openRawDatabase(databaseName)
+    expect(database.version).toBe(TRAVEL_DATABASE_VERSION)
+    expect(Array.from(database.objectStoreNames)).toContain(TRAVEL_STORES.userPieces)
+    database.close()
+    expect((await migrated.getTravel('travel-alpha')).ok).toBe(true)
+    expect(await migrated.getPersonalState('travel-alpha')).toMatchObject({
+      ok: true,
+      value: { note: 'Note conservée' },
+    })
+    expect(await migrated.listUserPieces('travel-alpha')).toEqual({ ok: true, value: [] })
+    expect((await migrated.addUserPiece('travel-alpha', pdfPiece())).ok).toBe(true)
+  })
+
+  it('enregistre, liste sans octets, relit, renomme et supprime une pièce', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('alpha'))
+
+    const added = await repository.addUserPiece('travel-alpha', pdfPiece({
+      title: '  Billet   retour  ',
+      attachment: { type: 'step', stepId: 'alpha-step-departure' },
+    }))
+    expect(added).toMatchObject({
+      ok: true,
+      value: {
+        travelId: 'travel-alpha',
+        title: 'Billet retour',
+        kind: 'transport',
+        mediaType: 'application/pdf',
+        size: TEST_PDF_BYTES.length,
+        attachment: { type: 'step', stepId: 'alpha-step-departure' },
+      },
+    })
+    if (!added.ok) return
+    const { pieceId } = added.value
+
+    const listed = await repository.listUserPieces('travel-alpha')
+    expect(listed.ok && listed.value).toHaveLength(1)
+    expect(listed.ok && listed.value[0]).not.toHaveProperty('bytes')
+
+    const file = await repository.getUserPieceFile('travel-alpha', pieceId)
+    expect(file.ok && Array.from(file.value.bytes)).toEqual(Array.from(TEST_PDF_BYTES))
+
+    expect(await repository.renameUserPiece('travel-alpha', pieceId, 'Billet du retour'))
+      .toMatchObject({ ok: true, value: { title: 'Billet du retour' } })
+
+    expect(await repository.deleteUserPiece('travel-alpha', pieceId)).toEqual({
+      ok: true,
+      value: undefined,
+    })
+    expect(await repository.listUserPieces('travel-alpha')).toEqual({ ok: true, value: [] })
+    expect(await repository.getUserPieceFile('travel-alpha', pieceId)).toMatchObject({
+      ok: false,
+      error: { code: 'USER_PIECE_NOT_FOUND' },
+    })
+  })
+
+  it('isole les pièces par voyage et ne touche jamais les ressources importées', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('alpha'))
+    await repository.importPackage(await validatedPackage('beta'))
+    const before = await repository.listResourceIds('travel-alpha')
+
+    const added = await repository.addUserPiece('travel-alpha', pdfPiece({
+      mediaType: 'image/png',
+      bytes: TEST_PNG_BYTES,
+    }))
+    if (!added.ok) throw new Error(added.error.code)
+
+    expect(await repository.listUserPieces('travel-beta')).toEqual({ ok: true, value: [] })
+    expect(await repository.getUserPieceFile('travel-beta', added.value.pieceId))
+      .toMatchObject({ ok: false, error: { code: 'USER_PIECE_NOT_FOUND' } })
+    expect(await repository.renameUserPiece('travel-beta', added.value.pieceId, 'Autre'))
+      .toMatchObject({ ok: false, error: { code: 'USER_PIECE_NOT_FOUND' } })
+    expect(await repository.deleteUserPiece('travel-beta', added.value.pieceId))
+      .toMatchObject({ ok: false, error: { code: 'USER_PIECE_NOT_FOUND' } })
+    expect(await repository.listResourceIds('travel-alpha')).toEqual(before)
+  })
+
+  it('supprime les pièces ajoutées avec leur voyage, et seulement elles', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('alpha'))
+    await repository.importPackage(await validatedPackage('beta'))
+    const alpha = await repository.addUserPiece('travel-alpha', pdfPiece())
+    await repository.addUserPiece('travel-beta', pdfPiece())
+    if (!alpha.ok) throw new Error(alpha.error.code)
+
+    await repository.deleteTravel('travel-alpha')
+
+    expect(await repository.listUserPieces('travel-alpha')).toEqual({ ok: true, value: [] })
+    expect(await repository.getUserPieceFile('travel-alpha', alpha.value.pieceId))
+      .toMatchObject({ ok: false })
+    const beta = await repository.listUserPieces('travel-beta')
+    expect(beta.ok && beta.value).toHaveLength(1)
+  })
+
+  it.each([
+    ['un type annoncé qui contredit la signature', pdfPiece({ mediaType: 'image/png' })],
+    ['un format non pris en charge', pdfPiece({ bytes: new TextEncoder().encode('<svg/>') })],
+    ['un fichier vide', pdfPiece({ bytes: new Uint8Array() })],
+    ['un titre vide', pdfPiece({ title: '   ' })],
+    ['un titre trop long', pdfPiece({ title: 'x'.repeat(121) })],
+    [
+      'un fichier trop lourd',
+      pdfPiece({
+        bytes: (() => {
+          const bytes = new Uint8Array(MAX_USER_PIECE_BYTES + 1)
+          bytes.set(TEST_PDF_BYTES)
+          return bytes
+        })(),
+      }),
+    ],
+    ['une étape inconnue', pdfPiece({ attachment: { type: 'step', stepId: 'step-missing' } })],
+    ['une journée inconnue', pdfPiece({ attachment: { type: 'day', dayId: 'day-missing' } })],
+  ])('refuse %s sans rien écrire', async (_label, piece) => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedPackage('alpha'))
+
+    expect(await repository.addUserPiece('travel-alpha', piece)).toMatchObject({
+      ok: false,
+      error: { code: 'USER_PIECE_INVALID' },
+    })
+    expect(await repository.listUserPieces('travel-alpha')).toEqual({ ok: true, value: [] })
+  })
+
+  it('refuse une pièce pour un voyage absent et au-delà de la limite par voyage', async () => {
+    const repository = await openRepository()
+    expect(await repository.addUserPiece('travel-missing', pdfPiece())).toMatchObject({
+      ok: false,
+      error: { code: 'TRAVEL_NOT_FOUND' },
+    })
+
+    await repository.importPackage(await validatedPackage('alpha'))
+    for (let index = 0; index < MAX_USER_PIECES_PER_TRAVEL; index += 1) {
+      await repository.addUserPiece('travel-alpha', pdfPiece({ title: `Pièce ${index}` }))
+    }
+    expect(await repository.addUserPiece('travel-alpha', pdfPiece())).toMatchObject({
+      ok: false,
+      error: { code: 'USER_PIECE_LIMIT_REACHED' },
     })
   })
 })

@@ -79,6 +79,11 @@ beforeEach(() => {
     }),
     getResource: vi.fn(),
     listResourceIds: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    listUserPieces: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    getUserPieceFile: vi.fn(),
+    addUserPiece: vi.fn(),
+    renameUserPiece: vi.fn(),
+    deleteUserPiece: vi.fn(),
     getPersonalState: vi.fn().mockResolvedValue({
       ok: true,
       value: { checkedItemKeys: [], note: '' },
@@ -398,6 +403,59 @@ describe('App', () => {
     expect(await screen.findByText(/Ouverture du document local/)).toBeInTheDocument()
   })
 
+  it('charge les pièces ajoutées du voyage et ouvre leur PDF local', async () => {
+    const piece = {
+      travelId: persistedConsultationTravel.travel.id,
+      pieceId: 'added-ticket',
+      version: 1 as const,
+      title: 'Billet ajouté',
+      kind: 'transport' as const,
+      attachment: { type: 'travel' as const },
+      mediaType: 'application/pdf' as const,
+      size: TEST_PDF_BYTES.length,
+      createdAt: '2026-07-10T09:00:00.000Z',
+      updatedAt: '2026-07-10T09:00:00.000Z',
+    }
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [persistedConsultationTravel.metadata],
+    })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: persistedConsultationTravel,
+    })
+    vi.mocked(repository.listUserPieces).mockResolvedValue({ ok: true, value: [piece] })
+    vi.mocked(repository.getUserPieceFile).mockResolvedValue({
+      ok: true,
+      value: {
+        travelId: piece.travelId,
+        pieceId: piece.pieceId,
+        mediaType: 'application/pdf',
+        bytes: TEST_PDF_BYTES,
+      },
+    })
+    const platformActions = {
+      copyText: vi.fn().mockResolvedValue(true),
+      openLocalPdf: vi.fn().mockReturnValue(true),
+    }
+    render(<App repositoryFactory={repositoryFactory} platformActions={platformActions} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pièces' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Voir la fiche Billet ajouté/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir le PDF Billet ajouté' }))
+
+    expect(repository.listUserPieces).toHaveBeenCalledWith(persistedConsultationTravel.travel.id)
+    await waitFor(() => expect(repository.getUserPieceFile).toHaveBeenCalledWith(
+      persistedConsultationTravel.travel.id,
+      'added-ticket',
+    ))
+    expect(platformActions.openLocalPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaType: 'application/pdf', bytes: TEST_PDF_BYTES }),
+      'Billet ajouté',
+    )
+  })
+
   it('signale à côté du bouton une copie d’adresse impossible', async () => {
     vi.mocked(repository.listTravels).mockResolvedValue({
       ok: true,
@@ -475,7 +533,7 @@ describe('App', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Supprimer Voyage alpha' }))
     const confirmation = screen.getByRole('group', { name: 'Supprimer « Voyage alpha » ?' })
-    expect(confirmation).toHaveTextContent(/notes et checklists/i)
+    expect(confirmation).toHaveTextContent(/notes, checklists et pièces ajoutées/i)
     expect(repository.deleteTravel).not.toHaveBeenCalled()
 
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Supprimer définitivement' }))

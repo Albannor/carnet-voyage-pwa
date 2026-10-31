@@ -205,6 +205,10 @@ export function TicketIcon(props: IconProps) {
   )
 }
 
+export function ImageIcon(props: IconProps) {
+  return <Icon {...props}><path d="M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5" /></Icon>
+}
+
 export function DownloadIcon(props: IconProps) {
   return <Icon {...props}><path d="M12 4v10M8 10l4 4 4-4M5 20h14" /></Icon>
 }

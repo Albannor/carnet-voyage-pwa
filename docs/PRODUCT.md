@@ -51,6 +51,7 @@ Le MVP comprend :
 - une bibliothèque locale de voyages avec import, consultation et suppression explicite ;
 - l'import d'un paquet structuré et versionné, puis la validation de ses données contre un schéma JSON ;
 - le stockage local des voyages, des états de checklist et des notes ;
+- un espace « Pièces » qui réunit billets, confirmations et réservations du dossier, et permet d’ajouter sur l’appareil des pièces personnelles (PDF ou photo, par exemple un QR code) rattachées au voyage, à une journée ou à une étape, avec un mode présentation plein écran ;
 - une synthèse du voyage, une navigation par journée et une vue « Aujourd'hui » ;
 - une présentation chronologique des étapes d'une journée ;
 - l'accès contextuel aux hébergements, lieux, itinéraires, réservations, documents et plans B fournis par le dossier ;

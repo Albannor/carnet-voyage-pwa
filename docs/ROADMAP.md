@@ -68,6 +68,14 @@ Le périmètre reste celui du MVP défini dans `PRODUCT.md`. Les étapes ci-dess
 
 **État :** l’implémentation technique, la recette locale et le workflow GitHub Pages sont prêts. Le déploiement réussi sur l’adresse HTTPS réelle, l’installation depuis Safari et la recette sur un iPhone physique restent nécessaires avant la clôture de l’étape.
 
+## Étape 9 bis — Pièces du voyage
+
+**Livrable :** espace « Pièces » dérivé des documents et réservations du dossier, bande « Pièces du jour », espace de l’étape, fiche pièce en lecture seule, puis pièces ajoutées sur l’appareil (PDF, JPEG, PNG, WebP) avec renommage, suppression confirmée et mode présentation des images.
+
+**Vérification :** rattachements uniquement par identifiants, aucune seconde source de vérité, migration IndexedDB v1 → v2 sans perte, isolation par voyage, suppression avec le voyage, aucune écriture dans le contenu importé, aucune pièce dans le cache du service worker ni dans `dist/`.
+
+**Décision :** le contrat `voyage.json` reste inchangé (option A). Les images de QR code ne sont acceptées que comme pièces ajoutées ; une version 1.4.0 autorisant des documents image dans les dossiers reste à décider séparément.
+
 ## Étape 10 — Durcissement du MVP
 
 **Livrable :** revue de sécurité des imports, accessibilité, responsive, performance, gestion des limites de stockage et documentation utilisateur minimale.

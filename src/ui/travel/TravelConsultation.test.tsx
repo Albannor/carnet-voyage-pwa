@@ -110,6 +110,12 @@ function ConsultationHarness({
       onOpenDocument={onOpenDocument}
       onLoadIllustrationResource={onLoadIllustrationResource}
       onListLocalResourceIds={vi.fn().mockResolvedValue([])}
+      userPieces={[]}
+      onAddUserPiece={vi.fn()}
+      onRenameUserPiece={vi.fn()}
+      onDeleteUserPiece={vi.fn()}
+      onOpenUserPiece={vi.fn()}
+      onLoadUserPieceFile={vi.fn()}
       personalState={personalState}
       noteSaveDelayMs={10}
       onSetChecklistItemChecked={onSetChecklistItemChecked}
@@ -1269,6 +1275,12 @@ describe('journée : repères et progression', () => {
           onOpenDocument={vi.fn()}
           onLoadIllustrationResource={vi.fn().mockResolvedValue({ ok: false, message: '' })}
           onListLocalResourceIds={vi.fn().mockResolvedValue([])}
+          userPieces={[]}
+          onAddUserPiece={vi.fn()}
+          onRenameUserPiece={vi.fn()}
+          onDeleteUserPiece={vi.fn()}
+          onOpenUserPiece={vi.fn()}
+          onLoadUserPieceFile={vi.fn()}
           onSetChecklistItemChecked={vi.fn()}
           onSaveNote={vi.fn()}
         />,

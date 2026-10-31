@@ -5,16 +5,28 @@ import {
   MAX_TRAVEL_NOTE_LENGTH,
   PERSONAL_STATE_NAMESPACES,
   PERSONAL_STATE_RECORD_VERSION,
+  MAX_USER_PIECES_PER_TRAVEL,
+  MAX_USER_PIECE_BYTES,
+  USER_PIECE_KINDS,
+  USER_PIECE_RECORD_VERSION,
   checklistItemStateKey,
+  detectUserPieceMediaType,
+  isValidUserPieceTitle,
+  normalizeUserPieceTitle,
+  type NewUserPiece,
   type PersistedChecklistItemState,
   type PersistedPersonalState,
   type PersistedTravel,
   type PersistedTravelContent,
   type PersistedTravelResource,
   type PersistedTravelNoteState,
+  type PersistedUserPieceFile,
   type TravelPersonalState,
   type TravelLibraryEntry,
+  type UserPieceAttachment,
+  type UserPieceMetadata,
 } from './model'
+import type { Travel } from '../domain/voyage/model'
 import {
   persistenceIssue,
   type PersistenceIssue,
@@ -23,22 +35,28 @@ import {
 } from './repository'
 
 export const TRAVEL_DATABASE_NAME = 'carnet-voyage'
-export const TRAVEL_DATABASE_VERSION = 1
+export const TRAVEL_DATABASE_VERSION = 2
 
 export const TRAVEL_STORES = Object.freeze({
   metadata: 'travelMetadata',
   contents: 'travelContents',
   resources: 'travelResources',
   personalStates: 'personalStates',
+  userPieces: 'userPieces',
+  userPieceFiles: 'userPieceFiles',
 })
 
 export const TRAVEL_INDEXES = Object.freeze({
   resourcesByTravel: 'byTravelId',
   resourcesByPath: 'byTravelAndPath',
   personalStatesByTravel: 'byTravelId',
+  userPiecesByTravel: 'byTravelId',
+  userPieceFilesByTravel: 'byTravelId',
 })
 
 export interface IndexedDbTravelRepositoryOptions {
+  /** Génère l’identifiant d’une pièce ajoutée ; injectable pour les tests. */
+  readonly createPieceId?: () => string
   readonly databaseName?: string
   readonly indexedDB?: IDBFactory | null
   readonly now?: () => Date
@@ -118,7 +136,8 @@ async function abortAndWait(
   }
 }
 
-function createDatabaseSchema(database: IDBDatabase) {
+/** Version 1 : contenu importé et états personnels. */
+function createDatabaseSchemaV1(database: IDBDatabase) {
   const metadata = database.createObjectStore(TRAVEL_STORES.metadata, {
     keyPath: 'travelId',
   })
@@ -151,6 +170,33 @@ function createDatabaseSchema(database: IDBDatabase) {
   )
 }
 
+/**
+ * Version 2 : pièces ajoutées par l’utilisateur, séparées du contenu importé.
+ * Les métadonnées et les octets sont dans deux magasins pour que la liste ne
+ * charge jamais les fichiers.
+ */
+function addUserPieceStores(database: IDBDatabase) {
+  const pieces = database.createObjectStore(TRAVEL_STORES.userPieces, {
+    keyPath: ['travelId', 'pieceId'],
+  })
+  pieces.createIndex(TRAVEL_INDEXES.userPiecesByTravel, 'travelId', { unique: false })
+
+  const files = database.createObjectStore(TRAVEL_STORES.userPieceFiles, {
+    keyPath: ['travelId', 'pieceId'],
+  })
+  files.createIndex(TRAVEL_INDEXES.userPieceFilesByTravel, 'travelId', { unique: false })
+}
+
+/** Migrations ordonnées : chaque palier conserve les données existantes. */
+export function migrateTravelDatabase(
+  database: IDBDatabase,
+  oldVersion: number,
+  newVersion: number = TRAVEL_DATABASE_VERSION,
+) {
+  if (oldVersion < 1 && newVersion >= 1) createDatabaseSchemaV1(database)
+  if (oldVersion < 2 && newVersion >= 2) addUserPieceStores(database)
+}
+
 function openDatabase(
   factory: IDBFactory,
   databaseName: string,
@@ -176,14 +222,8 @@ function openDatabase(
     }
 
     request.onupgradeneeded = (event) => {
-      if (event.oldVersion !== 0) {
-        upgradeFailed = true
-        request.transaction?.abort()
-        return
-      }
-
       try {
-        createDatabaseSchema(request.result)
+        migrateTravelDatabase(request.result, event.oldVersion)
       } catch {
         upgradeFailed = true
         request.transaction?.abort()
@@ -330,10 +370,68 @@ function isNoteState(state: PersistedPersonalState): state is PersistedTravelNot
     && Object.keys(state.value as object).length === 1
 }
 
+function userPieceIssue(
+  code: 'USER_PIECE_INVALID' | 'USER_PIECE_LIMIT_REACHED' | 'USER_PIECE_NOT_FOUND',
+  travelId: string,
+  pieceId?: string,
+): PersistenceIssue {
+  if (code === 'USER_PIECE_NOT_FOUND') {
+    return persistenceIssue(code, 'Cette pièce n’existe plus sur cet appareil.', {
+      travelId,
+      pieceId,
+      hint: 'Revenez à la liste des pièces du voyage.',
+    })
+  }
+  if (code === 'USER_PIECE_LIMIT_REACHED') {
+    return persistenceIssue(
+      code,
+      `Ce voyage compte déjà ${MAX_USER_PIECES_PER_TRAVEL} pièces ajoutées.`,
+      { travelId, hint: 'Supprimez une pièce ajoutée avant d’en enregistrer une autre.' },
+    )
+  }
+  return persistenceIssue(code, 'Cette pièce ne peut pas être enregistrée.', {
+    travelId,
+    pieceId,
+    hint: 'Vérifiez le fichier, le titre et le rattachement choisis.',
+  })
+}
+
+function userPieceWriteFailure(error: unknown, travelId: string): PersistenceIssue {
+  return errorName(error) === 'QuotaExceededError'
+    ? persistenceIssue(
+        'STORAGE_QUOTA_EXCEEDED',
+        "L'espace de stockage local disponible est insuffisant.",
+        { travelId, hint: "Libérez de l'espace sur l'appareil puis réessayez." },
+      )
+    : persistenceIssue(
+        'WRITE_FAILED',
+        'La pièce n’a pas pu être enregistrée sur cet appareil.',
+        { travelId, hint: 'Aucune modification n’a été conservée. Réessayez.' },
+      )
+}
+
+/** Le rattachement d’une pièce ajoutée doit viser une journée ou étape existante. */
+function attachmentExists(travel: Travel, attachment: UserPieceAttachment) {
+  if (attachment.type === 'travel') return true
+  if (attachment.type === 'day') {
+    return travel.days.some((day) => day.id === attachment.dayId)
+  }
+  return travel.days.some((day) => day.steps.some((step) => step.id === attachment.stepId))
+}
+
+function isValidNewUserPiece(piece: NewUserPiece) {
+  return isValidUserPieceTitle(piece.title)
+    && (USER_PIECE_KINDS as readonly string[]).includes(piece.kind)
+    && piece.bytes.byteLength > 0
+    && piece.bytes.byteLength <= MAX_USER_PIECE_BYTES
+    && detectUserPieceMediaType(piece.bytes) === piece.mediaType
+}
+
 class IndexedDbTravelRepository implements TravelLibraryRepository {
   constructor(
     private readonly database: IDBDatabase,
     private readonly now: () => Date,
+    private readonly createPieceId: () => string,
   ) {}
 
   async importPackage(
@@ -669,6 +767,210 @@ class IndexedDbTravelRepository implements TravelLibraryRepository {
     }
   }
 
+  async listUserPieces(
+    travelId: string,
+  ): Promise<PersistenceResult<readonly UserPieceMetadata[]>> {
+    try {
+      const transaction = this.database.transaction(TRAVEL_STORES.userPieces, 'readonly')
+      const completion = transactionCompletion(transaction)
+      const pieces = await requestResult<UserPieceMetadata[]>(
+        transaction
+          .objectStore(TRAVEL_STORES.userPieces)
+          .index(TRAVEL_INDEXES.userPiecesByTravel)
+          .getAll(IDBKeyRange.only(travelId)),
+      )
+      await completion
+      return success(
+        pieces
+          .filter((piece) => piece.travelId === travelId)
+          .sort((left, right) => (
+            left.createdAt.localeCompare(right.createdAt)
+            || left.pieceId.localeCompare(right.pieceId)
+          )),
+      )
+    } catch {
+      return failure(readFailure(travelId))
+    }
+  }
+
+  async getUserPieceFile(
+    travelId: string,
+    pieceId: string,
+  ): Promise<PersistenceResult<PersistedUserPieceFile>> {
+    try {
+      const transaction = this.database.transaction(TRAVEL_STORES.userPieceFiles, 'readonly')
+      const completion = transactionCompletion(transaction)
+      const file = await requestResult<PersistedUserPieceFile | undefined>(
+        transaction.objectStore(TRAVEL_STORES.userPieceFiles).get([travelId, pieceId]),
+      )
+      await completion
+      return file
+        ? success(file)
+        : failure(userPieceIssue('USER_PIECE_NOT_FOUND', travelId, pieceId))
+    } catch {
+      return failure(readFailure(travelId))
+    }
+  }
+
+  async addUserPiece(
+    travelId: string,
+    piece: NewUserPiece,
+  ): Promise<PersistenceResult<UserPieceMetadata>> {
+    if (!isValidNewUserPiece(piece)) {
+      return failure(userPieceIssue('USER_PIECE_INVALID', travelId))
+    }
+    let transaction: IDBTransaction
+    try {
+      transaction = this.database.transaction(
+        [
+          TRAVEL_STORES.metadata,
+          TRAVEL_STORES.contents,
+          TRAVEL_STORES.userPieces,
+          TRAVEL_STORES.userPieceFiles,
+        ],
+        'readwrite',
+      )
+    } catch (error) {
+      return failure(userPieceWriteFailure(error, travelId))
+    }
+    const completion = transactionCompletion(transaction)
+    try {
+      const content = await requestResult<PersistedTravelContent | undefined>(
+        transaction.objectStore(TRAVEL_STORES.contents).get(travelId),
+      )
+      if (!content) {
+        await abortAndWait(transaction, completion)
+        return failure(persistenceIssue(
+          'TRAVEL_NOT_FOUND',
+          "Ce voyage n'existe pas dans la bibliothèque locale.",
+          { travelId, hint: 'Actualisez la bibliothèque puis réessayez.' },
+        ))
+      }
+      const travel = normalizeStoredTravel(content)
+      if (!travel || !attachmentExists(travel, piece.attachment)) {
+        await abortAndWait(transaction, completion)
+        return failure(userPieceIssue('USER_PIECE_INVALID', travelId))
+      }
+      const pieceStore = transaction.objectStore(TRAVEL_STORES.userPieces)
+      const count = await requestResult(
+        pieceStore.index(TRAVEL_INDEXES.userPiecesByTravel).count(IDBKeyRange.only(travelId)),
+      )
+      if (count >= MAX_USER_PIECES_PER_TRAVEL) {
+        await abortAndWait(transaction, completion)
+        return failure(userPieceIssue('USER_PIECE_LIMIT_REACHED', travelId))
+      }
+
+      const timestamp = this.now().toISOString()
+      const pieceId = this.createPieceId()
+      const metadata: UserPieceMetadata = {
+        travelId,
+        pieceId,
+        version: USER_PIECE_RECORD_VERSION,
+        title: normalizeUserPieceTitle(piece.title),
+        kind: piece.kind,
+        attachment: piece.attachment,
+        mediaType: piece.mediaType,
+        size: piece.bytes.byteLength,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      }
+      const file: PersistedUserPieceFile = {
+        travelId,
+        pieceId,
+        mediaType: piece.mediaType,
+        bytes: piece.bytes,
+      }
+      await requestResult(pieceStore.add(metadata))
+      await requestResult(transaction.objectStore(TRAVEL_STORES.userPieceFiles).add(file))
+      await completion
+      return success(metadata)
+    } catch (error) {
+      await abortAndWait(transaction, completion)
+      return failure(userPieceWriteFailure(error, travelId))
+    }
+  }
+
+  async renameUserPiece(
+    travelId: string,
+    pieceId: string,
+    title: string,
+  ): Promise<PersistenceResult<UserPieceMetadata>> {
+    if (!isValidUserPieceTitle(title)) {
+      return failure(userPieceIssue('USER_PIECE_INVALID', travelId, pieceId))
+    }
+    let transaction: IDBTransaction
+    try {
+      transaction = this.database.transaction(TRAVEL_STORES.userPieces, 'readwrite')
+    } catch (error) {
+      return failure(userPieceWriteFailure(error, travelId))
+    }
+    const completion = transactionCompletion(transaction)
+    try {
+      const store = transaction.objectStore(TRAVEL_STORES.userPieces)
+      const current = await requestResult<UserPieceMetadata | undefined>(
+        store.get([travelId, pieceId]),
+      )
+      if (!current) {
+        await abortAndWait(transaction, completion)
+        return failure(userPieceIssue('USER_PIECE_NOT_FOUND', travelId, pieceId))
+      }
+      const renamed: UserPieceMetadata = {
+        ...current,
+        title: normalizeUserPieceTitle(title),
+        updatedAt: this.now().toISOString(),
+      }
+      await requestResult(store.put(renamed))
+      await completion
+      return success(renamed)
+    } catch (error) {
+      await abortAndWait(transaction, completion)
+      return failure(userPieceWriteFailure(error, travelId))
+    }
+  }
+
+  async deleteUserPiece(
+    travelId: string,
+    pieceId: string,
+  ): Promise<PersistenceResult<void>> {
+    let transaction: IDBTransaction
+    try {
+      transaction = this.database.transaction(
+        [TRAVEL_STORES.userPieces, TRAVEL_STORES.userPieceFiles],
+        'readwrite',
+      )
+    } catch {
+      return failure(persistenceIssue('DELETE_FAILED', 'La pièce n’a pas pu être supprimée.', {
+        travelId,
+        pieceId,
+        hint: 'Réessayez après avoir rouvert l’application.',
+      }))
+    }
+    const completion = transactionCompletion(transaction)
+    try {
+      const pieceStore = transaction.objectStore(TRAVEL_STORES.userPieces)
+      const current = await requestResult<UserPieceMetadata | undefined>(
+        pieceStore.get([travelId, pieceId]),
+      )
+      if (!current) {
+        await abortAndWait(transaction, completion)
+        return failure(userPieceIssue('USER_PIECE_NOT_FOUND', travelId, pieceId))
+      }
+      await requestResult(pieceStore.delete([travelId, pieceId]))
+      await requestResult(
+        transaction.objectStore(TRAVEL_STORES.userPieceFiles).delete([travelId, pieceId]),
+      )
+      await completion
+      return success(undefined)
+    } catch {
+      await abortAndWait(transaction, completion)
+      return failure(persistenceIssue('DELETE_FAILED', 'La pièce n’a pas pu être supprimée.', {
+        travelId,
+        pieceId,
+        hint: "Aucune suppression partielle n'a été validée. Réessayez.",
+      }))
+    }
+  }
+
   async deleteTravel(travelId: string): Promise<PersistenceResult<void>> {
     let transaction: IDBTransaction
     try {
@@ -678,6 +980,8 @@ class IndexedDbTravelRepository implements TravelLibraryRepository {
           TRAVEL_STORES.contents,
           TRAVEL_STORES.resources,
           TRAVEL_STORES.personalStates,
+          TRAVEL_STORES.userPieces,
+          TRAVEL_STORES.userPieceFiles,
         ],
         'readwrite',
       )
@@ -724,6 +1028,15 @@ class IndexedDbTravelRepository implements TravelLibraryRepository {
       }
       for (const key of personalKeys) {
         await requestResult(personalStore.delete(key))
+      }
+      for (const storeName of [TRAVEL_STORES.userPieces, TRAVEL_STORES.userPieceFiles]) {
+        const store = transaction.objectStore(storeName)
+        const keys = await requestResult<IDBValidKey[]>(
+          store.index('byTravelId').getAllKeys(travelId),
+        )
+        for (const key of keys) {
+          await requestResult(store.delete(key))
+        }
       }
       await requestResult(
         transaction.objectStore(TRAVEL_STORES.contents).delete(travelId),
@@ -777,6 +1090,7 @@ export async function openIndexedDbTravelRepository(
         new IndexedDbTravelRepository(
           databaseResult.value,
           options.now ?? (() => new Date()),
+          options.createPieceId ?? (() => `added-${globalThis.crypto.randomUUID()}`),
         ),
       )
     : databaseResult
