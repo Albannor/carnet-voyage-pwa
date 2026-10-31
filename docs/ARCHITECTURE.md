@@ -152,6 +152,8 @@ Une version future inconnue est refusée proprement. Une ancienne version n'est 
 
 Les pages et composants React rendent le modèle interne selon les règles UX communes. Ils gèrent l'accessibilité, la navigation et les états visuels, sans lire directement les archives ou IndexedDB.
 
+La consultation d'un voyage est organisée dans `src/ui/travel/` : `TravelConsultation.tsx` choisit la vue active et porte la navigation du bas, chaque section a son module (`OverviewView`, `ProgramView`, `StepView`, `PiecesView`, `PieceSheetView`, `PreparationView`), et les composants partagés (`ConsultationActions`, `Illustrations`, `PieceRows`) sont séparés des fonctions sans rendu (`consultationHelpers`, `pieceHelpers`, `consultationHooks`, `consultationTypes`).
+
 L'identité visuelle repose sur des variables CSS (design tokens) déclarées en tête de `src/ui/styles.css` : palette, typographie, rayons et espacements. Les polices Fraunces (titres) et Inter (texte) proviennent des paquets `@fontsource-variable/fraunces` et `@fontsource-variable/inter`. Elles sont embarquées dans le build par `src/ui/fonts.css`, limitées aux sous-ensembles latin et latin étendu, et précachées avec le shell : aucune police n'est chargée depuis un service tiers, ce qui préserve le démarrage hors connexion. Ces paquets ne contiennent que des fichiers de police et n'ajoutent aucun code exécuté.
 
 ### Application

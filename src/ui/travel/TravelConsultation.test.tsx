@@ -1,6 +1,6 @@
 /// <reference types="node" />
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { useState } from 'react'
 import {
@@ -956,12 +956,20 @@ describe('illustrations et robustesse responsive', () => {
     )
   })
 
-  it('n’utilise jamais le HTML importé ni une injection active', async () => {
-    const source = await import('./TravelConsultation.tsx?raw')
-    expect(source.default).not.toContain('Guide_Madrid')
-    expect(source.default).not.toContain('innerHTML')
-    expect(source.default).not.toContain('<iframe')
-    expect(source.default).not.toContain('eval(')
+  it('n’utilise jamais le HTML importé ni une injection active', () => {
+    const directory = resolve(process.cwd(), 'src/ui/travel')
+    const sources = readdirSync(directory)
+      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+    expect(sources).toContain('TravelConsultation.tsx')
+    expect(sources).toContain('ProgramView.tsx')
+    for (const file of sources) {
+      const source = readFileSync(resolve(directory, file), 'utf8')
+      expect(source, file).not.toContain('Guide_Madrid')
+      expect(source, file).not.toContain('innerHTML')
+      expect(source, file).not.toContain('dangerouslySetInnerHTML')
+      expect(source, file).not.toContain('<iframe')
+      expect(source, file).not.toContain('eval(')
+    }
   })
 })
 
