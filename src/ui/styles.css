@@ -1639,37 +1639,9 @@ main > * {
   line-height: 1.55;
 }
 
-.practical-card .reservation-card {
-  margin-top: 0.45rem;
-}
-
 .reservation-card h4 {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-.document-index {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.document-index > li {
-  min-width: 0;
-  display: grid;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.85rem;
-  border: 0.0625rem solid var(--color-line);
-  border-radius: 0.75rem;
-}
-
-.document-index p {
-  margin-bottom: 0;
-  color: var(--color-text-muted);
-  line-height: 1.5;
 }
 
 .preparation-day > header {
@@ -3221,10 +3193,6 @@ main > * {
 }
 
 @media (width >= 36rem) {
-  .document-index > li {
-    grid-template-columns: minmax(0, 1fr) max-content;
-  }
-
   .practical-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

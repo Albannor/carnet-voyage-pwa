@@ -131,7 +131,7 @@ function persistedWith(overrides: Partial<typeof consultationTravel>): Persisted
   }
 }
 
-function openSection(name: 'Aperçu' | 'Programme' | 'Pratique' | 'Préparation') {
+function openSection(name: 'Aperçu' | 'Programme' | 'Pièces' | 'Préparation') {
   fireEvent.click(screen.getByRole('button', { name }))
 }
 
@@ -220,7 +220,7 @@ function withPlace(
 }
 
 describe('navigation structurée du voyage', () => {
-  it('expose exactement les cinq sections principales', () => {
+  it('expose exactement les quatre sections principales', () => {
     render(<ConsultationHarness />)
 
     const navigation = screen.getByRole('navigation', { name: 'Sections du voyage' })
@@ -228,7 +228,6 @@ describe('navigation structurée du voyage', () => {
       'Aperçu',
       'Programme',
       'Pièces',
-      'Pratique',
       'Préparation',
     ])
     expect(within(navigation).getByRole('button', { name: 'Aperçu' }))
@@ -270,8 +269,8 @@ describe('navigation structurée du voyage', () => {
 
     openSection('Programme')
     expect(screen.getByText(/Section active : Programme — Autour du port/)).toBeInTheDocument()
-    openSection('Pratique')
-    expect(screen.getByText('Section active : Pratique')).toBeInTheDocument()
+    openSection('Pièces')
+    expect(screen.getByText('Section active : Pièces')).toBeInTheDocument()
     openSection('Préparation')
     expect(screen.getByText('Section active : Préparation')).toBeInTheDocument()
     openSection('Aperçu')
@@ -377,6 +376,23 @@ describe('déroulé, actions et compléments', () => {
       .toBeInTheDocument()
     expect(screen.queryByText('Quai du Carénage')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Maison du port' })).not.toBeInTheDocument()
+  })
+
+  it('mène depuis l’étape à la fiche de son hébergement dans Pièces', () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /Voir l’hébergement associé à Installation/ }))
+      expect(screen.getByText('Section active : Pièces')).toBeInTheDocument()
+      const card = screen.getByRole('article', { name: 'Maison du port' })
+      expect(card).toHaveFocus()
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'start' })
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(card)
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
   })
 
   it('distingue les documents et réservations des liens pratiques ordinaires', () => {
@@ -646,7 +662,7 @@ describe('liens pratiques au fil du programme', () => {
       .toHaveAttribute('alt', 'Promenade illustrée')
   })
 
-  it('alimente le programme et l’index pratique depuis les mêmes liens de lieu', () => {
+  it('alimente le programme et les lieux de Pièces depuis les mêmes liens de lieu', () => {
     const link = {
       id: 'market-information',
       label: 'Informations pratiques du marché central',
@@ -665,7 +681,7 @@ describe('liens pratiques au fil du programme', () => {
     expect(screen.getByRole('link', { name: /Informations pratiques du marché central.*Passage au marché/ }))
       .toHaveAttribute('href', link.href)
 
-    openSection('Pratique')
+    openSection('Pièces')
     expect(screen.getByRole('link', { name: /Informations pratiques du marché central.*Marché central/ }))
       .toHaveAttribute('href', link.href)
   })
@@ -687,9 +703,9 @@ describe('liens pratiques au fil du programme', () => {
   })
 })
 
-describe('infos pratiques centralisées', () => {
+describe('repères du dossier dans Pièces', () => {
   it('affiche une seule fiche complète par hébergement', () => {
-    render(<ConsultationHarness initialView={{ kind: 'practical' }} />)
+    render(<ConsultationHarness initialView={{ kind: 'pieces' }} />)
 
     expect(screen.getAllByRole('heading', { name: 'Maison du port' })).toHaveLength(1)
     expect(screen.getAllByRole('heading', { name: 'Escale insulaire' })).toHaveLength(1)
@@ -697,43 +713,47 @@ describe('infos pratiques centralisées', () => {
     expect(screen.getByRole('heading', { name: 'Lieux et transports utiles' })).toBeInTheDocument()
   })
 
-  it('résout les réservations et documents de l’hébergement par identifiants explicites', () => {
-    render(<ConsultationHarness initialView={{ kind: 'practical' }} />)
+  it('relie l’hébergement à ses pièces par identifiants explicites, sans les recopier', () => {
+    render(<ConsultationHarness initialView={{ kind: 'pieces' }} />)
 
-    const accommodation = screen.getByRole('heading', { name: 'Maison du port' })
-      .closest('.accommodation-details') as HTMLElement
-    expect(within(accommodation).getByRole('heading', { name: 'Réservation Maison du port' }))
-      .toBeInTheDocument()
+    const accommodation = screen.getByRole('article', { name: 'Maison du port' })
     expect(within(accommodation).getByRole('button', {
-      name: /Ouvrir le document Confirmation d’hébergement/,
+      name: /^Voir la fiche Réservation Maison du port, pièce de Maison du port/,
     })).toBeInTheDocument()
+    expect(within(accommodation).getByRole('button', {
+      name: /^Voir la fiche Confirmation d’hébergement, pièce de Maison du port/,
+    })).toBeInTheDocument()
+    expect(screen.queryByText('PORT-2026')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ouvrir le document/ })).not.toBeInTheDocument()
+    expect(document.querySelector('.reservation-card')).not.toBeInTheDocument()
   })
 
   it('copie l’adresse depuis la fiche centralisée uniquement', () => {
     const onCopyAddress = vi.fn().mockResolvedValue(true)
-    render(<ConsultationHarness initialView={{ kind: 'practical' }} onCopyAddress={onCopyAddress} />)
+    render(<ConsultationHarness initialView={{ kind: 'pieces' }} onCopyAddress={onCopyAddress} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
     expect(onCopyAddress).toHaveBeenCalledWith('Quai du Carénage', 'Vieux-Port')
   })
 
-  it('ouvre un document local même hors connexion', () => {
+  it('ouvre un document local de l’hébergement même hors connexion', () => {
     const onOpenDocument = vi.fn()
     render(
       <ConsultationHarness
-        initialView={{ kind: 'practical' }}
+        initialView={{ kind: 'pieces' }}
         online={false}
         onOpenDocument={onOpenDocument}
       />,
     )
 
-    const accommodation = screen.getByRole('heading', { name: 'Maison du port' })
-      .closest('.accommodation-details') as HTMLElement
+    const accommodation = screen.getByRole('article', { name: 'Maison du port' })
+    expect(within(accommodation).getAllByLabelText(/indisponible hors connexion/).length)
+      .toBeGreaterThan(0)
     fireEvent.click(within(accommodation).getByRole('button', {
-      name: /Ouvrir le document Confirmation d’hébergement/,
+      name: /^Voir la fiche Confirmation d’hébergement, pièce de Maison du port/,
     }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir le PDF Confirmation d’hébergement' }))
     expect(onOpenDocument).toHaveBeenCalledWith(consultationTravel.documents[0])
-    expect(screen.getAllByLabelText(/indisponible hors connexion/).length).toBeGreaterThan(0)
   })
 })
 
@@ -851,8 +871,8 @@ describe('illustrations et robustesse responsive', () => {
     expect(await screen.findByAltText('Promenade illustrée')).toHaveAttribute('loading', 'lazy')
   })
 
-  it('centralise les crédits photographiques dans Pratique', () => {
-    render(<ConsultationHarness travel={illustratedTravel} initialView={{ kind: 'practical' }} />)
+  it('centralise les crédits photographiques dans Pièces', () => {
+    render(<ConsultationHarness travel={illustratedTravel} initialView={{ kind: 'pieces' }} />)
 
     expect(screen.getByRole('heading', { name: 'Crédits photographiques' })).toBeInTheDocument()
     expect(screen.getByText('Auteur : Camille Exemple')).toBeInTheDocument()
@@ -934,12 +954,11 @@ describe('associations sans répétition', () => {
   })
 
   it('gère plusieurs hébergements sans déduire les associations par libellé', () => {
-    render(<ConsultationHarness initialView={{ kind: 'practical' }} />)
+    render(<ConsultationHarness initialView={{ kind: 'pieces' }} />)
     const cards = screen.getAllByText('Hébergement')
     expect(cards).toHaveLength(2)
     expect(screen.getByText('Jetée principale')).toBeInTheDocument()
-    const islandCard = screen.getByRole('heading', { name: 'Escale insulaire' })
-      .closest('.accommodation-details') as HTMLElement
+    const islandCard = screen.getByRole('article', { name: 'Escale insulaire' })
     expect(within(islandCard).queryByText('Réservation Maison du port')).not.toBeInTheDocument()
   })
 
@@ -987,7 +1006,7 @@ describe('associations sans répétition', () => {
     expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })).toBeInTheDocument()
   })
 
-  it('affiche une fiche pratique concise sans document ni lien', () => {
+  it('affiche une réservation concise sans document ni lien', () => {
     const travel = persistedWith({
       reservations: [{
         ...consultationTravel.reservations[0],
@@ -1004,10 +1023,15 @@ describe('associations sans répétition', () => {
         })),
       })),
     })
-    render(<ConsultationHarness travel={travel} initialView={{ kind: 'practical' }} />)
+    render(
+      <ConsultationHarness
+        travel={travel}
+        initialView={{ kind: 'piece', pieceKind: 'reservation', pieceId: 'reservation-stay' }}
+      />,
+    )
 
-    const card = screen.getByRole('heading', { name: 'Réservation Maison du port' })
-      .closest('.reservation-card') as HTMLElement
+    expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })).toBeInTheDocument()
+    const card = document.querySelector('.piece-reservation') as HTMLElement
     expect(within(card).getByText('Confirmée')).toBeInTheDocument()
     expect(within(card).queryByRole('button')).not.toBeInTheDocument()
     expect(within(card).queryByRole('link')).not.toBeInTheDocument()
@@ -1072,7 +1096,7 @@ describe('aperçu du voyage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: consultationTravel.title }))
       .toHaveClass('travel-title')
-    openSection('Pratique')
+    openSection('Pièces')
     expect(screen.getByRole('heading', { level: 1, name: consultationTravel.title }))
       .toHaveClass('travel-topbar-title')
     fireEvent.click(screen.getByRole('button', { name: 'Retour à la bibliothèque' }))
@@ -1131,7 +1155,7 @@ describe('aperçu du voyage', () => {
 
   it('n’annonce pas de copie lorsque le presse-papiers refuse', async () => {
     const onCopyAddress = vi.fn().mockResolvedValue(false)
-    render(<ConsultationHarness initialView={{ kind: 'practical' }} onCopyAddress={onCopyAddress} />)
+    render(<ConsultationHarness initialView={{ kind: 'pieces' }} onCopyAddress={onCopyAddress} />)
 
     const button = screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' })
     fireEvent.click(button)
@@ -1173,7 +1197,7 @@ describe('navigation du bas', () => {
 
 describe('quatre types d’actions', () => {
   it('distingue lien externe, copie, document local et réservation', () => {
-    render(<ConsultationHarness initialView={{ kind: 'practical' }} />)
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
 
     const link = screen.getAllByRole('link', { name: /service externe/ })[0]
     expect(link).toHaveClass('contextual-link')
@@ -1184,6 +1208,7 @@ describe('quatre types d’actions', () => {
     const documentButton = screen.getAllByRole('button', { name: /Ouvrir le document/ })[0]
     expect(documentButton).toHaveClass('document-button')
     expect(documentButton.querySelector('svg')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’étape Installation' }))
     expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })
       .closest('.reservation-card')).toBeInTheDocument()
 

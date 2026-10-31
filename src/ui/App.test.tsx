@@ -472,7 +472,7 @@ describe('App', () => {
     render(<App repositoryFactory={repositoryFactory} platformActions={platformActions} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Pratique' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pièces' }))
     fireEvent.click(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
 
     expect(await screen.findByText('Copie impossible sur cet appareil')).toBeInTheDocument()

@@ -70,7 +70,6 @@ import {
   FileIcon,
   HomeIcon,
   ImageIcon,
-  InfoIcon,
   ListIcon,
   MapPinIcon,
   PaperclipIcon,
@@ -100,14 +99,14 @@ export type TravelView =
   | { readonly kind: 'today' }
   | { readonly kind: 'day'; readonly dayId: string }
   | { readonly kind: 'step'; readonly stepId: string }
-  | { readonly kind: 'pieces' }
+  /** `accommodationId` amène la fiche de cet hébergement à l’écran. */
+  | { readonly kind: 'pieces'; readonly accommodationId?: string }
   | { readonly kind: 'add-piece'; readonly attachment?: UserPieceAttachment }
   | {
       readonly kind: 'piece'
       readonly pieceKind: TravelPieceKind
       readonly pieceId: string
     }
-  | { readonly kind: 'practical' }
   | { readonly kind: 'preparation' }
 
 export interface ContextActionFeedback {
@@ -1047,7 +1046,7 @@ function OverviewAccommodation({
   const anchor = findAccommodationForDate(travel, getOverviewAnchorDate(travel, clock))
   if (!anchor) return null
   const { accommodation, place } = anchor
-  // L’adresse complète reste dans Pratique ; l’aperçu ne garde que le repère.
+  // L’adresse complète reste dans Pièces ; l’aperçu ne garde que le repère.
   const location = place && place.label !== accommodation.label ? place.label : undefined
 
   return (
@@ -1473,14 +1472,11 @@ function Timeline({
                     context={step.title}
                   />
                   {step.accommodationId && (
-                    <button
-                      className="text-button"
-                      type="button"
-                      aria-label={`Voir l’hébergement associé à ${step.title}`}
-                      onClick={() => onNavigate({ kind: 'practical' })}
-                    >
-                      Voir l’hébergement
-                    </button>
+                    <AccommodationLink
+                      accommodationId={step.accommodationId}
+                      stepTitle={step.title}
+                      onNavigate={onNavigate}
+                    />
                   )}
                   <PlanBHint variants={stepVariants} context={step.title} />
                   <ChecklistCollection
@@ -1761,109 +1757,6 @@ function ProgramView({
   )
 }
 
-function accommodationAssociations(travel: Travel, accommodationId: string) {
-  const reservationIds = new Set<string>()
-  const documentIds = new Set<string>()
-  for (const day of travel.days) {
-    for (const step of day.steps) {
-      if (step.accommodationId !== accommodationId) continue
-      step.reservationIds.forEach((id) => reservationIds.add(id))
-      step.documentIds.forEach((id) => documentIds.add(id))
-    }
-  }
-  return { reservationIds, documentIds }
-}
-
-function AccommodationDetails({
-  travel,
-  accommodation,
-  online,
-  onCopyAddress,
-  onOpenDocument,
-}: {
-  travel: Travel
-  accommodation: TravelAccommodation
-  online: boolean
-  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
-  onOpenDocument(document: TravelDocument): void
-}) {
-  const place = findPlace(travel, accommodation.placeId)
-  const associations = accommodationAssociations(travel, accommodation.id)
-  const reservations = reservationsById(travel, [...associations.reservationIds])
-  const reservationDocumentIds = new Set(
-    reservations.flatMap((reservation) => reservation.documentIds),
-  )
-  const documents = documentsById(
-    travel,
-    [...associations.documentIds].filter((id) => !reservationDocumentIds.has(id)),
-  )
-
-  return (
-    <article className="practical-card accommodation-details" id={`accommodation-${accommodation.id}`}>
-      <p className="card-label">Hébergement</p>
-      <h3>{accommodation.label}</h3>
-      <p>
-        <time dateTime={accommodation.period.start}>
-          {formatCompactDate(accommodation.period.start, travel.locale)}
-        </time>
-        {' '}–{' '}
-        <time dateTime={accommodation.period.end}>
-          {formatCompactDate(accommodation.period.end, travel.locale)}
-        </time>
-      </p>
-      {place?.address && (
-        <>
-          <address>{place.address}</address>
-          <CopyAddressButton
-            address={place.address}
-            placeLabel={place.label}
-            targetLabel={accommodation.label}
-            onCopyAddress={onCopyAddress}
-          />
-        </>
-      )}
-      {place && place.links.length > 0 && (
-        <ul className="practical-link-list">
-          {uniqueContextualLinks(place.links).map((link) => (
-            <li key={link.id}>
-              <ExternalLink
-                link={link}
-                online={online}
-                context={accommodation.label}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-      {reservations.map((reservation) => (
-        <ReservationDetails
-          key={reservation.id}
-          travel={travel}
-          reservation={reservation}
-          online={online}
-          onOpenDocument={onOpenDocument}
-        />
-      ))}
-      {documents.length > 0 && (
-        <section aria-label={`Documents de ${accommodation.label}`}>
-          <h4>Documents</h4>
-          <ul className="compact-action-list">
-            {documents.map((document) => (
-              <li key={document.id}>
-                <DocumentButton
-                  document={document}
-                  context={accommodation.label}
-                  onOpenDocument={onOpenDocument}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </article>
-  )
-}
-
 function pieceAttachmentText(
   attachment: TravelPieceAttachment,
   groupDayId: string | undefined,
@@ -1969,6 +1862,142 @@ function PieceRowContent(props: PieceRowProps) {
   )
 }
 
+function PieceRowButton({
+  onNavigate,
+  ...props
+}: PieceRowProps & { onNavigate(view: TravelView): void }) {
+  return (
+    <button
+      className="piece-row"
+      type="button"
+      aria-label={pieceRowLabel(props)}
+      onClick={() => onNavigate(pieceView(props.piece))}
+    >
+      <PieceRowContent {...props} />
+    </button>
+  )
+}
+
+function missingLocally(piece: TravelPiece, localResourceIds: ReadonlySet<string> | undefined) {
+  return piece.kind === 'document'
+    && localResourceIds !== undefined
+    && !localResourceIds.has(piece.document.resourceId)
+}
+
+function accommodationElementId(accommodationId: string) {
+  return `accommodation-${accommodationId}`
+}
+
+/** Mène depuis une étape à la fiche de son hébergement, dans Pièces. */
+function AccommodationLink({
+  accommodationId,
+  stepTitle,
+  onNavigate,
+}: {
+  accommodationId: string
+  stepTitle: string
+  onNavigate(view: TravelView): void
+}) {
+  return (
+    <button
+      className="text-button"
+      type="button"
+      aria-label={`Voir l’hébergement associé à ${stepTitle}`}
+      onClick={() => onNavigate({ kind: 'pieces', accommodationId })}
+    >
+      Voir l’hébergement
+    </button>
+  )
+}
+
+/**
+ * Fiche unique d’un hébergement. Ses pièces sont celles rattachées, par
+ * identifiant, aux étapes qui portent son `accommodationId` ; elles renvoient
+ * à leur fiche plutôt que d’être recopiées.
+ */
+function AccommodationDetails({
+  travel,
+  accommodation,
+  pieces,
+  online,
+  onCopyAddress,
+  onNavigate,
+}: {
+  travel: Travel
+  accommodation: TravelAccommodation
+  pieces: readonly TravelPiece[]
+  online: boolean
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
+  onNavigate(view: TravelView): void
+}) {
+  const place = findPlace(travel, accommodation.placeId)
+  const accommodationPieces = pieces.filter((piece) => piece.attachments.some(
+    (attachment) => attachment.type === 'step'
+      && attachment.step.accommodationId === accommodation.id,
+  ))
+
+  return (
+    <article
+      className="practical-card accommodation-details"
+      id={accommodationElementId(accommodation.id)}
+      tabIndex={-1}
+      aria-labelledby={`${accommodationElementId(accommodation.id)}-title`}
+    >
+      <p className="card-label">Hébergement</p>
+      <h4 id={`${accommodationElementId(accommodation.id)}-title`}>{accommodation.label}</h4>
+      <p>
+        <time dateTime={accommodation.period.start}>
+          {formatCompactDate(accommodation.period.start, travel.locale)}
+        </time>
+        {' '}–{' '}
+        <time dateTime={accommodation.period.end}>
+          {formatCompactDate(accommodation.period.end, travel.locale)}
+        </time>
+      </p>
+      {place?.address && (
+        <>
+          <address>{place.address}</address>
+          <CopyAddressButton
+            address={place.address}
+            placeLabel={place.label}
+            targetLabel={accommodation.label}
+            onCopyAddress={onCopyAddress}
+          />
+        </>
+      )}
+      {place && place.links.length > 0 && (
+        <ul className="practical-link-list">
+          {uniqueContextualLinks(place.links).map((link) => (
+            <li key={link.id}>
+              <ExternalLink
+                link={link}
+                online={online}
+                context={accommodation.label}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+      {accommodationPieces.length > 0 && (
+        <ul className="practical-link-list" aria-label={`Pièces de ${accommodation.label}`}>
+          {accommodationPieces.map((piece) => (
+            <li key={`${piece.kind}:${piece.id}`}>
+              <button
+                className="text-button"
+                type="button"
+                aria-label={`Voir la fiche ${piece.label}, pièce de ${accommodation.label}`}
+                onClick={() => onNavigate(pieceView(piece))}
+              >
+                {piece.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  )
+}
+
 /** Ressources réellement présentes sur l’appareil ; `undefined` tant qu’elles sont inconnues. */
 function useLocalResourceIds(
   travelId: string,
@@ -2004,20 +2033,32 @@ function AddPieceButton({
   )
 }
 
+/**
+ * Espace Pièces : les pièces du voyage, puis les repères stables du dossier
+ * (hébergements, lieux utiles) et les crédits photographiques.
+ */
 function PiecesView({
   travel,
   userPieces,
+  online,
   onNavigate,
+  onCopyAddress,
   onListLocalResourceIds,
 }: {
   travel: Travel
   userPieces: readonly UserPieceMetadata[]
+  online: boolean
   onNavigate(view: TravelView): void
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
   onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
 }) {
   const localResourceIds = useLocalResourceIds(travel.id, onListLocalResourceIds)
   const pieces = listTravelPieces(travel, userPieces)
   const groups = groupTravelPiecesByDay(travel, pieces)
+  const accommodationPlaceIds = new Set(
+    travel.accommodations.map((accommodation) => accommodation.placeId),
+  )
+  const otherPlaces = travel.places.filter((place) => !accommodationPlaceIds.has(place.id))
 
   // Les pièces ajoutées sont relues depuis IndexedDB : elles sont présentes par construction.
   const allStoredLocally = localResourceIds !== undefined
@@ -2074,33 +2115,66 @@ function PiecesView({
                   )}
             </h3>
             <ul className="pieces-list">
-              {group.pieces.map((piece) => {
-                const missingLocally = piece.kind === 'document'
-                  && localResourceIds !== undefined
-                  && !localResourceIds.has(piece.document.resourceId)
-                const rowProps = {
-                  piece,
-                  groupDayId,
-                  locale: travel.locale,
-                  missingLocally,
-                }
-                return (
-                  <li key={`${piece.kind}:${piece.id}`}>
-                    <button
-                      className="piece-row"
-                      type="button"
-                      aria-label={pieceRowLabel(rowProps)}
-                      onClick={() => onNavigate(pieceView(piece))}
-                    >
-                      <PieceRowContent {...rowProps} />
-                    </button>
-                  </li>
-                )
-              })}
+              {group.pieces.map((piece) => (
+                <li key={`${piece.kind}:${piece.id}`}>
+                  <PieceRowButton
+                    piece={piece}
+                    groupDayId={groupDayId}
+                    locale={travel.locale}
+                    missingLocally={missingLocally(piece, localResourceIds)}
+                    onNavigate={onNavigate}
+                  />
+                </li>
+              ))}
             </ul>
           </section>
         )
       })}
+      {travel.accommodations.length > 0 && (
+        <section className="practical-group" aria-labelledby="accommodations-title">
+          <h3 id="accommodations-title" className="pieces-group-title">Hébergements</h3>
+          <div className="practical-card-grid">
+            {travel.accommodations.map((accommodation) => (
+              <AccommodationDetails
+                key={accommodation.id}
+                travel={travel}
+                accommodation={accommodation}
+                pieces={pieces}
+                online={online}
+                onCopyAddress={onCopyAddress}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+      {otherPlaces.length > 0 && (
+        <section className="practical-group" aria-labelledby="places-title">
+          <h3 id="places-title" className="pieces-group-title">Lieux et transports utiles</h3>
+          <div className="practical-card-grid">
+            {otherPlaces.map((place) => (
+              <article className="practical-card" key={place.id}>
+                <h4>{place.label}</h4>
+                {place.address && <address>{place.address}</address>}
+                {place.links.length > 0 && (
+                  <ul className="practical-link-list">
+                    {uniqueContextualLinks(place.links).map((link) => (
+                      <li key={link.id}>
+                        <ExternalLink
+                          link={link}
+                          online={online}
+                          context={place.label}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+      <IllustrationCredits travel={travel} online={online} />
     </div>
   )
 }
@@ -2262,28 +2336,19 @@ function StepView({
         </h3>
         {filePieces.length > 0 && (
           <ul className="pieces-list">
-            {filePieces.map((piece) => {
-              const rowProps = {
-                piece,
-                locale: travel.locale,
-                missingLocally: false,
-                detail: piece.origin === 'user'
-                  ? 'Ajoutée sur cet appareil'
-                  : 'Document du dossier',
-              }
-              return (
-                <li key={`${piece.kind}:${piece.id}`}>
-                  <button
-                    className="piece-row"
-                    type="button"
-                    aria-label={pieceRowLabel(rowProps)}
-                    onClick={() => onNavigate(pieceView(piece))}
-                  >
-                    <PieceRowContent {...rowProps} />
-                  </button>
-                </li>
-              )
-            })}
+            {filePieces.map((piece) => (
+              <li key={`${piece.kind}:${piece.id}`}>
+                <PieceRowButton
+                  piece={piece}
+                  locale={travel.locale}
+                  missingLocally={false}
+                  detail={piece.origin === 'user'
+                    ? 'Ajoutée sur cet appareil'
+                    : 'Document du dossier'}
+                  onNavigate={onNavigate}
+                />
+              </li>
+            ))}
           </ul>
         )}
         <AddPieceButton
@@ -2301,14 +2366,11 @@ function StepView({
         </section>
       )}
       {step.accommodationId && (
-        <button
-          className="text-button"
-          type="button"
-          aria-label={`Voir l’hébergement associé à ${step.title}`}
-          onClick={() => onNavigate({ kind: 'practical' })}
-        >
-          Voir l’hébergement
-        </button>
+        <AccommodationLink
+          accommodationId={step.accommodationId}
+          stepTitle={step.title}
+          onNavigate={onNavigate}
+        />
       )}
     </div>
   )
@@ -2778,140 +2840,6 @@ function PieceSheetView({
   )
 }
 
-function PracticalView({
-  travel,
-  online,
-  onCopyAddress,
-  onOpenDocument,
-}: {
-  travel: Travel
-  online: boolean
-  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
-  onOpenDocument(document: TravelDocument): void
-}) {
-  const accommodationPlaceIds = new Set(
-    travel.accommodations.map((accommodation) => accommodation.placeId),
-  )
-  const accommodationReservationIds = new Set<string>()
-  const accommodationDocumentIds = new Set<string>()
-  travel.accommodations.forEach((accommodation) => {
-    const associations = accommodationAssociations(travel, accommodation.id)
-    associations.reservationIds.forEach((id) => accommodationReservationIds.add(id))
-    associations.documentIds.forEach((id) => accommodationDocumentIds.add(id))
-  })
-  travel.reservations
-    .filter((reservation) => accommodationReservationIds.has(reservation.id))
-    .forEach((reservation) => {
-      reservation.documentIds.forEach((id) => accommodationDocumentIds.add(id))
-    })
-  const otherPlaces = travel.places.filter((place) => !accommodationPlaceIds.has(place.id))
-  const otherReservations = travel.reservations.filter(
-    (reservation) => !accommodationReservationIds.has(reservation.id),
-  )
-  const otherDocuments = travel.documents.filter(
-    (document) => !accommodationDocumentIds.has(document.id),
-  )
-  const hasCredits = referencedIllustrations(travel).length > 0
-  const hasPracticalContent = travel.accommodations.length > 0
-    || otherPlaces.length > 0
-    || otherReservations.length > 0
-    || otherDocuments.length > 0
-    || hasCredits
-
-  return (
-    <div className="consultation-view practical-view" aria-labelledby="practical-title">
-      <header className="section-heading">
-        <p className="section-label">Pratique</p>
-        <h2 id="practical-title">Repères et documents utiles</h2>
-        <p>Les informations stables du voyage sont regroupées ici pour éviter leur répétition dans le programme.</p>
-      </header>
-      {!hasPracticalContent && (
-        <p className="empty-state">Aucune information pratique structurée n’est associée à ce voyage.</p>
-      )}
-      {travel.accommodations.length > 0 && (
-        <section className="practical-group" aria-labelledby="accommodations-title">
-          <h3 id="accommodations-title">Hébergements</h3>
-          <div className="practical-card-grid">
-            {travel.accommodations.map((accommodation) => (
-              <AccommodationDetails
-                key={accommodation.id}
-                travel={travel}
-                accommodation={accommodation}
-                online={online}
-                onCopyAddress={onCopyAddress}
-                onOpenDocument={onOpenDocument}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-      {otherPlaces.length > 0 && (
-        <section className="practical-group" aria-labelledby="places-title">
-          <h3 id="places-title">Lieux et transports utiles</h3>
-          <div className="practical-card-grid">
-            {otherPlaces.map((place) => (
-              <article className="practical-card" key={place.id}>
-                <h4>{place.label}</h4>
-                {place.address && <address>{place.address}</address>}
-                {place.links.length > 0 && (
-                  <ul className="practical-link-list">
-                    {uniqueContextualLinks(place.links).map((link) => (
-                      <li key={link.id}>
-                        <ExternalLink
-                          link={link}
-                          online={online}
-                          context={place.label}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-      {otherReservations.length > 0 && (
-        <section className="practical-group" aria-labelledby="reservations-title">
-          <h3 id="reservations-title">Réservations</h3>
-          <div className="practical-card-grid">
-            {otherReservations.map((reservation) => (
-              <ReservationDetails
-                key={reservation.id}
-                travel={travel}
-                reservation={reservation}
-                online={online}
-                onOpenDocument={onOpenDocument}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-      {otherDocuments.length > 0 && (
-        <section className="practical-group" aria-labelledby="documents-title">
-          <h3 id="documents-title">Documents</h3>
-          <ul className="document-index">
-            {otherDocuments.map((document) => (
-              <li key={document.id}>
-                <div>
-                  <strong>{document.label}</strong>
-                  {document.description && <p>{document.description}</p>}
-                </div>
-                <DocumentButton
-                  document={document}
-                  context={travel.title}
-                  onOpenDocument={onOpenDocument}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <IllustrationCredits travel={travel} online={online} />
-    </div>
-  )
-}
-
 function pendingReservation(reservation: TravelReservation) {
   return Boolean(reservation.status && (
     /à confirmer|a confirmer|en attente|pending|provisoire|tentative/i
@@ -3035,7 +2963,6 @@ function viewLabel(
     const stepTitle = findStepWithDay(travel, view.stepId)?.step.title
     return stepTitle ? `Étape — ${stepTitle}` : 'Étape'
   }
-  if (view.kind === 'practical') return 'Pratique'
   if (view.kind === 'preparation') return 'Préparation'
   if (view.kind === 'today') return 'Programme d’aujourd’hui'
   const dayTitle = travel.days.find((day) => day.id === view.dayId)?.title
@@ -3108,14 +3035,27 @@ export function TravelConsultation({
         ? `piece:${safeView.pieceKind}:${safeView.pieceId}`
         : safeView.kind === 'add-piece'
           ? `add-piece:${JSON.stringify(safeView.attachment ?? null)}`
-          : safeView.kind
+          : safeView.kind === 'pieces' && safeView.accommodationId
+            ? `pieces:${safeView.accommodationId}`
+            : safeView.kind
+  const focusedAccommodationId = safeView.kind === 'pieces'
+    ? safeView.accommodationId
+    : undefined
   const previousViewKey = useRef(viewKey)
 
   useEffect(() => {
     if (previousViewKey.current === viewKey) return
     previousViewKey.current = viewKey
+    const accommodation = focusedAccommodationId
+      ? document.getElementById(accommodationElementId(focusedAccommodationId))
+      : null
+    if (accommodation) {
+      accommodation.scrollIntoView?.({ block: 'start' })
+      accommodation.focus()
+      return
+    }
     workspaceRef.current?.scrollIntoView?.({ block: 'start' })
-  }, [viewKey])
+  }, [viewKey, focusedAccommodationId])
   const actions = {
     online,
     onCopyAddress,
@@ -3175,7 +3115,6 @@ export function TravelConsultation({
     { label: 'Pièces', icon: PaperclipIcon, active: safeView.kind === 'pieces'
       || safeView.kind === 'piece'
       || safeView.kind === 'add-piece', target: () => ({ kind: 'pieces' }) },
-    { label: 'Pratique', icon: InfoIcon, active: safeView.kind === 'practical', target: () => ({ kind: 'practical' }) },
     { label: 'Préparation', icon: ChecklistIcon, active: safeView.kind === 'preparation', target: () => ({ kind: 'preparation' }) },
   ]
 
@@ -3243,7 +3182,9 @@ export function TravelConsultation({
         <PiecesView
           travel={travel}
           userPieces={userPieces}
+          online={online}
           onNavigate={onNavigate}
+          onCopyAddress={onCopyAddress}
           onListLocalResourceIds={onListLocalResourceIds}
         />
       )}
@@ -3281,14 +3222,6 @@ export function TravelConsultation({
               ? { kind: 'step', stepId: safeView.attachment.stepId }
               : { kind: 'pieces' },
           )}
-        />
-      )}
-      {safeView.kind === 'practical' && (
-        <PracticalView
-          travel={travel}
-          online={online}
-          onCopyAddress={onCopyAddress}
-          onOpenDocument={onOpenDocument}
         />
       )}
       {safeView.kind === 'preparation' && (

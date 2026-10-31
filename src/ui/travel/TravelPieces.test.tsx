@@ -62,7 +62,7 @@ function PiecesHarness({
 }
 
 describe('espace Pièces', () => {
-  it('ajoute Pièces entre Programme et Pratique dans la navigation du bas', () => {
+  it('place Pièces entre Programme et Préparation dans la navigation du bas', () => {
     render(<PiecesHarness initialView={{ kind: 'summary' }} />)
     const navigation = screen.getByRole('navigation', { name: 'Sections du voyage' })
     const buttons = within(navigation).getAllByRole('button')
@@ -71,7 +71,6 @@ describe('espace Pièces', () => {
       'Aperçu',
       'Programme',
       'Pièces',
-      'Pratique',
       'Préparation',
     ])
 
