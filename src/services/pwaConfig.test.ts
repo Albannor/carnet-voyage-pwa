@@ -50,7 +50,7 @@ describe('configuration PWA', () => {
       runtimeCaching: [],
     })
     expect(pwaBuildOptions.workbox?.globPatterns).toEqual([
-      '**/*.{html,js,css,png,svg,webmanifest}',
+      '**/*.{html,js,css,png,svg,woff2,webmanifest}',
     ])
     expect(pwaBuildOptions.workbox?.globIgnores).toEqual([
       'manifest.webmanifest',

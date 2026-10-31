@@ -86,7 +86,7 @@ Le `localStorage` n'est pas utilisé pour les voyages, les notes ou les checklis
 
 Le service worker met en cache une version cohérente du shell applicatif et gère sa mise à jour. Les données de voyage restent dans IndexedDB ; elles ne doivent pas être confondues avec le cache réseau.
 
-Depuis l’étape 9, `vite-plugin-pwa` génère ce service worker avec Workbox pendant le build de production. La configuration `generateSW` précache uniquement les fichiers produits ou copiés par Vite : document HTML, modules JavaScript, styles, manifeste et icônes. Elle ne définit aucune stratégie de cache à l’exécution pour les URL externes ou les ressources métier. `guide-standalone.html` est exclu de la navigation de secours. Le service worker n’est pas enregistré par le serveur de développement et le build utilise des chemins relatifs afin de rester publiable à la racine comme sous un répertoire.
+Depuis l’étape 9, `vite-plugin-pwa` génère ce service worker avec Workbox pendant le build de production. La configuration `generateSW` précache uniquement les fichiers produits ou copiés par Vite : document HTML, modules JavaScript, styles, polices, manifeste et icônes. Elle ne définit aucune stratégie de cache à l’exécution pour les URL externes ou les ressources métier. `guide-standalone.html` est exclu de la navigation de secours. Le service worker n’est pas enregistré par le serveur de développement et le build utilise des chemins relatifs afin de rester publiable à la racine comme sous un répertoire.
 
 Cache Storage et IndexedDB ont des responsabilités disjointes :
 
@@ -150,6 +150,8 @@ Une version future inconnue est refusée proprement. Une ancienne version n'est 
 ### Présentation
 
 Les pages et composants React rendent le modèle interne selon les règles UX communes. Ils gèrent l'accessibilité, la navigation et les états visuels, sans lire directement les archives ou IndexedDB.
+
+L'identité visuelle repose sur des variables CSS (design tokens) déclarées en tête de `src/ui/styles.css` : palette, typographie, rayons et espacements. Les polices Fraunces (titres) et Inter (texte) proviennent des paquets `@fontsource-variable/fraunces` et `@fontsource-variable/inter`. Elles sont embarquées dans le build par `src/ui/fonts.css`, limitées aux sous-ensembles latin et latin étendu, et précachées avec le shell : aucune police n'est chargée depuis un service tiers, ce qui préserve le démarrage hors connexion. Ces paquets ne contiennent que des fichiers de police et n'ajoutent aucun code exécuté.
 
 ### Application
 

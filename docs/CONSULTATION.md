@@ -8,13 +8,15 @@ Le parcours de consultation est structuré autour de quatre sections :
 
 ```text
 Bibliothèque
-  └─ Vue d’ensemble
+  └─ Aperçu
   └─ Programme → journée / Aujourd’hui
-  └─ Infos pratiques
+  └─ Pratique
   └─ Préparation
 ```
 
-La **Vue d’ensemble** reste volontairement concise : couverture éventuelle, titre, destination, dates, résumé et réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. Les **Infos pratiques** centralisent les hébergements, lieux, réservations, documents et crédits photographiques. La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
+Ces quatre sections sont accessibles depuis une barre de navigation fixée en bas de l’écran, chaque entrée associant une icône et un libellé ; la section active est signalée par `aria-current` et par une pastille, jamais par la seule couleur. La barre respecte les marges de sécurité des écrans à encoche (`env(safe-area-inset-*)`). Le retour à la bibliothèque est un bouton rond nommé « Retour à la bibliothèque », posé sur la couverture dans l’Aperçu et dans la barre de titre des autres sections. Changer de section ramène le haut de la section à l’écran.
+
+L’**Aperçu** reste volontairement concis : couverture éventuelle en pleine largeur, titre, destination, dates et durée, résumé, puis un encart temporel qui dépend de la date du jour (« Départ dans N jours », « Aujourd’hui » ou « Voyage terminé ») et mène au programme pertinent. Suivent la liste des journées, l’hébergement correspondant à la date de référence avec la copie de son adresse — l’adresse complète restant affichée dans Pratique — et les réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. **Pratique** centralise les hébergements, lieux, réservations, documents et crédits photographiques. La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
 
 ## Navigation et rechargement
 
@@ -23,7 +25,7 @@ L’état de consultation distingue la bibliothèque, le chargement, l’erreur 
 - `summary` pour la synthèse ;
 - `today` pour « Aujourd’hui » ;
 - `day` avec un identifiant stable de journée ;
-- `practical` pour les infos pratiques ;
+- `practical` pour la section Pratique ;
 - `preparation` pour les checklists, confirmations et notes.
 
 L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view` et `day` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
@@ -45,22 +47,26 @@ Dans tous les cas, les journées existantes restent accessibles. Les changements
 
 Les étapes sont rendues dans l’ordre du tableau du modèle interne, déjà contrôlé par les invariants métier lors de l’import. L’interface ne déduit pas l’ordre d’une présentation source et ne réordonne pas visuellement le contenu.
 
+Les étapes forment une frise : une pastille par étape sur un fil vertical, puis une carte avec l’heure, le titre, le lieu et les actions utiles.
+
+Lorsque la journée affichée est celle du jour dans le fuseau du voyage, la frise situe chaque étape par rapport à l’heure locale. Une étape est passée lorsque sa fin — son heure de fin, sinon le début de l’étape horodatée suivante — est atteinte ; elle reçoit une pastille cochée et la mention accessible « Étape passée ». La première étape non passée est mise en avant sur fond soleil clair avec la mention « En cours » si elle a commencé, « Prochaine étape » sinon. Cette progression se met à jour chaque minute tant que la journée reste affichée. Une journée sans aucun horaire ne reçoit aucune mise en avant, et les autres journées restent neutres.
+
 Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable. Dans le programme, leur libellé sert de repère et leurs liens utiles restent accessibles au point d’usage. Les infos pratiques offrent en complément un index global des mêmes lieux et liens ; elles ne constituent pas une seconde source de données et ne sont jamais le seul accès à une action utile au programme.
 
 ## Hébergements et informations pratiques
 
 Chaque hébergement possède une fiche unique dans les infos pratiques. La fiche résout son lieu par `placeId` et les réservations ou documents associés uniquement depuis les `reservationIds` et `documentIds` des étapes qui portent explicitement son `accommodationId`. Aucun rapprochement n’est déduit d’un libellé, d’un chemin ou d’un nom de fichier.
 
-Dans le programme, une étape liée à un hébergement conserve son titre éditorial et un lien discret vers les infos pratiques. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
+Dans le programme, l’en-tête de chaque journée rappelle l’hébergement qui couvre sa date comme point de départ (« Hébergement » le jour de son arrivée, « Départ » les autres jours), avec un bouton de copie de l’adresse. Une étape liée à un hébergement conserve son titre éditorial et un lien discret vers Pratique. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
 
 ## Actions contextuelles et documents
 
-Les actions sont distinguées par leur libellé et leur comportement :
+Les actions sont distinguées par leur libellé, leur comportement et une apparence propre à chaque type, afin qu’elles ne soient jamais interchangeables :
 
-- un **lien pratique ordinaire** conserve le libellé éditorial importé et apparaît comme un lien compact auprès de l’étape ;
-- une **action locale** telle que la copie d’une adresse reste un bouton de type lien et fonctionne sans réseau ;
-- un **document local** récupère uniquement le PDF rattaché au voyage courant dans IndexedDB ;
-- une **réservation** conserve sa structure et ses références propres ;
+- un **lien pratique ordinaire** conserve le libellé éditorial importé et apparaît comme un texte souligné suivi d’une icône de sortie, auprès de l’étape ;
+- une **copie d’adresse** est un bouton compact à contour avec une icône de copie ; elle fonctionne sans réseau et affiche à côté du bouton « Adresse copiée » ou « Copie impossible sur cet appareil » ;
+- un **document local** est un bouton sur fond sauge avec une icône de fichier ; il récupère uniquement le PDF rattaché au voyage courant dans IndexedDB ;
+- une **réservation** conserve son bloc structuré sur fond soleil clair et ses références propres ;
 - un **service externe** ouvre un lien HTTPS dans un nouvel onglet avec `noopener noreferrer` et indique de manière accessible qu'une connexion est requise.
 
 Hors connexion, les liens externes sont désactivés mais le programme, les réservations et les PDF déjà importés restent consultables. Une seconde vérification d'URL à l'affichage neutralise toute valeur non HTTPS, en complément du schéma et de la validation métier. Aucun HTML importé, SVG actif ou document exécutable n'est rendu.
@@ -73,7 +79,7 @@ La première illustration d’une étape peut porter un lien pratique selon une 
 
 ## Variantes
 
-Les variantes ne remplacent jamais le programme standard. Les adaptations « Économe en marche » et « Pluie » qui ciblent la journée ou l’une de ses étapes sont réunies dans un bloc repliable « Plans B ». Le bloc n’apparaît pas lorsqu’aucune variante ne concerne la journée affichée.
+Les variantes ne remplacent jamais le programme standard. Les adaptations « Économe en marche » et « Pluie » qui ciblent la journée ou l’une de ses étapes sont réunies dans une section « Plans B » des compléments de la journée ; chacune indique si elle vaut pour toute la journée ou quelle étape elle remplace ou complète. Au point d’usage, l’étape ou l’en-tête de journée concerné affiche un rappel « Plan B prévu » sur fond sauge qui amène le focus sur l’alternative correspondante. Ni la section ni les rappels n’apparaissent lorsqu’aucune variante ne concerne la journée affichée.
 
 ## Checklists et note locale
 
@@ -110,7 +116,7 @@ Un retour vers la bibliothèque reste disponible lorsque le voyage ne peut pas �
 
 Les vues utilisent des régions, titres, listes ordonnées, articles, éléments `time`, `address` et navigations nommées. Les contrôles sont des boutons natifs utilisables au clavier avec un focus visible et une hauteur tactile minimale. La vue et la journée actives sont annoncées par du texte et `aria-current`, jamais uniquement par une couleur.
 
-La navigation des journées peut défiler horizontalement dans sa propre région sur petit écran. Les flèches gauche et droite changent de journée depuis le sélecteur, tandis que des boutons précédent et suivant restent disponibles. La journée active combine texte et `aria-current`. Les cartes et la chronologie conservent un ordre HTML logique, restent lisibles sans animation et n’imposent aucun défilement horizontal au contenu essentiel.
+Le sélecteur de journées présente des pastilles compactes (jour de la semaine et numéro) qui peuvent défiler horizontalement dans leur propre région sur petit écran ; le nom accessible de chaque pastille donne la date complète et le titre de la journée. La journée du jour porte un point et la mention accessible « aujourd’hui ». Les flèches gauche et droite changent de journée depuis le sélecteur, tandis que des boutons précédent et suivant restent disponibles en fin de journée. La barre de titre indique « Jour N sur M ». La journée active combine pastille inversée, texte et `aria-current`. Les cartes et la chronologie conservent un ordre HTML logique, restent lisibles sans animation et n’imposent aucun défilement horizontal au contenu essentiel.
 
 ## Tests
 

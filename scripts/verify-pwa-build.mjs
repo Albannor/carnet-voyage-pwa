@@ -120,6 +120,16 @@ for (const path of [
     fail(`dist/${path} doit apparaître une seule fois dans le précache`)
   }
 }
+for (const font of [
+  'fraunces-latin-opsz-normal',
+  'fraunces-latin-ext-opsz-normal',
+  'inter-latin-wght-normal',
+  'inter-latin-ext-wght-normal',
+]) {
+  if (!new RegExp(`url:"assets/${font}-[^"]+\\.woff2"`).test(serviceWorker)) {
+    fail(`la police embarquée ${font} doit appartenir au précache`)
+  }
+}
 if (serviceWorker.includes('url:"guide-standalone.html"')) {
   fail('guide-standalone.html ne doit pas appartenir au précache')
 }

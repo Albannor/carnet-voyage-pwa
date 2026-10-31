@@ -6,7 +6,7 @@ Le build de production est une PWA statique. `vite-plugin-pwa` `1.3.0` et Workbo
 
 Les deux stockages du navigateur restent strictement séparés :
 
-- **Cache Storage** reçoit uniquement le shell versionné : `index.html`, JavaScript, CSS, manifeste, favicon et icônes ;
+- **Cache Storage** reçoit uniquement le shell versionné : `index.html`, JavaScript, CSS, polices embarquées (Fraunces et Inter, sous-ensembles latins), manifeste, favicon et icônes ;
 - **IndexedDB** reste la source de vérité pour les voyages normalisés, illustrations, PDF, checklists et notes.
 
 Le service worker ne contient aucune logique d’import, n’accède pas à IndexedDB et ne duplique pas les ressources d’un voyage. Les images et PDF importés sont toujours relus avec la clé du voyage courant, puis exposés temporairement par une URL d’objet révoquée par l’application.
@@ -62,7 +62,7 @@ Après `npm run build` :
 7. vérifier que les liens externes sont signalés comme indisponibles lorsque le navigateur émet l’état hors connexion ;
 8. republier un build modifié, vérifier que l’information de mise à jour apparaît, l’appliquer volontairement puis confirmer que les données IndexedDB sont intactes.
 
-`npm run build` exécute aussi `scripts/verify-pwa-build.mjs`. Ce contrôle vérifie les fichiers attendus, les dimensions et signatures PNG, les champs essentiels du manifeste, les chemins relatifs, l’inventaire de précache et l’absence de manipulation IndexedDB dans le service worker généré. `dist/` reste ignoré par Git.
+`npm run build` exécute aussi `scripts/verify-pwa-build.mjs`. Ce contrôle vérifie les fichiers attendus, les dimensions et signatures PNG, les champs essentiels du manifeste, les chemins relatifs, l’inventaire de précache (dont les quatre fichiers de police) et l’absence de manipulation IndexedDB dans le service worker généré. `dist/` reste ignoré par Git.
 
 ## Validation restante
 

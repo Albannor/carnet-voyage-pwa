@@ -102,7 +102,7 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Carnet de voyage' }),
     ).toBeInTheDocument()
-    expect(await screen.findByText(/aucun voyage enregistré/i)).toBeInTheDocument()
+    expect(await screen.findByText('Votre carnet est vide')).toBeInTheDocument()
     expect(screen.getByLabelText('Choisir un fichier ZIP')).toHaveAttribute(
       'accept',
       expect.stringContaining('.zip'),
@@ -129,14 +129,14 @@ describe('App', () => {
       />,
     )
 
-    expect(await screen.findByText(/aucun voyage enregistré/i)).toBeInTheDocument()
+    expect(await screen.findByText('Votre carnet est vide')).toBeInTheDocument()
     expect(screen.queryByText('Hors connexion.')).not.toBeInTheDocument()
 
     act(() => notify?.(false))
 
     expect(screen.getByText('Hors connexion.')).toBeInTheDocument()
     expect(screen.getByText(/contenus enregistrés restent consultables/)).toBeInTheDocument()
-    expect(screen.getByText(/aucun voyage enregistré/i)).toBeInTheDocument()
+    expect(screen.getByText('Votre carnet est vide')).toBeInTheDocument()
 
     act(() => notify?.(true))
     expect(screen.queryByText('Hors connexion.')).not.toBeInTheDocument()
@@ -164,7 +164,7 @@ describe('App', () => {
   it('annonce la validation et l’enregistrement du paquet sélectionné', async () => {
     importToLibraryMock.mockReturnValue(new Promise(() => undefined))
     render(<App repositoryFactory={repositoryFactory} />)
-    await screen.findByText(/aucun voyage enregistré/i)
+    await screen.findByText('Votre carnet est vide')
 
     fireEvent.change(screen.getByLabelText('Choisir un fichier ZIP'), {
       target: { files: [selectedFile] },
@@ -182,7 +182,7 @@ describe('App', () => {
       .mockResolvedValueOnce({ ok: true, value: [] })
       .mockResolvedValueOnce({ ok: true, value: [entry] })
     render(<App repositoryFactory={repositoryFactory} />)
-    await screen.findByText(/aucun voyage enregistré/i)
+    await screen.findByText('Votre carnet est vide')
 
     fireEvent.change(screen.getByLabelText('Choisir un fichier ZIP'), {
       target: { files: [selectedFile] },
@@ -214,7 +214,7 @@ describe('App', () => {
       },
     })
     render(<App repositoryFactory={repositoryFactory} />)
-    await screen.findByText(/aucun voyage enregistré/i)
+    await screen.findByText('Votre carnet est vide')
 
     fireEvent.change(screen.getByLabelText('Choisir un fichier ZIP'), {
       target: { files: [selectedFile] },
@@ -238,7 +238,7 @@ describe('App', () => {
       },
     })
     render(<App repositoryFactory={repositoryFactory} />)
-    await screen.findByText(/aucun voyage enregistré/i)
+    await screen.findByText('Votre carnet est vide')
 
     fireEvent.change(screen.getByLabelText('Choisir un fichier ZIP'), {
       target: { files: [selectedFile] },
@@ -264,13 +264,13 @@ describe('App', () => {
     fireEvent.click(openButton)
 
     expect(await screen.findByText(travel.summary)).toBeInTheDocument()
-    expect(screen.getByText('Section active : Vue d’ensemble')).toBeInTheDocument()
+    expect(screen.getByText('Section active : Aperçu')).toBeInTheDocument()
     expect(window.location.search).toContain('travel=travel-alpha')
     fireEvent.click(
       screen.getByRole('button', { name: 'Retour à la bibliothèque' }),
     )
     expect(
-      screen.getByRole('heading', { level: 2, name: 'Ma bibliothèque' }),
+      screen.getByRole('button', { name: 'Ouvrir Voyage alpha' }),
     ).toBeInTheDocument()
     expect(window.location.search).toBe('')
   })
@@ -309,7 +309,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Ce voyage est introuvable.')
     fireEvent.click(screen.getByRole('button', { name: 'Retour à la bibliothèque' }))
-    expect(await screen.findByRole('heading', { name: 'Ma bibliothèque' })).toBeInTheDocument()
+    expect(await screen.findByText('Votre carnet est vide')).toBeInTheDocument()
   })
 
   it('présente une erreur de lecture IndexedDB sans exposer de trace', async () => {
@@ -397,6 +397,30 @@ describe('App', () => {
     expect(await screen.findByText(/Ouverture du document local/)).toBeInTheDocument()
   })
 
+  it('signale à côté du bouton une copie d’adresse impossible', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [persistedConsultationTravel.metadata],
+    })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: persistedConsultationTravel,
+    })
+    const platformActions = {
+      copyText: vi.fn().mockResolvedValue(false),
+      openLocalPdf: vi.fn(),
+    }
+    render(<App repositoryFactory={repositoryFactory} platformActions={platformActions} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pratique' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
+
+    expect(await screen.findByText('Copie impossible sur cet appareil')).toBeInTheDocument()
+    expect(platformActions.copyText).toHaveBeenCalledWith('Quai du Carénage')
+    expect(screen.queryByText('Adresse copiée')).not.toBeInTheDocument()
+  })
+
   it('relie les checklists et la note au dépôt du voyage courant', async () => {
     vi.mocked(repository.listTravels).mockResolvedValue({
       ok: true,
@@ -435,7 +459,7 @@ describe('App', () => {
     ))
   })
 
-  it('demande une confirmation nommant le voyage avant suppression', async () => {
+  it('supprime un voyage seulement après confirmation dans « Plus d’options »', async () => {
     vi.mocked(repository.listTravels)
       .mockResolvedValueOnce({ ok: true, value: [entry] })
       .mockResolvedValueOnce({ ok: true, value: [] })
@@ -443,33 +467,103 @@ describe('App', () => {
       ok: true,
       value: undefined,
     })
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    render(<App repositoryFactory={repositoryFactory} />)
-    const deleteButton = await screen.findByRole('button', {
-      name: 'Supprimer Voyage alpha',
-    })
-
-    fireEvent.click(deleteButton)
-
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Voyage alpha'))
-    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/notes personnelles.*états de checklist/i))
-    await waitFor(() =>
-      expect(repository.deleteTravel).toHaveBeenCalledWith('travel-alpha'),
-    )
-    expect(await screen.findByText(/aucun voyage enregistré/i)).toBeInTheDocument()
-    confirm.mockRestore()
-  })
-
-  it('n’effectue aucune suppression lorsque la confirmation est refusée', async () => {
-    vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<App repositoryFactory={repositoryFactory} />)
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Supprimer Voyage alpha' }),
+      await screen.findByRole('button', { name: 'Plus d’options pour Voyage alpha' }),
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer Voyage alpha' }))
+    const confirmation = screen.getByRole('group', { name: 'Supprimer « Voyage alpha » ?' })
+    expect(confirmation).toHaveTextContent(/notes et checklists/i)
+    expect(repository.deleteTravel).not.toHaveBeenCalled()
+
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Supprimer définitivement' }))
+
+    await waitFor(() =>
+      expect(repository.deleteTravel).toHaveBeenCalledWith('travel-alpha'),
+    )
+    expect(await screen.findByText('« Voyage alpha » a été supprimé.')).toBeInTheDocument()
+    expect(screen.getByText('Votre carnet est vide')).toBeInTheDocument()
+  })
+
+  it('n’effectue aucune suppression lorsque la confirmation est annulée', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Plus d’options pour Voyage alpha' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer Voyage alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
 
     expect(repository.deleteTravel).not.toHaveBeenCalled()
-    confirm.mockRestore()
+    expect(screen.getByRole('button', { name: 'Ouvrir Voyage alpha' })).toBeInTheDocument()
+  })
+
+  it('met en avant le voyage le plus proche et liste les autres de façon compacte', async () => {
+    const pastEntry = { ...entry, travelId: 'travel-past', title: 'Voyage passé', startDate: '2026-05-01', endDate: '2026-05-03' }
+    const laterEntry = { ...entry, travelId: 'travel-later', title: 'Voyage lointain', startDate: '2027-03-01', endDate: '2027-03-05' }
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [pastEntry, laterEntry, entry],
+    })
+    render(
+      <App
+        repositoryFactory={repositoryFactory}
+        clock={{ now: () => new Date(2026, 8, 20, 12) }}
+      />,
+    )
+
+    const featured = await screen.findByRole('region', { name: 'Prochain voyage' })
+    expect(within(featured).getByRole('heading', { level: 3, name: 'Voyage alpha' }))
+      .toBeInTheDocument()
+    expect(within(featured).getByText('À venir')).toBeInTheDocument()
+
+    const others = screen.getByRole('region', { name: 'Autres voyages · 2' })
+    const rows = within(others).getAllByRole('listitem')
+    expect(rows.map((row) => within(row).getAllByRole('button')[0]))
+      .toEqual([
+        within(others).getByRole('button', { name: 'Ouvrir Voyage lointain' }),
+        within(others).getByRole('button', { name: 'Ouvrir Voyage passé' }),
+      ])
+  })
+
+  it('présente une barre compacte dont le bouton rond ouvre le sélecteur ZIP', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({ ok: true, value: [entry] })
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    const importButton = await screen.findByRole('button', { name: 'Importer un voyage' })
+    const input = screen.getByLabelText('Choisir un fichier ZIP')
+    const click = vi.spyOn(input, 'click')
+
+    fireEvent.click(importButton)
+
+    expect(click).toHaveBeenCalledOnce()
+    expect(screen.getByText('Disponible hors connexion')).toBeInTheDocument()
+  })
+
+  it('guide une première importation avec un langage simple', async () => {
+    render(<App repositoryFactory={repositoryFactory} />)
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Votre carnet est vide' }))
+      .toBeInTheDocument()
+    const steps = within(screen.getByRole('region', { name: 'Comment ça marche' }))
+      .getAllByRole('listitem')
+    expect(steps).toHaveLength(3)
+    expect(steps[0]).toHaveTextContent('Préparez le voyage avec la Fabrique')
+    expect(steps[1]).toHaveTextContent('Récupérez le fichier ZIP')
+    expect(steps[2]).toHaveTextContent('Importez-le ici')
+    expect(screen.getByText('Format accepté').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByLabelText('Choisir un fichier ZIP')).toHaveAccessibleDescription(
+      /25 Mio maximum/,
+    )
+    const principles = screen.getByRole('list', { name: 'Principes du carnet' })
+    expect(within(principles).getAllByRole('listitem').map((item) => item.textContent))
+      .toEqual([
+        expect.stringMatching(/^Sur l’appareil/),
+        expect.stringMatching(/^Hors connexion/),
+        expect.stringMatching(/^Sans compte/),
+      ])
+    expect(document.body).not.toHaveTextContent(/IndexedDB|ressources passives/)
   })
 })

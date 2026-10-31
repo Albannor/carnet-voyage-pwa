@@ -7,7 +7,9 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  findAccommodationForDate,
   findPlace,
+  getOverviewAnchorDate,
   getTodayState,
   type Clock,
 } from '../../application/travelConsultation'
@@ -20,6 +22,7 @@ import type {
   TravelIllustration,
   TravelLink,
   TravelReservation,
+  TravelVariant,
   TravelVariantKind,
 } from '../../domain/voyage/model'
 import {
@@ -30,6 +33,25 @@ import {
   type TravelPersonalState,
 } from '../../persistence/model'
 import { safeExternalHttpsUrl } from '../../services/travelActions'
+import {
+  CalendarIcon,
+  CheckIcon,
+  ChecklistIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  CompassIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  FileIcon,
+  HomeIcon,
+  InfoIcon,
+  ListIcon,
+  MapPinIcon,
+  SwapIcon,
+} from '../icons'
+import { daysBetween, formatTravelDates, travelDurationLabel } from '../travelDates'
+import { localTimeInTimeZone, stepProgress, type StepProgress } from './stepProgress'
 import {
   linksNotCarriedByIllustration,
   stepIllustrationLink,
@@ -66,7 +88,8 @@ interface TravelConsultationProps {
   noteSaveDelayMs?: number
   onNavigate(view: TravelView): void
   onBackToLibrary(): void
-  onCopyAddress(address: string, placeLabel: string): void
+  /** Résout à `true` lorsque l’adresse a été copiée. */
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
   onOpenDocument(document: TravelDocument): void
   onLoadIllustrationResource(
     travelId: string,
@@ -82,7 +105,7 @@ interface TravelConsultationProps {
 
 interface ActionProps {
   online: boolean
-  onCopyAddress(address: string, placeLabel: string): void
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
   onOpenDocument(document: TravelDocument): void
   onLoadIllustrationResource(
     travelId: string,
@@ -125,54 +148,27 @@ function formatCompactDate(date: string, locale: string) {
   }).format(new Date(`${date}T12:00:00Z`))
 }
 
-function dateRange(travel: Travel) {
-  return (
-    <>
-      <time dateTime={travel.period.start}>
-        {formatDate(travel.period.start, travel.locale)}
-      </time>
-      {' '}au{' '}
-      <time dateTime={travel.period.end}>
-        {formatDate(travel.period.end, travel.locale)}
-      </time>
-    </>
-  )
-}
-
 function illustrationById(travel: Travel, illustrationId: string) {
   return travel.illustrations.find((illustration) => illustration.id === illustrationId)
 }
 
-function LocalIllustration({
-  travelId,
-  illustration,
-  loading,
-  practicalLink,
-  practicalLinkContext,
-  online = true,
-  onLoadResource,
-}: {
-  travelId: string
-  illustration: TravelIllustration
-  loading?: 'lazy'
-  practicalLink?: TravelLink
-  practicalLinkContext?: string
-  online?: boolean
-  onLoadResource(
-    travelId: string,
-    resourceId: string,
-  ): Promise<IllustrationResourceLoadResult>
-}) {
-  const resourceKey = `${travelId}/${illustration.resourceId}`
-  const [resourceState, setResourceState] = useState<
-    | { readonly key: string; readonly status: 'ready'; readonly source: string }
-    | { readonly key: string; readonly status: 'failed' }
-  >()
+type LocalImageState =
+  | { readonly key: string; readonly status: 'ready'; readonly source: string }
+  | { readonly key: string; readonly status: 'failed' }
+
+/** Charge une image locale du voyage et révoque son URL d’objet au démontage. */
+function useLocalImageSource(
+  travelId: string,
+  resourceId: string,
+  onLoadResource: ActionProps['onLoadIllustrationResource'],
+) {
+  const resourceKey = `${travelId}/${resourceId}`
+  const [resourceState, setResourceState] = useState<LocalImageState>()
 
   useEffect(() => {
     let active = true
     let objectUrl: string | undefined
-    void onLoadResource(travelId, illustration.resourceId).then((result) => {
+    void onLoadResource(travelId, resourceId).then((result) => {
       if (!active) return
       if (!result.ok) {
         setResourceState({ key: resourceKey, status: 'failed' })
@@ -197,11 +193,36 @@ function LocalIllustration({
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [illustration.resourceId, onLoadResource, resourceKey, travelId])
+  }, [onLoadResource, resourceId, resourceKey, travelId])
 
-  const currentState = resourceState?.key === resourceKey
-    ? resourceState
-    : undefined
+  return resourceState?.key === resourceKey ? resourceState : undefined
+}
+
+function LocalIllustration({
+  travelId,
+  illustration,
+  loading,
+  practicalLink,
+  practicalLinkContext,
+  online = true,
+  onLoadResource,
+}: {
+  travelId: string
+  illustration: TravelIllustration
+  loading?: 'lazy'
+  practicalLink?: TravelLink
+  practicalLinkContext?: string
+  online?: boolean
+  onLoadResource(
+    travelId: string,
+    resourceId: string,
+  ): Promise<IllustrationResourceLoadResult>
+}) {
+  const currentState = useLocalImageSource(
+    travelId,
+    illustration.resourceId,
+    onLoadResource,
+  )
   const practicalHref = practicalLink
     ? safeExternalHttpsUrl(practicalLink.href)
     : undefined
@@ -247,7 +268,7 @@ function LocalIllustration({
           )}
           <span className="illustration-link-hint">
             {practicalLink!.label}
-            <span aria-hidden="true"> ↗</span>
+            <ExternalLinkIcon size={16} />
           </span>
         </a>
       ) : currentState?.status === 'ready' ? (
@@ -445,7 +466,7 @@ function ExternalLink({
         aria-label={`${link.label} pour ${context} — service externe, connexion requise`}
       >
         <span>{link.label}</span>
-        <span className="external-link-indicator" aria-hidden="true">↗</span>
+        <ExternalLinkIcon size={16} className="external-link-indicator" />
       </a>
     )
   }
@@ -472,13 +493,62 @@ function DocumentButton({
 }) {
   return (
     <button
-      className="document-button local-action"
+      className="document-button"
       type="button"
       aria-label={`Ouvrir le document ${document.label} pour ${context}`}
       onClick={() => onOpenDocument(document)}
     >
-      Ouvrir · {document.label}
+      <FileIcon size={18} />
+      <span>{document.label}</span>
     </button>
+  )
+}
+
+function CopyAddressButton({
+  address,
+  placeLabel,
+  targetLabel,
+  iconOnly = false,
+  onCopyAddress,
+}: {
+  address: string
+  placeLabel: string
+  targetLabel: string
+  iconOnly?: boolean
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
+}) {
+  const [result, setResult] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    if (result !== 'copied') return
+    const timer = window.setTimeout(() => setResult('idle'), 2500)
+    return () => window.clearTimeout(timer)
+  }, [result])
+
+  async function copy() {
+    setResult(await onCopyAddress(address, placeLabel) ? 'copied' : 'failed')
+  }
+
+  const copied = result === 'copied'
+  return (
+    <span className="copy-action">
+      <button
+        className={iconOnly ? 'copy-button copy-button-icon' : 'copy-button'}
+        type="button"
+        aria-label={`Copier l’adresse de ${targetLabel}`}
+        onClick={() => void copy()}
+      >
+        {copied ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
+        {!iconOnly && <span>{copied ? 'Adresse copiée' : 'Copier l’adresse'}</span>}
+      </button>
+      <span
+        className={result === 'failed' ? 'copy-feedback copy-feedback-error' : 'copy-feedback'}
+        role="status"
+      >
+        {copied && (iconOnly ? 'Adresse copiée' : <span className="visually-hidden">Adresse copiée</span>)}
+        {result === 'failed' && 'Copie impossible sur cet appareil'}
+      </span>
+    </span>
   )
 }
 
@@ -698,13 +768,260 @@ function NotesPanel({
   )
 }
 
-function Overview({
+function capitalize(text: string) {
+  return text.charAt(0).toLocaleUpperCase('fr-FR') + text.slice(1)
+}
+
+function formatDayHeading(date: string, locale: string) {
+  return capitalize(new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T12:00:00Z`)))
+}
+
+function formatDayParts(date: string, locale: string) {
+  const parts = new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).formatToParts(new Date(`${date}T12:00:00Z`))
+  return {
+    day: parts.find((part) => part.type === 'day')?.value ?? '',
+    weekday: parts.find((part) => part.type === 'weekday')?.value ?? '',
+  }
+}
+
+function TravelHero({
   travel,
-  onNavigate,
+  onBackToLibrary,
   onLoadIllustrationResource,
 }: {
   travel: Travel
+  onBackToLibrary(): void
+  onLoadIllustrationResource: ActionProps['onLoadIllustrationResource']
+}) {
+  const cover = travel.coverIllustrationId
+    ? illustrationById(travel, travel.coverIllustrationId)
+    : undefined
+
+  return (
+    <div className="travel-hero">
+      {cover ? (
+        <HeroCover
+          travelId={travel.id}
+          illustration={cover}
+          onLoadResource={onLoadIllustrationResource}
+        />
+      ) : (
+        <div className="travel-cover-fallback" aria-hidden="true">
+          <span className="travel-cover-sun" />
+        </div>
+      )}
+      <BackToLibraryButton className="travel-hero-back" onBackToLibrary={onBackToLibrary} />
+    </div>
+  )
+}
+
+function HeroCover({
+  travelId,
+  illustration,
+  onLoadResource,
+}: {
+  travelId: string
+  illustration: TravelIllustration
+  onLoadResource: ActionProps['onLoadIllustrationResource']
+}) {
+  const image = useLocalImageSource(travelId, illustration.resourceId, onLoadResource)
+
+  return (
+    <figure className="travel-hero-figure">
+      {image?.status === 'ready' ? (
+        <img src={image.source} alt={illustration.alt} />
+      ) : (
+        <div className="travel-cover-fallback">
+          <span className="travel-cover-sun" aria-hidden="true" />
+          <span className="visually-hidden" role="status">
+            {image?.status === 'failed'
+              ? `Illustration locale indisponible : ${illustration.alt}`
+              : 'Chargement de l’illustration locale…'}
+          </span>
+        </div>
+      )}
+      {illustration.caption && (
+        <figcaption className="travel-hero-caption">{illustration.caption}</figcaption>
+      )}
+    </figure>
+  )
+}
+
+function BackToLibraryButton({
+  className,
+  onBackToLibrary,
+}: {
+  className?: string
+  onBackToLibrary(): void
+}) {
+  return (
+    <button
+      className={`round-button round-button-paper${className ? ` ${className}` : ''}`}
+      type="button"
+      aria-label="Retour à la bibliothèque"
+      onClick={onBackToLibrary}
+    >
+      <ChevronLeftIcon size={22} />
+    </button>
+  )
+}
+
+function TimelinessCard({
+  travel,
+  clock,
+  onNavigate,
+}: {
+  travel: Travel
+  clock: Clock
   onNavigate(view: TravelView): void
+}) {
+  const today = getTodayState(travel, clock)
+  const firstDay = travel.days[0]
+  const firstDayView: TravelView | undefined = firstDay
+    ? { kind: 'day', dayId: firstDay.id }
+    : undefined
+
+  let label: string
+  let detail: string | undefined
+  let action: { label: string; view: TravelView } | undefined
+  if (today.status === 'day') {
+    label = 'Aujourd’hui'
+    detail = `${formatDayHeading(today.day.date, travel.locale)} · ${today.day.title}`
+    action = { label: 'Voir la journée', view: { kind: 'today' } }
+  } else if (today.status === 'before') {
+    const remaining = daysBetween(today.date, travel.period.start)
+    label = remaining === 1 ? 'Départ demain' : `Départ dans ${remaining} jours`
+    detail = firstDay
+      ? `${formatDayHeading(firstDay.date, travel.locale)} · ${firstDay.title}`
+      : undefined
+    action = firstDayView && { label: 'Voir le programme', view: firstDayView }
+  } else if (today.status === 'after') {
+    label = 'Voyage terminé'
+    detail = 'Le programme, les documents et vos notes restent disponibles.'
+    action = firstDayView && { label: 'Revoir le programme', view: firstDayView }
+  } else {
+    label = 'Aujourd’hui'
+    detail = 'Aucune journée n’est prévue à cette date dans le programme.'
+    action = firstDay && { label: 'Voir le programme', view: { kind: 'today' } }
+  }
+
+  return (
+    <section className="timeliness-card" aria-labelledby="timeliness-title">
+      <h2 id="timeliness-title" className="timeliness-label">{label}</h2>
+      {detail && <p className="timeliness-detail">{detail}</p>}
+      {action && (
+        <button
+          className="primary-button timeliness-action"
+          type="button"
+          onClick={() => onNavigate(action.view)}
+        >
+          {action.label}
+          <ChevronRightIcon />
+        </button>
+      )}
+    </section>
+  )
+}
+
+function OverviewDays({
+  travel,
+  onNavigate,
+}: {
+  travel: Travel
+  onNavigate(view: TravelView): void
+}) {
+  if (travel.days.length === 0) return null
+  return (
+    <section className="overview-days" aria-labelledby="overview-days-title">
+      <h2 id="overview-days-title" className="section-label section-label-muted">
+        {travel.days.length === 1 ? 'La journée' : `Les ${travel.days.length} journées`}
+      </h2>
+      <ul className="overview-day-list">
+        {travel.days.map((day) => {
+          const parts = formatDayParts(day.date, travel.locale)
+          return (
+            <li key={day.id}>
+              <button
+                className="overview-day"
+                type="button"
+                onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
+              >
+                <span className="overview-day-date" aria-hidden="true">
+                  <span>{parts.day}</span>
+                  <span>{parts.weekday}</span>
+                </span>
+                <span className="overview-day-text">
+                  <span className="visually-hidden">{formatDate(day.date, travel.locale)} : </span>
+                  <span className="overview-day-title">{day.title}</span>
+                  {day.summary && <span className="overview-day-summary">{day.summary}</span>}
+                </span>
+                <ChevronRightIcon className="overview-day-chevron" />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+function OverviewAccommodation({
+  travel,
+  clock,
+  onCopyAddress,
+}: {
+  travel: Travel
+  clock: Clock
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
+}) {
+  const anchor = findAccommodationForDate(travel, getOverviewAnchorDate(travel, clock))
+  if (!anchor) return null
+  const { accommodation, place } = anchor
+  // L’adresse complète reste dans Pratique ; l’aperçu ne garde que le repère.
+  const location = place && place.label !== accommodation.label ? place.label : undefined
+
+  return (
+    <section className="overview-stay" aria-labelledby="overview-stay-title">
+      <span className="overview-stay-icon" aria-hidden="true"><HomeIcon size={22} /></span>
+      <div className="overview-stay-text">
+        <h2 id="overview-stay-title" className="overview-stay-title">{accommodation.label}</h2>
+        {location && <p>{location}</p>}
+      </div>
+      {place?.address && (
+        <CopyAddressButton
+          address={place.address}
+          placeLabel={place.label}
+          targetLabel={accommodation.label}
+          iconOnly
+          onCopyAddress={onCopyAddress}
+        />
+      )}
+    </section>
+  )
+}
+
+function Overview({
+  travel,
+  clock,
+  onNavigate,
+  onBackToLibrary,
+  onCopyAddress,
+  onLoadIllustrationResource,
+}: {
+  travel: Travel
+  clock: Clock
+  onNavigate(view: TravelView): void
+  onBackToLibrary(): void
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
   onLoadIllustrationResource: ActionProps['onLoadIllustrationResource']
 }) {
   const datedReservations = [...travel.reservations]
@@ -715,48 +1032,56 @@ function Overview({
       )
     ))
     .slice(0, 4)
-  const coverIds = travel.coverIllustrationId ? [travel.coverIllustrationId] : []
 
   return (
-    <div className="consultation-view overview-view" aria-labelledby="travel-summary-title">
-      <IllustrationCollection
+    <div className="consultation-view overview-view">
+      <TravelHero
         travel={travel}
-        illustrationIds={coverIds}
-        cover
-        onLoadResource={onLoadIllustrationResource}
+        onBackToLibrary={onBackToLibrary}
+        onLoadIllustrationResource={onLoadIllustrationResource}
       />
-      <header className="overview-header">
-        <p className="section-label">Vue d’ensemble</p>
-        <h2 id="travel-summary-title">{travel.title}</h2>
-        <p className="travel-context">
-          <strong>{travel.destination.label}</strong>
-          <span>{dateRange(travel)}</span>
-        </p>
-        <p className="travel-summary">{travel.summary}</p>
-      </header>
-      <div className="overview-actions">
-        <button
-          className="primary-button"
-          type="button"
-          onClick={() => onNavigate({ kind: 'today' })}
-        >
-          Voir le programme d’aujourd’hui
-        </button>
+      <div className="overview-sheet">
+        <header className="overview-header">
+          <h1 id="travel-summary-title" className="travel-title">{travel.title}</h1>
+          <p className="overview-destination">
+            <MapPinIcon size={18} className="icon-accent" />
+            {travel.destination.label}
+          </p>
+          <div className="overview-chips">
+            <span className="status-pill status-pill-sage">
+              <CalendarIcon size={15} />
+              <span className="visually-hidden">Dates : </span>
+              <time dateTime={travel.period.start}>
+                {formatTravelDates(travel.period.start, travel.period.end)}
+              </time>
+            </span>
+            <span className="status-pill status-pill-neutral">
+              <ClockIcon size={15} />
+              {travelDurationLabel(travel.period.start, travel.period.end)}
+            </span>
+          </div>
+          <p className="travel-summary">{travel.summary}</p>
+        </header>
+        <TimelinessCard travel={travel} clock={clock} onNavigate={onNavigate} />
+        <OverviewDays travel={travel} onNavigate={onNavigate} />
+        <OverviewAccommodation travel={travel} clock={clock} onCopyAddress={onCopyAddress} />
+        {datedReservations.length > 0 && (
+          <section className="overview-highlights" aria-labelledby="overview-highlights-title">
+            <h2 id="overview-highlights-title" className="section-label section-label-muted">
+              À retenir
+            </h2>
+            <ol>
+              {datedReservations.map((reservation) => (
+                <li key={reservation.id}>
+                  <time dateTime={reservation.date}>{formatCompactDate(reservation.date!, travel.locale)}</time>
+                  {reservation.time && <span>{reservation.time}</span>}
+                  <strong>{reservation.label}</strong>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
-      {datedReservations.length > 0 && (
-        <section className="overview-highlights" aria-labelledby="overview-highlights-title">
-          <h3 id="overview-highlights-title">À retenir</h3>
-          <ol>
-            {datedReservations.map((reservation) => (
-              <li key={reservation.id}>
-                <time dateTime={reservation.date}>{formatCompactDate(reservation.date!, travel.locale)}</time>
-                {reservation.time && <span>{reservation.time}</span>}
-                <strong>{reservation.label}</strong>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
     </div>
   )
 }
@@ -771,18 +1096,14 @@ function programTarget(travel: Travel, clock: Clock): TravelView {
 function DaySelector({
   travel,
   selectedDayId,
+  todayDayId,
   onNavigate,
 }: {
   travel: Travel
   selectedDayId?: string
+  todayDayId?: string
   onNavigate(view: TravelView): void
 }) {
-  const selectedIndex = travel.days.findIndex((day) => day.id === selectedDayId)
-  const previous = selectedIndex > 0 ? travel.days[selectedIndex - 1] : undefined
-  const next = selectedIndex >= 0 && selectedIndex < travel.days.length - 1
-    ? travel.days[selectedIndex + 1]
-    : undefined
-
   function handleArrowNavigation(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
     const direction = event.key === 'ArrowLeft' ? -1 : 1
@@ -794,51 +1115,73 @@ function DaySelector({
 
   if (travel.days.length === 0) return null
   return (
-    <div className="program-navigation">
-      <nav className="day-selector" aria-label="Choisir une journée">
-        <ol>
-          {travel.days.map((day, index) => {
-            const selected = day.id === selectedDayId
-            return (
-              <li key={day.id}>
-                <button
-                  className={selected ? 'day-choice day-choice-active' : 'day-choice'}
-                  type="button"
-                  aria-current={selected ? 'page' : undefined}
-                  aria-label={`${formatDate(day.date, travel.locale)} — ${day.title}`}
-                  onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
-                  onKeyDown={(event) => handleArrowNavigation(event, index)}
-                >
-                  <span>{formatCompactDate(day.date, travel.locale)}</span>
-                  <strong>{day.title}</strong>
-                  {selected && <em>Journée active</em>}
-                </button>
-              </li>
-            )
-          })}
-        </ol>
-      </nav>
-      <nav className="adjacent-day-controls" aria-label="Journée précédente et suivante">
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={!previous}
-          aria-label={previous ? `Journée précédente : ${previous.title}` : 'Aucune journée précédente'}
-          onClick={() => previous && onNavigate({ kind: 'day', dayId: previous.id })}
-        >
-          Précédent
-        </button>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={!next}
-          aria-label={next ? `Journée suivante : ${next.title}` : 'Aucune journée suivante'}
-          onClick={() => next && onNavigate({ kind: 'day', dayId: next.id })}
-        >
-          Suivant
-        </button>
-      </nav>
-    </div>
+    <nav className="day-selector" aria-label="Choisir une journée">
+      <ol>
+        {travel.days.map((day, index) => {
+          const selected = day.id === selectedDayId
+          const isToday = day.id === todayDayId
+          const parts = formatDayParts(day.date, travel.locale)
+          return (
+            <li key={day.id}>
+              <button
+                className={selected ? 'day-choice day-choice-active' : 'day-choice'}
+                type="button"
+                aria-current={selected ? 'page' : undefined}
+                aria-label={`${formatDate(day.date, travel.locale)}${isToday ? ' (aujourd’hui)' : ''} — ${day.title}`}
+                onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
+                onKeyDown={(event) => handleArrowNavigation(event, index)}
+              >
+                <span className="day-choice-weekday">{parts.weekday}</span>
+                <span className="day-choice-number">{parts.day}</span>
+                {isToday && <span className="day-choice-today" />}
+                {selected && <span className="visually-hidden">Journée active</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
+function AdjacentDayControls({
+  travel,
+  selectedDayId,
+  onNavigate,
+}: {
+  travel: Travel
+  selectedDayId: string
+  onNavigate(view: TravelView): void
+}) {
+  const selectedIndex = travel.days.findIndex((day) => day.id === selectedDayId)
+  const previous = selectedIndex > 0 ? travel.days[selectedIndex - 1] : undefined
+  const next = selectedIndex >= 0 && selectedIndex < travel.days.length - 1
+    ? travel.days[selectedIndex + 1]
+    : undefined
+
+  return (
+    <nav className="adjacent-day-controls" aria-label="Journée précédente et suivante">
+      <button
+        className="secondary-button"
+        type="button"
+        disabled={!previous}
+        aria-label={previous ? `Journée précédente : ${previous.title}` : 'Aucune journée précédente'}
+        onClick={() => previous && onNavigate({ kind: 'day', dayId: previous.id })}
+      >
+        <ChevronLeftIcon />
+        Précédent
+      </button>
+      <button
+        className="secondary-button"
+        type="button"
+        disabled={!next}
+        aria-label={next ? `Journée suivante : ${next.title}` : 'Aucune journée suivante'}
+        onClick={() => next && onNavigate({ kind: 'day', dayId: next.id })}
+      >
+        Suivant
+        <ChevronRightIcon />
+      </button>
+    </nav>
   )
 }
 
@@ -914,15 +1257,68 @@ function ContextualLinkList({
   )
 }
 
+function dayVariants(travel: Travel, day: TravelDay) {
+  const stepIds = new Set(day.steps.map((step) => step.id))
+  return travel.variants.filter((variant) => (
+    variant.kind !== 'standard'
+    && (
+      variant.target.type === 'day'
+        ? variant.target.dayId === day.id
+        : stepIds.has(variant.target.stepId)
+    )
+  ))
+}
+
+function planBElementId(variantId: string) {
+  return `plan-b-${variantId}`
+}
+
+/** Mène depuis l’étape ou la journée vers l’alternative regroupée dans Plans B. */
+function PlanBHint({
+  variants,
+  context,
+}: {
+  variants: readonly TravelVariant[]
+  context: string
+}) {
+  const [first] = variants
+  if (!first) return null
+  return (
+    <button
+      className="plan-b-hint"
+      type="button"
+      aria-label={`Voir le plan B prévu pour ${context}`}
+      onClick={() => {
+        const target = document.getElementById(planBElementId(first.id))
+        target?.scrollIntoView?.({ block: 'center' })
+        target?.focus()
+      }}
+    >
+      <SwapIcon size={18} />
+      <span>
+        <strong>Plan B</strong> prévu{variants.length > 1 ? ` · ${variants.length} options` : ''}
+      </span>
+      <span className="plan-b-hint-action" aria-hidden="true">Voir</span>
+    </button>
+  )
+}
+
+const STEP_PROGRESS_BADGES: Partial<Record<StepProgress, string>> = {
+  current: 'En cours',
+  next: 'Prochaine étape',
+}
+
 function Timeline({
   travel,
   day,
+  progress,
   personalState,
   onNavigate,
   ...actions
 }: {
   travel: Travel
   day: TravelDay
+  progress?: readonly StepProgress[]
   personalState: PersonalStateProps
   onNavigate(view: TravelView): void
 } & ActionProps) {
@@ -933,7 +1329,7 @@ function Timeline({
         <p className="empty-state">Aucune étape n’est renseignée pour cette journée.</p>
       ) : (
         <ol className="timeline">
-          {day.steps.map((step) => {
+          {day.steps.map((step, index) => {
             const place = findPlace(travel, step.placeId)
             const contextualLinks = uniqueContextualLinks(step.links, place?.links)
             const hasLocalIllustration = step.illustrationIds.some(
@@ -952,9 +1348,21 @@ function Timeline({
               (checklist) => checklist.target.type === 'step'
                 && checklist.target.stepId === step.id,
             )
+            const stepVariants = travel.variants.filter(
+              (variant) => variant.kind !== 'standard'
+                && variant.target.type === 'step'
+                && variant.target.stepId === step.id,
+            )
+            const stepState = progress?.[index] ?? 'upcoming'
+            const badge = STEP_PROGRESS_BADGES[stepState]
             return (
-              <li key={step.id}>
-                <article aria-labelledby={`step-${step.id}`}>
+              <li key={step.id} className={`timeline-step timeline-step-${stepState}`}>
+                <span className="timeline-dot" aria-hidden="true">
+                  {stepState === 'done' && <CheckIcon size={14} />}
+                </span>
+                <article className="step-content" aria-labelledby={`step-${step.id}`}>
+                  {badge && <p className="step-badge">{badge}</p>}
+                  {stepState === 'done' && <p className="visually-hidden">Étape passée</p>}
                   <p className="step-time">
                     {step.startsAt ? (
                       <>
@@ -970,52 +1378,52 @@ function Timeline({
                       'Sans horaire'
                     )}
                   </p>
-                  <div className="step-content">
-                    <h4 id={`step-${step.id}`}>{step.title}</h4>
-                    {step.description && <p>{step.description}</p>}
-                    {place && (
-                      <p className="step-place">
-                        <strong>Lieu</strong>
-                        <span>{place.label}</span>
-                      </p>
-                    )}
-                    <IllustrationCollection
-                      travel={travel}
-                      illustrationIds={step.illustrationIds}
-                      practicalLink={illustrationLink}
-                      practicalLinkContext={step.title}
-                      online={actions.online}
-                      onLoadResource={actions.onLoadIllustrationResource}
-                    />
-                    <ContextualLinkList
-                      links={remainingLinks}
-                      online={actions.online}
-                      context={step.title}
-                    />
-                    {step.accommodationId && (
-                      <button
-                        className="text-button"
-                        type="button"
-                        aria-label={`Voir l’hébergement associé à ${step.title}`}
-                        onClick={() => onNavigate({ kind: 'practical' })}
-                      >
-                        Voir l’hébergement
-                      </button>
-                    )}
-                    <ChecklistCollection
-                      checklists={stepChecklists}
-                      {...personalState}
-                    />
-                    <StepRelatedContent
-                      travel={travel}
-                      context={step.title}
-                      documents={documents}
-                      reservations={reservations}
-                      online={actions.online}
-                      onOpenDocument={actions.onOpenDocument}
-                      excludedDocumentIds={new Set(step.documentIds)}
-                    />
-                  </div>
+                  <h4 id={`step-${step.id}`}>{step.title}</h4>
+                  {step.description && <p className="step-description">{step.description}</p>}
+                  {place && (
+                    <p className="step-place">
+                      <MapPinIcon size={16} />
+                      <span className="visually-hidden">Lieu : </span>
+                      <span>{place.label}</span>
+                    </p>
+                  )}
+                  <IllustrationCollection
+                    travel={travel}
+                    illustrationIds={step.illustrationIds}
+                    practicalLink={illustrationLink}
+                    practicalLinkContext={step.title}
+                    online={actions.online}
+                    onLoadResource={actions.onLoadIllustrationResource}
+                  />
+                  <ContextualLinkList
+                    links={remainingLinks}
+                    online={actions.online}
+                    context={step.title}
+                  />
+                  {step.accommodationId && (
+                    <button
+                      className="text-button"
+                      type="button"
+                      aria-label={`Voir l’hébergement associé à ${step.title}`}
+                      onClick={() => onNavigate({ kind: 'practical' })}
+                    >
+                      Voir l’hébergement
+                    </button>
+                  )}
+                  <PlanBHint variants={stepVariants} context={step.title} />
+                  <ChecklistCollection
+                    checklists={stepChecklists}
+                    {...personalState}
+                  />
+                  <StepRelatedContent
+                    travel={travel}
+                    context={step.title}
+                    documents={documents}
+                    reservations={reservations}
+                    online={actions.online}
+                    onOpenDocument={actions.onOpenDocument}
+                    excludedDocumentIds={new Set(step.documentIds)}
+                  />
                 </article>
               </li>
             )
@@ -1033,30 +1441,34 @@ function PlansB({
   travel: Travel
   day: TravelDay
 }) {
-  const stepIds = new Set(day.steps.map((step) => step.id))
-  const variants = travel.variants.filter((variant) => (
-    variant.kind !== 'standard'
-    && (
-      variant.target.type === 'day'
-        ? variant.target.dayId === day.id
-        : stepIds.has(variant.target.stepId)
-    )
-  ))
+  const variants = dayVariants(travel, day)
   if (variants.length === 0) return null
 
   return (
-    <details className="day-complement plans-b">
-      <summary>Plans B</summary>
+    <section className="plans-b" aria-labelledby={`plans-b-${day.id}`}>
+      <h3 id={`plans-b-${day.id}`}>Plans B</h3>
       <ul>
-        {variants.map((variant) => (
-          <li key={variant.id}>
-            <p className="card-label">{VARIANT_LABELS[variant.kind]}</p>
-            <strong>{variant.label}</strong>
-            <p>{variant.description}</p>
-          </li>
-        ))}
+        {variants.map((variant) => {
+          const { target } = variant
+          const targetStep = target.type === 'step'
+            ? day.steps.find((step) => step.id === target.stepId)
+            : undefined
+          return (
+            <li key={variant.id} id={planBElementId(variant.id)} tabIndex={-1}>
+              <p className="plan-b-kind">
+                <SwapIcon size={16} />
+                {VARIANT_LABELS[variant.kind]}
+              </p>
+              <strong>{variant.label}</strong>
+              <p>{variant.description}</p>
+              <p className="plan-b-target">
+                {targetStep ? `Remplace ou complète : ${targetStep.title}` : 'Pour toute la journée'}
+              </p>
+            </li>
+          )
+        })}
       </ul>
-    </details>
+    </section>
   )
 }
 
@@ -1076,15 +1488,7 @@ function DayComplements({
   )
   const documents = documentsById(travel, day.documentIds)
   const reservations = reservationsById(travel, day.reservationIds)
-  const stepIds = new Set(day.steps.map((step) => step.id))
-  const hasVariants = travel.variants.some((variant) => (
-    variant.kind !== 'standard'
-    && (
-      variant.target.type === 'day'
-        ? variant.target.dayId === day.id
-        : stepIds.has(variant.target.stepId)
-    )
-  ))
+  const hasVariants = dayVariants(travel, day).length > 0
   const hasDirectDetails = documents.length > 0 || reservations.length > 0
 
   if (
@@ -1133,30 +1537,81 @@ function DayComplements({
   )
 }
 
+/** Hébergement de la date, rappelé comme repère sans répéter sa fiche. */
+function DayAnchor({
+  travel,
+  day,
+  onCopyAddress,
+}: {
+  travel: Travel
+  day: TravelDay
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
+}) {
+  const anchor = findAccommodationForDate(travel, day.date)
+  if (!anchor) return null
+  const { accommodation, place } = anchor
+  const arrival = accommodation.period.start === day.date
+
+  return (
+    <div className="day-anchor">
+      <HomeIcon size={20} className="day-anchor-icon" />
+      <p className="day-anchor-text">
+        {arrival ? 'Hébergement' : 'Départ'} : <strong>{accommodation.label}</strong>
+      </p>
+      {place?.address && (
+        <CopyAddressButton
+          address={place.address}
+          placeLabel={place.label}
+          targetLabel={accommodation.label}
+          iconOnly
+          onCopyAddress={onCopyAddress}
+        />
+      )}
+    </div>
+  )
+}
+
 function DayDetail({
   travel,
   day,
+  isToday,
+  progress,
   personalState,
   onNavigate,
-  headingPrefix,
   ...actions
 }: {
   travel: Travel
   day: TravelDay
+  isToday: boolean
+  progress?: readonly StepProgress[]
   personalState: PersonalStateProps
   onNavigate(view: TravelView): void
-  headingPrefix?: string
 } & ActionProps) {
+  const dayLevelVariants = travel.variants.filter(
+    (variant) => variant.kind !== 'standard'
+      && variant.target.type === 'day'
+      && variant.target.dayId === day.id,
+  )
+
   return (
     <div className="program-layout">
       <div className="program-main">
         <header className="day-header">
-          <p className="section-label">{headingPrefix ?? 'Programme'}</p>
-          <p className="day-heading-date">
-            <time dateTime={day.date}>{formatDate(day.date, travel.locale)}</time>
-          </p>
-          <h2 id="day-title">{day.title}</h2>
-          {day.summary && <p className="travel-summary">{day.summary}</p>}
+          <div className="day-heading-meta">
+            {isToday && (
+              <span className="status-pill status-pill-terracotta">
+                <ClockIcon size={15} />
+                Aujourd’hui sur place
+              </span>
+            )}
+            <p className="day-heading-date">
+              <time dateTime={day.date}>{capitalize(formatDate(day.date, travel.locale))}</time>
+            </p>
+          </div>
+          <h2 id="day-title" className="day-title">{day.title}</h2>
+          {day.summary && <p className="day-summary">{day.summary}</p>}
+          <DayAnchor travel={travel} day={day} onCopyAddress={actions.onCopyAddress} />
+          <PlanBHint variants={dayLevelVariants} context="cette journée" />
           <IllustrationCollection
             travel={travel}
             illustrationIds={day.illustrationIds}
@@ -1168,10 +1623,12 @@ function DayDetail({
         <Timeline
           travel={travel}
           day={day}
+          progress={progress}
           personalState={personalState}
           onNavigate={onNavigate}
           {...actions}
         />
+        <AdjacentDayControls travel={travel} selectedDayId={day.id} onNavigate={onNavigate} />
       </div>
       <DayComplements
         travel={travel}
@@ -1198,11 +1655,25 @@ function ProgramView({
   onNavigate(view: TravelView): void
 } & ActionProps) {
   const today = getTodayState(travel, clock)
+  const todayDayId = today.status === 'day' ? today.day.id : undefined
   const day = view.kind === 'day'
     ? travel.days.find((candidate) => candidate.id === view.dayId)
     : today.status === 'day'
       ? today.day
       : undefined
+  const isToday = Boolean(day && day.id === todayDayId)
+  const [, setMinuteTick] = useState(0)
+
+  // La progression du jour suit l’heure tant que la journée reste affichée.
+  useEffect(() => {
+    if (!isToday) return
+    const timer = window.setInterval(() => setMinuteTick((tick) => tick + 1), 60_000)
+    return () => window.clearInterval(timer)
+  }, [isToday])
+
+  const progress = day && isToday
+    ? stepProgress(day.steps, localTimeInTimeZone(clock.now(), travel.timeZone))
+    : undefined
 
   let statusMessage: string | undefined
   if (view.kind === 'today' && today.status !== 'day') {
@@ -1215,10 +1686,7 @@ function ProgramView({
 
   return (
     <div className="consultation-view program-view" aria-labelledby="program-title">
-      <header className="section-heading">
-        <p className="section-label">Programme</p>
-        <h2 id="program-title">Journées du voyage</h2>
-      </header>
+      <h2 id="program-title" className="visually-hidden">Programme</h2>
       {travel.days.length === 0 ? (
         <p className="empty-state">Ce voyage ne contient aucune journée.</p>
       ) : (
@@ -1226,6 +1694,7 @@ function ProgramView({
           <DaySelector
             travel={travel}
             selectedDayId={day?.id}
+            todayDayId={todayDayId}
             onNavigate={onNavigate}
           />
           {statusMessage && (
@@ -1235,8 +1704,9 @@ function ProgramView({
             <DayDetail
               travel={travel}
               day={day}
+              isToday={isToday}
+              progress={progress}
               personalState={personalState}
-              headingPrefix={view.kind === 'today' ? 'Aujourd’hui' : undefined}
               onNavigate={onNavigate}
               {...actions}
             />
@@ -1270,7 +1740,7 @@ function AccommodationDetails({
   travel: Travel
   accommodation: TravelAccommodation
   online: boolean
-  onCopyAddress(address: string, placeLabel: string): void
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
   onOpenDocument(document: TravelDocument): void
 }) {
   const place = findPlace(travel, accommodation.placeId)
@@ -1300,14 +1770,12 @@ function AccommodationDetails({
       {place?.address && (
         <>
           <address>{place.address}</address>
-          <button
-            className="text-button"
-            type="button"
-            aria-label={`Copier l’adresse de ${accommodation.label}`}
-            onClick={() => onCopyAddress(place.address!, place.label)}
-          >
-            Copier l’adresse
-          </button>
+          <CopyAddressButton
+            address={place.address}
+            placeLabel={place.label}
+            targetLabel={accommodation.label}
+            onCopyAddress={onCopyAddress}
+          />
         </>
       )}
       {place && place.links.length > 0 && (
@@ -1360,7 +1828,7 @@ function PracticalView({
 }: {
   travel: Travel
   online: boolean
-  onCopyAddress(address: string, placeLabel: string): void
+  onCopyAddress(address: string, placeLabel: string): Promise<boolean>
   onOpenDocument(document: TravelDocument): void
 }) {
   const accommodationPlaceIds = new Set(
@@ -1395,7 +1863,7 @@ function PracticalView({
   return (
     <div className="consultation-view practical-view" aria-labelledby="practical-title">
       <header className="section-heading">
-        <p className="section-label">Infos pratiques</p>
+        <p className="section-label">Pratique</p>
         <h2 id="practical-title">Repères et documents utiles</h2>
         <p>Les informations stables du voyage sont regroupées ici pour éviter leur répétition dans le programme.</p>
       </header>
@@ -1594,8 +2062,8 @@ function PreparationView({
 }
 
 function viewLabel(view: TravelView, travel: Travel) {
-  if (view.kind === 'summary') return 'Vue d’ensemble'
-  if (view.kind === 'practical') return 'Infos pratiques'
+  if (view.kind === 'summary') return 'Aperçu'
+  if (view.kind === 'practical') return 'Pratique'
   if (view.kind === 'preparation') return 'Préparation'
   if (view.kind === 'today') return 'Programme d’aujourd’hui'
   const dayTitle = travel.days.find((day) => day.id === view.dayId)?.title
@@ -1632,6 +2100,22 @@ export function TravelConsultation({
     ? { kind: 'summary' } as const
     : view
   const programActive = safeView.kind === 'day' || safeView.kind === 'today'
+  const workspaceRef = useRef<HTMLElement>(null)
+  const todayState = getTodayState(travel, clock)
+  const programDay = safeView.kind === 'day'
+    ? selectedDay
+    : safeView.kind === 'today' && todayState.status === 'day'
+      ? todayState.day
+      : undefined
+  const programDayIndex = programDay ? travel.days.indexOf(programDay) : -1
+  const viewKey = safeView.kind === 'day' ? `day:${safeView.dayId}` : safeView.kind
+  const previousViewKey = useRef(viewKey)
+
+  useEffect(() => {
+    if (previousViewKey.current === viewKey) return
+    previousViewKey.current = viewKey
+    workspaceRef.current?.scrollIntoView?.({ block: 'start' })
+  }, [viewKey])
   const actions = {
     online,
     onCopyAddress,
@@ -1680,53 +2164,39 @@ export function TravelConsultation({
     },
   }
 
+  const sections: readonly {
+    readonly label: string
+    readonly icon: typeof CompassIcon
+    readonly active: boolean
+    readonly target: () => TravelView
+  }[] = [
+    { label: 'Aperçu', icon: CompassIcon, active: safeView.kind === 'summary', target: () => ({ kind: 'summary' }) },
+    { label: 'Programme', icon: ListIcon, active: programActive, target: () => programTarget(travel, clock) },
+    { label: 'Pratique', icon: InfoIcon, active: safeView.kind === 'practical', target: () => ({ kind: 'practical' }) },
+    { label: 'Préparation', icon: ChecklistIcon, active: safeView.kind === 'preparation', target: () => ({ kind: 'preparation' }) },
+  ]
+
   return (
-    <section className="foundation travel-workspace" aria-label={`Voyage ${travel.title}`}>
-      <div className="travel-toolbar">
-        <button
-          className="secondary-button back-to-library"
-          type="button"
-          onClick={onBackToLibrary}
-        >
-          Retour à la bibliothèque
-        </button>
-        <nav className="travel-section-navigation" aria-label="Sections du voyage">
-          <button
-            type="button"
-            aria-current={safeView.kind === 'summary' ? 'page' : undefined}
-            onClick={() => onNavigate({ kind: 'summary' })}
-          >
-            Vue d’ensemble
-          </button>
-          <button
-            type="button"
-            aria-current={programActive ? 'page' : undefined}
-            onClick={() => onNavigate(programTarget(travel, clock))}
-          >
-            Programme
-          </button>
-          <button
-            type="button"
-            aria-current={safeView.kind === 'practical' ? 'page' : undefined}
-            onClick={() => onNavigate({ kind: 'practical' })}
-          >
-            Infos pratiques
-          </button>
-          <button
-            type="button"
-            aria-current={safeView.kind === 'preparation' ? 'page' : undefined}
-            onClick={() => onNavigate({ kind: 'preparation' })}
-          >
-            Préparation
-          </button>
-        </nav>
-      </div>
-      <p className="active-view" role="status" aria-live="polite">
+    <section ref={workspaceRef} className="travel-workspace" aria-label={`Voyage ${travel.title}`}>
+      {safeView.kind !== 'summary' && (
+        <header className="travel-topbar">
+          <BackToLibraryButton onBackToLibrary={onBackToLibrary} />
+          <div className="travel-topbar-text">
+            <h1 className="travel-topbar-title">{travel.title}</h1>
+            {programDayIndex >= 0 && (
+              <p className="travel-topbar-subtitle">
+                Jour {programDayIndex + 1} sur {travel.days.length}
+              </p>
+            )}
+          </div>
+        </header>
+      )}
+      <p className="visually-hidden" role="status" aria-live="polite">
         Section active : {viewLabel(safeView, travel)}
       </p>
       {actionFeedback && (
         <p
-          className={`action-message ${actionFeedback.status === 'error'
+          className={`action-message travel-feedback ${actionFeedback.status === 'error'
             ? 'action-error'
             : 'action-success'}`}
           role={actionFeedback.status === 'error' ? 'alert' : 'status'}
@@ -1737,7 +2207,10 @@ export function TravelConsultation({
       {safeView.kind === 'summary' && (
         <Overview
           travel={travel}
+          clock={clock}
           onNavigate={onNavigate}
+          onBackToLibrary={onBackToLibrary}
+          onCopyAddress={onCopyAddress}
           onLoadIllustrationResource={onLoadIllustrationResource}
         />
       )}
@@ -1770,6 +2243,25 @@ export function TravelConsultation({
           onSaveNote={onSaveNote}
         />
       )}
+      <nav className="travel-bottom-nav" aria-label="Sections du voyage">
+        <ul>
+          {sections.map(({ label, icon: SectionIcon, active, target }) => (
+            <li key={label}>
+              <button
+                className="travel-nav-button"
+                type="button"
+                aria-current={active ? 'page' : undefined}
+                onClick={() => onNavigate(target())}
+              >
+                <span className="travel-nav-icon" aria-hidden="true">
+                  <SectionIcon size={22} />
+                </span>
+                <span>{label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </section>
   )
 }

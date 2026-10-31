@@ -8,7 +8,7 @@ export const pwaBuildOptions: Partial<VitePWAOptions> = {
   workbox: {
     cacheId: 'carnet-voyage-shell',
     cleanupOutdatedCaches: true,
-    globPatterns: ['**/*.{html,js,css,png,svg,webmanifest}'],
+    globPatterns: ['**/*.{html,js,css,png,svg,woff2,webmanifest}'],
     globIgnores: ['manifest.webmanifest'],
     navigateFallback: 'index.html',
     navigateFallbackDenylist: [/\/guide-standalone\.html(?:\?.*)?$/],

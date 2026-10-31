@@ -11,7 +11,6 @@ import {
   type TravelCoverLoadResult,
 } from '../application/loadTravelCover'
 import { systemClock, type Clock } from '../application/travelConsultation'
-import type { ImportIssue } from '../import/errors'
 import { isAllowedImageMediaType } from '../import/packageManifest'
 import type { TravelDocument } from '../domain/voyage/model'
 import { openIndexedDbTravelRepository } from '../persistence/indexedDbTravelRepository'
@@ -35,7 +34,14 @@ import {
   readTravelLocation,
   writeTravelLocation,
 } from './travel/navigation'
-import { TravelLibraryCard } from './library/TravelLibraryCard'
+import {
+  LibraryView,
+  TrustRow,
+  type ActionUiState,
+  type ImportUiState,
+  type LibraryUiState,
+} from './library/LibraryView'
+import { localIsoDate } from './library/libraryArrangement'
 import {
   browserConnectivity,
   type ConnectivityAdapter,
@@ -45,50 +51,7 @@ import {
 } from '../services/browserPwa'
 import type { PwaLifecycleController } from '../services/pwaLifecycle'
 import { PwaStatusPanel } from './system/PwaStatusPanel'
-
-const principles = [
-  {
-    title: 'Local',
-    description: 'Les voyages sont enregistrés sur votre appareil.',
-  },
-  {
-    title: 'Disponible',
-    description: 'Le contenu importé reste distinct de vos futurs états personnels.',
-  },
-  {
-    title: 'Isolé',
-    description: 'Chaque voyage et ses ressources possèdent leur propre périmètre.',
-  },
-]
-
-type ImportUiState =
-  | { status: 'idle' }
-  | { status: 'processing'; fileName: string }
-  | { status: 'success'; fileName: string; entry: TravelLibraryEntry }
-  | {
-      status: 'error'
-      fileName: string
-      title: string
-      errors: readonly (ImportIssue | PersistenceIssue)[]
-    }
-
-type LibraryUiState =
-  | { status: 'loading' }
-  | { status: 'ready'; entries: readonly TravelLibraryEntry[] }
-  | { status: 'error'; error: PersistenceIssue }
-
-type ActionUiState =
-  | { status: 'idle' }
-  | { status: 'processing'; message: string }
-  | { status: 'success'; message: string }
-  | { status: 'error'; error: PersistenceIssue }
-
-function issueContext(error: ImportIssue | PersistenceIssue) {
-  if ('kind' in error) {
-    return [error.file, error.field].filter(Boolean).join(' · ')
-  }
-  return [error.travelId, error.resourceId].filter(Boolean).join(' · ')
-}
+import { AppHeader } from './system/AppHeader'
 
 interface AppProps {
   repositoryFactory?: TravelRepositoryFactory
@@ -112,6 +75,7 @@ export function App({
   pwaLifecycle = browserPwaLifecycle,
 }: AppProps) {
   const repositoryRef = useRef<TravelLibraryRepository | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [libraryState, setLibraryState] = useState<LibraryUiState>({
     status: 'loading',
   })
@@ -241,13 +205,13 @@ export function App({
           ? {
               status: 'error',
               fileName: file.name,
-              title: `Le paquet « ${file.name} » n’est pas valide`,
+              title: `« ${file.name} » n’est pas un voyage importable`,
               errors: result.result.errors,
             }
           : {
               status: 'error',
               fileName: file.name,
-              title: `Le voyage de « ${file.name} » n’a pas été enregistré`,
+              title: `Le voyage de « ${file.name} » n’a pas pu être enregistré`,
               errors: [result.error],
             },
       )
@@ -286,11 +250,9 @@ export function App({
     setContextActionFeedback(undefined)
   }
 
-  async function copyAddress(address: string, placeLabel: string) {
-    const copied = await platformActions.copyText(address)
-    setContextActionFeedback(copied
-      ? { status: 'success', message: `Adresse de ${placeLabel} copiée.` }
-      : { status: 'error', message: 'La copie de l’adresse n’est pas disponible sur cet appareil.' })
+  /** Le bouton de copie affiche lui-même le résultat, à côté de l’action. */
+  function copyAddress(address: string) {
+    return platformActions.copyText(address)
   }
 
   async function openDocument(document: TravelDocument) {
@@ -324,7 +286,7 @@ export function App({
     if (!isAllowedImageMediaType(loaded.value.mediaType)) {
       return {
         ok: false,
-        message: 'Cette ressource locale n’est pas une image passive autorisée.',
+        message: 'Cette image n’est pas dans un format autorisé.',
       }
     }
     return { ok: true, resource: loaded.value }
@@ -374,12 +336,8 @@ export function App({
       : { ok: false as const, message: result.error.message }
   }
 
+  /** La confirmation explicite est demandée par la carte du voyage. */
   async function deleteTravel(entry: TravelLibraryEntry) {
-    const confirmed = window.confirm(
-      `Supprimer « ${entry.title} » ? Le voyage, ses ressources, ses notes personnelles et ses états de checklist seront supprimés de cet appareil.`,
-    )
-    if (!confirmed) return
-
     const repository = repositoryRef.current
     if (!repository) return
     setActionState({ status: 'processing', message: `Suppression de « ${entry.title} »…` })
@@ -393,25 +351,29 @@ export function App({
     await refreshLibrary(repository)
   }
 
+  const inLibrary = consultationState.status === 'library'
+  const libraryHasTravels = libraryState.status === 'ready' && libraryState.entries.length > 0
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#contenu-principal">
         Aller au contenu
       </a>
 
-      <header className="hero">
-        <div className="brand-mark" aria-hidden="true">
-          CV
-        </div>
-        <p className="eyebrow">Votre bibliothèque personnelle</p>
-        <h1>Carnet de voyage</h1>
-        <p className="intro">
-          Conservez plusieurs voyages validés et retrouvez leurs informations
-          essentielles directement sur cet appareil.
-        </p>
-      </header>
+      {consultationState.status !== 'ready' && (
+        <AppHeader
+          online={online}
+          pwaStatus={pwaState.status}
+          onImport={inLibrary && libraryHasTravels ? () => fileInputRef.current?.click() : undefined}
+          importDisabled={importState.status === 'processing'}
+        />
+      )}
 
-      <main id="contenu-principal" tabIndex={-1}>
+      <main
+        id="contenu-principal"
+        className={consultationState.status === 'ready' ? 'main-travel' : undefined}
+        tabIndex={-1}
+      >
         <PwaStatusPanel
           online={online}
           pwaStatus={pwaState.status}
@@ -427,7 +389,7 @@ export function App({
           <section className="foundation consultation-state" aria-labelledby="travel-error-title">
             <p className="section-label">Voyage indisponible</p>
             <h2 id="travel-error-title">Impossible d’ouvrir ce voyage</h2>
-            <p className="action-message action-error" role="alert">
+            <p className="notice notice-error" role="alert">
               <strong>{consultationState.error.message}</strong>{' '}
               {consultationState.error.hint}
             </p>
@@ -447,164 +409,33 @@ export function App({
             personalState={consultationState.personalState}
             onNavigate={navigateTravel}
             onBackToLibrary={backToLibrary}
-            onCopyAddress={(address, label) => void copyAddress(address, label)}
+            onCopyAddress={copyAddress}
             onOpenDocument={(document) => void openDocument(document)}
             onLoadIllustrationResource={loadIllustrationResource}
             onSetChecklistItemChecked={setChecklistItemChecked}
             onSaveNote={saveTravelNote}
           />
         )}
-        {consultationState.status === 'library' && (
-          <section className="foundation" aria-labelledby="library-title">
-            <p className="section-label">Stockage local</p>
-            <h2 id="library-title">Ma bibliothèque</h2>
-            <p className="foundation-copy">
-              Les voyages entièrement validés sont enregistrés dans IndexedDB avec
-              leurs ressources passives. Chaque voyage reste isolé des autres.
-            </p>
-
-            {actionState.status === 'processing' && (
-              <p className="action-message" role="status" aria-live="polite">
-                {actionState.message}
-              </p>
-            )}
-            {actionState.status === 'success' && (
-              <p className="action-message action-success" role="status">
-                {actionState.message}
-              </p>
-            )}
-            {actionState.status === 'error' && (
-              <p className="action-message action-error" role="alert">
-                <strong>{actionState.error.message}</strong>{' '}
-                {actionState.error.hint}
-              </p>
-            )}
-
-            <section className="library-panel" aria-labelledby="saved-travels-title">
-              <h3 id="saved-travels-title">Voyages enregistrés</h3>
-              {libraryState.status === 'loading' && (
-                <p role="status" aria-live="polite">
-                  Chargement de la bibliothèque…
-                </p>
-              )}
-              {libraryState.status === 'error' && (
-                <div className="library-error" role="alert">
-                  <strong>{libraryState.error.message}</strong>
-                  <span>{libraryState.error.hint}</span>
-                </div>
-              )}
-              {libraryState.status === 'ready' && libraryState.entries.length === 0 && (
-                <p className="empty-library">
-                  Aucun voyage enregistré. Importez un paquet ZIP validé pour
-                  commencer votre bibliothèque locale.
-                </p>
-              )}
-              {libraryState.status === 'ready' && libraryState.entries.length > 0 && (
-                <ul className="travel-list">
-                  {libraryState.entries.map((entry) => (
-                    <TravelLibraryCard
-                      key={entry.travelId}
-                      entry={entry}
-                      onLoadCover={loadLibraryCover}
-                      onOpen={(travelId) => void openTravel(travelId)}
-                      onDelete={(travel) => void deleteTravel(travel)}
-                    />
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="import-panel" aria-labelledby="import-title">
-              <div>
-                <h3 id="import-title">Importer un voyage</h3>
-                <p id="package-format-help" className="format-help">
-                  Format accepté : archive ZIP de 25 Mio maximum contenant
-                  manifest.json et voyage.json. Un identifiant déjà présent est
-                  refusé sans écrasement.
-                </p>
-              </div>
-
-              <label className="file-picker" htmlFor="travel-package">
-                Choisir un fichier ZIP
-              </label>
-              <input
-                id="travel-package"
-                className="file-input"
-                type="file"
-                accept=".zip,application/zip,application/x-zip-compressed"
-                aria-describedby="package-format-help"
-                disabled={
-                  importState.status === 'processing' ||
-                  libraryState.status !== 'ready'
-                }
-                onChange={(event) => void handleFileSelection(event)}
-              />
-
-              {importState.status === 'processing' && (
-                <p className="import-status" role="status" aria-live="polite">
-                  Validation et enregistrement de « {importState.fileName} » en
-                  cours…
-                </p>
-              )}
-
-              {importState.status === 'success' && (
-                <section
-                  className="import-result import-success"
-                  aria-labelledby="import-success-title"
-                  role="status"
-                >
-                  <p className="result-label">Voyage enregistré</p>
-                  <h3 id="import-success-title">{importState.entry.title}</h3>
-                  <p>
-                    {importState.entry.destination} · {importState.entry.startDate}{' '}
-                    au {importState.entry.endDate}
-                  </p>
-                  <p className="result-note">
-                    La transaction locale est terminée et le voyage apparaît dans
-                    la bibliothèque.
-                  </p>
-                </section>
-              )}
-
-              {importState.status === 'error' && (
-                <section
-                  className="import-result import-errors"
-                  aria-labelledby="import-error-title"
-                  role="alert"
-                >
-                  <p className="result-label">Import non enregistré</p>
-                  <h3 id="import-error-title">{importState.title}</h3>
-                  <ul>
-                    {importState.errors.map((error, index) => {
-                      const context = issueContext(error)
-                      return (
-                        <li key={`${error.code}-${context}-${index}`}>
-                          <strong>{error.message}</strong>
-                          {context && <span>{context}</span>}
-                          <span>{error.hint}</span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </section>
-              )}
-            </section>
-
-            <ul className="principles" aria-label="Principes du carnet">
-              {principles.map((principle) => (
-                <li key={principle.title}>
-                  <strong>{principle.title}</strong>
-                  <span>{principle.description}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+        {inLibrary && (
+          <LibraryView
+            libraryState={libraryState}
+            importState={importState}
+            actionState={actionState}
+            today={localIsoDate(clock.now())}
+            fileInputRef={fileInputRef}
+            onFileSelection={(event) => void handleFileSelection(event)}
+            onOpen={(travelId) => void openTravel(travelId)}
+            onDelete={(travel) => void deleteTravel(travel)}
+            onLoadCover={loadLibraryCover}
+          />
         )}
       </main>
 
-      <footer>
-        <p>Aucun compte requis. Vos voyages restent sous votre contrôle.</p>
-      </footer>
+      {inLibrary && (
+        <footer className="app-footer">
+          <TrustRow />
+        </footer>
+      )}
     </div>
   )
 }
