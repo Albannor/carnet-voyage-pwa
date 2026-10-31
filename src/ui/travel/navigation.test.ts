@@ -10,7 +10,7 @@ describe('navigation de consultation dans l’URL', () => {
     ['summary', { kind: 'summary' }],
     ['today', { kind: 'today' }],
     ['pieces', { kind: 'pieces' }],
-    ['practical', { kind: 'practical' }],
+    ['practical', { kind: 'pieces' }],
     ['preparation', { kind: 'preparation' }],
   ] as const)('relit la vue %s', (view, expected) => {
     expect(readTravelLocation(`?travel=travel-test&view=${view}`)).toEqual({
@@ -26,17 +26,32 @@ describe('navigation de consultation dans l’URL', () => {
     })
   })
 
-  it('écrit les sections pratiques et préparation sans contenu métier', () => {
+  it('écrit les sections pièces et préparation sans contenu métier', () => {
     writeTravelLocation({
       travelId: 'travel-test',
-      view: { kind: 'practical' },
+      view: { kind: 'pieces' },
     })
-    expect(window.location.search).toBe('?travel=travel-test&view=practical')
+    expect(window.location.search).toBe('?travel=travel-test&view=pieces')
 
     writeTravelLocation({
       travelId: 'travel-test',
       view: { kind: 'preparation' },
     }, 'replace')
+    expect(window.location.search).toBe('?travel=travel-test&view=preparation')
+  })
+
+  it('écrit puis relit l’hébergement ciblé dans Pièces, sans paramètre résiduel', () => {
+    writeTravelLocation({
+      travelId: 'travel-test',
+      view: { kind: 'pieces', accommodationId: 'stay-1' },
+    })
+    expect(window.location.search).toBe('?travel=travel-test&view=pieces&accommodation=stay-1')
+    expect(readTravelLocation(window.location.search)).toEqual({
+      travelId: 'travel-test',
+      view: { kind: 'pieces', accommodationId: 'stay-1' },
+    })
+
+    writeTravelLocation({ travelId: 'travel-test', view: { kind: 'preparation' } })
     expect(window.location.search).toBe('?travel=travel-test&view=preparation')
   })
 

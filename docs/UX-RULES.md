@@ -17,9 +17,9 @@ La première vue d'un voyage donne immédiatement :
 
 La synthèse aide à décider et à agir. Elle évite de reproduire tout le programme ou d'accumuler des informations secondaires.
 
-La consultation sépare cinq responsabilités lisibles : vue d’ensemble, programme, pièces du voyage, infos pratiques et préparation. L’espace Pièces est une vue récapitulative dérivée des documents et réservations, jamais une seconde source de vérité. Une information ne doit pas être répétée dans plusieurs sections uniquement pour exposer les relations techniques du modèle.
+La consultation sépare quatre responsabilités lisibles : vue d’ensemble, programme, pièces du voyage et préparation. L’espace Pièces est une vue récapitulative dérivée des documents, réservations, hébergements et lieux, jamais une seconde source de vérité ; il présente chaque pièce une seule fois. Une information ne doit pas être répétée dans plusieurs sections uniquement pour exposer les relations techniques du modèle.
 
-Cette séparation ne doit toutefois pas éloigner une action de son contexte : les infos pratiques constituent un index récapitulatif, tandis que le programme conserve un accès direct aux liens réellement utiles à l’étape affichée.
+Cette séparation ne doit toutefois pas éloigner une action de son contexte : l’espace Pièces constitue un index récapitulatif, tandis que le programme conserve un accès direct aux liens réellement utiles à l’étape affichée.
 
 ### Organiser le voyage par journées
 
@@ -37,7 +37,7 @@ Une frise peut soutenir la lecture, mais le sens ne doit jamais dépendre seulem
 
 ### Utiliser l'hébergement comme ancre
 
-L'hébergement sert de repère logistique lorsque le programme part de ce lieu, y revient ou nécessite une décision de transport. Sa fiche complète, son adresse et ses actions utiles sont centralisées dans les infos pratiques. Le programme peut proposer un accès discret à cette fiche sans en répéter tous les détails.
+L'hébergement sert de repère logistique lorsque le programme part de ce lieu, y revient ou nécessite une décision de transport. Sa fiche complète, son adresse et ses actions utiles sont centralisées dans l’espace Pièces. Le programme peut proposer un accès discret à cette fiche sans en répéter tous les détails.
 
 Si un voyage comporte plusieurs hébergements, l'ancre affichée est celle qui correspond à la date et au contexte, sans supposer un hôtel unique.
 

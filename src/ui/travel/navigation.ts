@@ -33,8 +33,12 @@ export function readTravelLocation(search: string): TravelLocation | undefined {
     if (dayId) return { travelId, view: { kind: 'add-piece', attachment: { type: 'day', dayId } } }
     return { travelId, view: { kind: 'add-piece' } }
   }
-  if (view === 'pieces') return { travelId, view: { kind: 'pieces' } }
-  if (view === 'practical') return { travelId, view: { kind: 'practical' } }
+  if (view === 'pieces') {
+    const accommodationId = parameters.get('accommodation')?.trim()
+    return { travelId, view: accommodationId ? { kind: 'pieces', accommodationId } : { kind: 'pieces' } }
+  }
+  // Ancienne section « Pratique », fusionnée dans Pièces : les liens enregistrés restent valides.
+  if (view === 'practical') return { travelId, view: { kind: 'pieces' } }
   if (view === 'preparation') return { travelId, view: { kind: 'preparation' } }
   return { travelId, view: { kind: 'summary' } }
 }
@@ -51,6 +55,7 @@ export function writeTravelLocation(
   url.searchParams.delete('document')
   url.searchParams.delete('reservation')
   url.searchParams.delete('added')
+  url.searchParams.delete('accommodation')
 
   if (location) {
     url.searchParams.set('travel', location.travelId)
@@ -60,6 +65,9 @@ export function writeTravelLocation(
     }
     if (location.view.kind === 'step') {
       url.searchParams.set('step', location.view.stepId)
+    }
+    if (location.view.kind === 'pieces' && location.view.accommodationId) {
+      url.searchParams.set('accommodation', location.view.accommodationId)
     }
     if (location.view.kind === 'piece') {
       url.searchParams.set(location.view.pieceKind, location.view.pieceId)

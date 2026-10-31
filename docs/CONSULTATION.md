@@ -4,20 +4,19 @@
 
 La consultation commune de l’étape 5 rend exclusivement le modèle métier normalisé relu depuis IndexedDB. Elle ne lit pas l’archive ZIP, ne reconstruit rien depuis `guide-standalone.html` et n’interprète aucun HTML importé. Tous les textes du voyage sont rendus comme du texte par React.
 
-Le parcours de consultation est structuré autour de cinq sections :
+Le parcours de consultation est structuré autour de quatre sections :
 
 ```text
 Bibliothèque
   └─ Aperçu
   └─ Programme → journée / Aujourd’hui
   └─ Pièces
-  └─ Pratique
   └─ Préparation
 ```
 
-Ces cinq sections sont accessibles depuis une barre de navigation fixée en bas de l’écran, chaque entrée associant une icône et un libellé ; la section active est signalée par `aria-current` et par une pastille, jamais par la seule couleur. La barre respecte les marges de sécurité des écrans à encoche (`env(safe-area-inset-*)`). Le retour à la bibliothèque est un bouton rond nommé « Retour à la bibliothèque », posé sur la couverture dans l’Aperçu et dans la barre de titre des autres sections. Changer de section ramène le haut de la section à l’écran. Sur les écrans de moins de 24 rem, les libellés passent à 11 px et peuvent se couper (césure française) plutôt que déborder.
+Ces quatre sections sont accessibles depuis une barre de navigation fixée en bas de l’écran, chaque entrée associant une icône et un libellé ; la section active est signalée par `aria-current` et par une pastille, jamais par la seule couleur. La barre respecte les marges de sécurité des écrans à encoche (`env(safe-area-inset-*)`). Le retour à la bibliothèque est un bouton rond nommé « Retour à la bibliothèque », posé sur la couverture dans l’Aperçu et dans la barre de titre des autres sections. Changer de section ramène le haut de la section à l’écran. Sur les écrans de moins de 24 rem, les libellés passent à 11 px et peuvent se couper (césure française) plutôt que déborder.
 
-L’**Aperçu** reste volontairement concis : couverture éventuelle en pleine largeur, titre, destination, dates et durée, résumé, puis un encart temporel qui dépend de la date du jour (« Départ dans N jours », « Aujourd’hui » ou « Voyage terminé ») et mène au programme pertinent. Suivent la liste des journées, l’hébergement correspondant à la date de référence avec la copie de son adresse — l’adresse complète restant affichée dans Pratique — et les réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. **Pièces** offre une vue récapitulative des documents et réservations du dossier, décrite plus bas. **Pratique** centralise les hébergements, lieux, réservations, documents et crédits photographiques. La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
+L’**Aperçu** reste volontairement concis : couverture éventuelle en pleine largeur, titre, destination, dates et durée, résumé, puis un encart temporel qui dépend de la date du jour (« Départ dans N jours », « Aujourd’hui » ou « Voyage terminé ») et mène au programme pertinent. Suivent la liste des journées, l’hébergement correspondant à la date de référence avec la copie de son adresse — l’adresse complète restant affichée dans Pièces — et les réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. **Pièces** réunit les documents, réservations et pièces ajoutées, puis les repères stables du dossier : hébergements, lieux utiles et crédits photographiques (voir plus bas). La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
 
 ## Navigation et rechargement
 
@@ -27,13 +26,12 @@ L’état de consultation distingue la bibliothèque, le chargement, l’erreur 
 - `today` pour « Aujourd’hui » ;
 - `day` avec un identifiant stable de journée ;
 - `step` avec un identifiant stable d’étape, pour l’espace de l’étape ;
-- `pieces` pour l’espace Pièces ;
+- `pieces` pour l’espace Pièces, avec éventuellement l’identifiant d’un hébergement dont la fiche est amenée à l’écran et reçoit le focus ;
 - `piece` avec l’identifiant d’un document, d’une réservation ou d’une pièce ajoutée, pour la fiche d’une pièce ;
 - `add-piece`, avec éventuellement la journée ou l’étape à présélectionner, pour l’ajout d’une pièce ;
-- `practical` pour la section Pratique ;
 - `preparation` pour les checklists, confirmations et notes.
 
-L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view`, `day`, `step`, `document`, `reservation` et `added` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
+L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view`, `day`, `step`, `document`, `reservation`, `added` et `accommodation` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. L’ancienne valeur `view=practical`, antérieure à la fusion de Pratique dans Pièces, est relue comme `pieces` afin que les liens enregistrés restent valides. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
 
 ## Vue « Aujourd’hui » et fuseau horaire
 
@@ -56,13 +54,13 @@ Les étapes forment une frise : une pastille par étape sur un fil vertical, pui
 
 Lorsque la journée affichée est celle du jour dans le fuseau du voyage, la frise situe chaque étape par rapport à l’heure locale. Une étape est passée lorsque sa fin — son heure de fin, sinon le début de l’étape horodatée suivante — est atteinte ; elle reçoit une pastille cochée et la mention accessible « Étape passée ». La première étape non passée est mise en avant sur fond soleil clair avec la mention « En cours » si elle a commencé, « Prochaine étape » sinon. Cette progression se met à jour chaque minute tant que la journée reste affichée. Une journée sans aucun horaire ne reçoit aucune mise en avant, et les autres journées restent neutres.
 
-Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable. Dans le programme, leur libellé sert de repère et leurs liens utiles restent accessibles au point d’usage. Les infos pratiques offrent en complément un index global des mêmes lieux et liens ; elles ne constituent pas une seconde source de données et ne sont jamais le seul accès à une action utile au programme.
+Une étape sans heure reste à sa position normalisée et porte la mention « Sans horaire ». Aucune heure, durée ou contrainte absente du contrat n’est inventée. Les lieux sont résolus par leur identifiant stable. Dans le programme, leur libellé sert de repère et leurs liens utiles restent accessibles au point d’usage. L’espace Pièces offre en complément un index global des mêmes lieux et liens ; elles ne constituent pas une seconde source de données et ne sont jamais le seul accès à une action utile au programme.
 
-## Hébergements et informations pratiques
+## Hébergements et lieux utiles
 
-Chaque hébergement possède une fiche unique dans les infos pratiques. La fiche résout son lieu par `placeId` et les réservations ou documents associés uniquement depuis les `reservationIds` et `documentIds` des étapes qui portent explicitement son `accommodationId`. Aucun rapprochement n’est déduit d’un libellé, d’un chemin ou d’un nom de fichier.
+Chaque hébergement possède une fiche unique dans l’espace Pièces, sous la liste des pièces : dates, adresse avec sa copie et liens du lieu. La fiche résout son lieu par `placeId` et ses pièces uniquement par les rattachements aux étapes qui portent explicitement son `accommodationId`. Ces pièces n’y sont pas recopiées : la fiche propose un lien vers la fiche de chacune, de sorte que chaque pièce n’est présentée qu’une fois sur l’écran. Aucun rapprochement n’est déduit d’un libellé, d’un chemin ou d’un nom de fichier. Suivent les « Lieux et transports utiles » qui ne sont pas des hébergements.
 
-Dans le programme, l’en-tête de chaque journée rappelle l’hébergement qui couvre sa date comme point de départ (« Hébergement » le jour de son arrivée, « Départ » les autres jours), avec un bouton de copie de l’adresse. Une étape liée à un hébergement conserve son titre éditorial et un lien discret vers Pratique. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
+Dans le programme, l’en-tête de chaque journée rappelle l’hébergement qui couvre sa date comme point de départ (« Hébergement » le jour de son arrivée, « Départ » les autres jours), avec un bouton de copie de l’adresse. Une étape liée à un hébergement conserve son titre éditorial et un lien discret « Voir l’hébergement » qui ouvre Pièces sur la fiche de cet hébergement. L’adresse, les liens externes, la réservation et les documents ne sont pas répétés dans chaque journée. Les anciens voyages sans hébergement restent consultables sans section vide.
 
 ## Actions contextuelles et documents
 
@@ -101,6 +99,8 @@ Chaque ligne présente une icône propre à l’entité (fichier sur fond sauge 
 Le badge « Toutes disponibles hors connexion » n’apparaît que si le voyage contient au moins un document ou une pièce ajoutée, et que chaque ressource PDF du dossier est effectivement présente dans `travelResources` pour ce voyage, vérifié par `listResourceIds` sans lire les octets. Une ressource absente est signalée sur sa ligne par « Absent de cet appareil » ; une erreur de lecture du stockage n’affiche ni badge ni avertissement.
 
 Le contrat ne porte aucun type ou catégorie sur les documents et réservations. Le regroupement « Par type » n’est donc pas proposé : il n’est jamais reconstruit à partir des titres.
+
+Sous les pièces, le même écran présente les repères stables du dossier, autrefois réunis dans une section « Pratique » distincte : « Hébergements », « Lieux et transports utiles », puis « Crédits photographiques ». Les réservations et documents n’y sont plus listés une seconde fois. Chaque bloc sans contenu est omis.
 
 ## Pièces du jour
 
@@ -152,7 +152,7 @@ La zone « Notes personnelles », placée dans Préparation, expose une seule no
 
 Le rendu utilise `figure`, `img` et `figcaption`, le texte alternatif importé, un ratio visuel 16:9 et `object-fit: cover`. L’absence d’illustration ne crée aucun emplacement. Une ressource exceptionnellement illisible produit un remplacement textuel sans masquer le programme. Les URL d’objet temporaires sont révoquées au démontage ou au changement de ressource.
 
-Les infos pratiques regroupent sans doublon les illustrations effectivement référencées et affichent leur provenance : auteur, source et licence HTTPS, photographie personnelle ou génération par IA. Ces liens sont explicitement externes et désactivés hors connexion ; la ressource locale affichée reste disponible.
+L’espace Pièces se termine par les crédits photographiques, qui regroupent sans doublon les illustrations effectivement référencées et affichent leur provenance : auteur, source et licence HTTPS, photographie personnelle ou génération par IA. Ces liens sont explicitement externes et désactivés hors connexion ; la ressource locale affichée reste disponible.
 
 ## États vides et erreurs
 
@@ -183,7 +183,7 @@ Les règles pures de date et d’hébergement, les vues React et l’orchestrati
 npm run test
 ```
 
-La suite couvre les cinq sections, le calcul et le regroupement des pièces, la chronologie, les étapes sans heure, le sélecteur de journées, les états vides, la centralisation des hébergements, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, les illustrations et crédits, la règle des images cliquables, la déduplication des liens d’étape et de lieu, leur comportement hors connexion, la révocation des URL d’objet, le rendu à petite largeur ainsi que l’absence de surface d’exécution du HTML importé.
+La suite couvre les quatre sections, le calcul et le regroupement des pièces, la chronologie, les étapes sans heure, le sélecteur de journées, les états vides, la centralisation des hébergements, les fuseaux horaires, le rechargement par identifiant, l’isolation entre voyages, les erreurs de lecture, les portées de checklist, l’enregistrement des cases et de la note, les illustrations et crédits, la règle des images cliquables, la déduplication des liens d’étape et de lieu, leur comportement hors connexion, la révocation des URL d’objet, le rendu à petite largeur ainsi que l’absence de surface d’exécution du HTML importé.
 
 ## Limites actuelles
 
