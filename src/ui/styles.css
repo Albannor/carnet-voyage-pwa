@@ -1415,15 +1415,6 @@ main > * {
   cursor: pointer;
 }
 
-.step-related-content {
-  min-width: 0;
-  display: grid;
-  gap: 0.65rem;
-  margin-top: 0.9rem;
-  padding-top: 0.85rem;
-  border-top: 0.0625rem solid var(--color-line);
-}
-
 /* Quatre actions, quatre apparences : lien externe, copie, document local, réservation. */
 .document-button {
   min-width: 0;
@@ -1583,11 +1574,6 @@ main > * {
   max-width: 100%;
 }
 
-.reservation-disclosure h5 {
-  margin-top: 0.5rem;
-  overflow-wrap: anywhere;
-}
-
 .day-sidebar {
   display: grid;
   gap: 1rem;
@@ -1670,32 +1656,6 @@ main > * {
 }
 
 /* Journée : sélecteur, en-tête, frise horaire et plans B. */
-.reservation-disclosure {
-  min-width: 0;
-  border: 0.0625rem solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-paper);
-}
-
-.reservation-disclosure > summary {
-  min-height: var(--tap-target);
-  display: flex;
-  align-items: center;
-  padding: 0.6rem var(--space-3);
-  color: var(--color-ink);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.reservation-disclosure[open] {
-  padding-bottom: var(--space-3);
-}
-
-.reservation-disclosure[open] > :not(summary) {
-  margin-right: var(--space-3);
-  margin-left: var(--space-3);
-}
-
 .day-selector {
   min-width: 0;
   max-width: 100%;
@@ -1877,6 +1837,43 @@ main > * {
 
 .day-header .plan-b-hint {
   margin-top: 0;
+}
+
+/* Résumé de ce que détaille la page de l’étape : pièces et checklist. */
+.step-details-hint {
+  width: 100%;
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 0.625rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0.0625rem solid var(--color-line);
+  border-radius: var(--radius-control);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  font-size: var(--font-size-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-details-hint > .icon {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+.step-details-hint > span:first-of-type {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.step-details-hint-action {
+  font-weight: 700;
+}
+
+.step-details-hint:hover {
+  border-color: var(--color-line-strong);
 }
 
 .timeline-section {
@@ -2555,7 +2552,8 @@ main > * {
   overflow-wrap: anywhere;
 }
 
-.step-view-links {
+.step-view-links,
+.step-view-checklists {
   min-width: 0;
 }
 

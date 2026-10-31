@@ -19,7 +19,7 @@ La synthèse aide à décider et à agir. Elle évite de reproduire tout le prog
 
 La consultation sépare quatre responsabilités lisibles : vue d’ensemble, programme, pièces du voyage et préparation. L’espace Pièces est une vue récapitulative dérivée des documents, réservations, hébergements et lieux, jamais une seconde source de vérité ; il présente chaque pièce une seule fois. Une information ne doit pas être répétée dans plusieurs sections uniquement pour exposer les relations techniques du modèle.
 
-Cette séparation ne doit toutefois pas éloigner une action de son contexte : l’espace Pièces constitue un index récapitulatif, tandis que le programme conserve un accès direct aux liens réellement utiles à l’étape affichée.
+Cette séparation ne doit toutefois pas éloigner une action de son contexte : l’espace Pièces constitue un index récapitulatif, tandis que le programme conserve un accès direct aux liens réellement utiles à l’étape affichée. Dans la frise d’une journée, une étape résume ses pièces et sa checklist sans les recopier ; leur détail se trouve dans l’espace de l’étape.
 
 ### Organiser le voyage par journées
 
