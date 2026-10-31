@@ -17,7 +17,7 @@ La première vue d'un voyage donne immédiatement :
 
 La synthèse aide à décider et à agir. Elle évite de reproduire tout le programme ou d'accumuler des informations secondaires.
 
-La consultation sépare quatre responsabilités lisibles : vue d’ensemble, programme, infos pratiques et préparation. Une information ne doit pas être répétée dans plusieurs sections uniquement pour exposer les relations techniques du modèle.
+La consultation sépare cinq responsabilités lisibles : vue d’ensemble, programme, pièces du voyage, infos pratiques et préparation. L’espace Pièces est une vue récapitulative dérivée des documents et réservations, jamais une seconde source de vérité. Une information ne doit pas être répétée dans plusieurs sections uniquement pour exposer les relations techniques du modèle.
 
 Cette séparation ne doit toutefois pas éloigner une action de son contexte : les infos pratiques constituent un index récapitulatif, tandis que le programme conserve un accès direct aux liens réellement utiles à l’étape affichée.
 

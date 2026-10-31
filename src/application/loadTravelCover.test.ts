@@ -68,6 +68,7 @@ function repositoryWith(
       value: { metadata: entry, travel: currentTravel },
     }),
     getResource: vi.fn().mockResolvedValue({ ok: true, value: currentResource }),
+    listResourceIds: vi.fn(),
     getPersonalState: vi.fn(),
     setChecklistItemChecked: vi.fn(),
     saveTravelNote: vi.fn(),

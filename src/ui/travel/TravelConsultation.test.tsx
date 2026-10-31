@@ -109,6 +109,7 @@ function ConsultationHarness({
       onCopyAddress={onCopyAddress}
       onOpenDocument={onOpenDocument}
       onLoadIllustrationResource={onLoadIllustrationResource}
+      onListLocalResourceIds={vi.fn().mockResolvedValue([])}
       personalState={personalState}
       noteSaveDelayMs={10}
       onSetChecklistItemChecked={onSetChecklistItemChecked}
@@ -213,13 +214,14 @@ function withPlace(
 }
 
 describe('navigation structurée du voyage', () => {
-  it('expose exactement les quatre sections principales', () => {
+  it('expose exactement les cinq sections principales', () => {
     render(<ConsultationHarness />)
 
     const navigation = screen.getByRole('navigation', { name: 'Sections du voyage' })
     expect(within(navigation).getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Aperçu',
       'Programme',
+      'Pièces',
       'Pratique',
       'Préparation',
     ])
@@ -1266,6 +1268,7 @@ describe('journée : repères et progression', () => {
           onCopyAddress={vi.fn().mockResolvedValue(true)}
           onOpenDocument={vi.fn()}
           onLoadIllustrationResource={vi.fn().mockResolvedValue({ ok: false, message: '' })}
+          onListLocalResourceIds={vi.fn().mockResolvedValue([])}
           onSetChecklistItemChecked={vi.fn()}
           onSaveNote={vi.fn()}
         />,

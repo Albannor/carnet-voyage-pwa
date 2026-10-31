@@ -9,6 +9,7 @@ describe('navigation de consultation dans l’URL', () => {
   it.each([
     ['summary', { kind: 'summary' }],
     ['today', { kind: 'today' }],
+    ['pieces', { kind: 'pieces' }],
     ['practical', { kind: 'practical' }],
     ['preparation', { kind: 'preparation' }],
   ] as const)('relit la vue %s', (view, expected) => {
@@ -37,5 +38,14 @@ describe('navigation de consultation dans l’URL', () => {
       view: { kind: 'preparation' },
     }, 'replace')
     expect(window.location.search).toBe('?travel=travel-test&view=preparation')
+  })
+
+  it('écrit puis relit l’espace Pièces pour préserver le retour d’un service externe', () => {
+    writeTravelLocation({ travelId: 'travel-test', view: { kind: 'pieces' } })
+    expect(window.location.search).toBe('?travel=travel-test&view=pieces')
+    expect(readTravelLocation(window.location.search)).toEqual({
+      travelId: 'travel-test',
+      view: { kind: 'pieces' },
+    })
   })
 })

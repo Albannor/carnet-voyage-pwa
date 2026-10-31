@@ -41,6 +41,8 @@ export interface TravelLibraryRepository {
     travelId: string,
     resourceId: string,
   ): Promise<PersistenceResult<PersistedTravelResource>>
+  /** Identifiants des ressources stockées pour ce voyage, sans lire leurs octets. */
+  listResourceIds(travelId: string): Promise<PersistenceResult<readonly string[]>>
   getPersonalState(travelId: string): Promise<PersistenceResult<TravelPersonalState>>
   setChecklistItemChecked(
     travelId: string,

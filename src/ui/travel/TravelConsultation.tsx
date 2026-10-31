@@ -13,6 +13,13 @@ import {
   getTodayState,
   type Clock,
 } from '../../application/travelConsultation'
+import {
+  allDocumentsStoredLocally,
+  groupTravelPiecesByDay,
+  listTravelPieces,
+  type TravelPiece,
+  type TravelPieceAttachment,
+} from '../../application/travelPieces'
 import type {
   Travel,
   TravelAccommodation,
@@ -42,13 +49,16 @@ import {
   ClockIcon,
   CompassIcon,
   CopyIcon,
+  DownloadIcon,
   ExternalLinkIcon,
   FileIcon,
   HomeIcon,
   InfoIcon,
   ListIcon,
   MapPinIcon,
+  PaperclipIcon,
   SwapIcon,
+  TicketIcon,
 } from '../icons'
 import { daysBetween, formatTravelDates, travelDurationLabel } from '../travelDates'
 import { localTimeInTimeZone, stepProgress, type StepProgress } from './stepProgress'
@@ -62,6 +72,7 @@ export type TravelView =
   | { readonly kind: 'summary' }
   | { readonly kind: 'today' }
   | { readonly kind: 'day'; readonly dayId: string }
+  | { readonly kind: 'pieces' }
   | { readonly kind: 'practical' }
   | { readonly kind: 'preparation' }
 
@@ -95,6 +106,8 @@ interface TravelConsultationProps {
     travelId: string,
     resourceId: string,
   ): Promise<IllustrationResourceLoadResult>
+  /** Résout à `undefined` lorsque le stockage local ne peut pas être lu. */
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
   onSetChecklistItemChecked(
     checklistId: string,
     itemId: string,
@@ -552,26 +565,26 @@ function CopyAddressButton({
   )
 }
 
-function ReservationDetails({
-  travel,
-  reservation,
-  online,
-  onOpenDocument,
-  compact = false,
-  excludedDocumentIds = new Set<string>(),
-}: {
+interface ReservationContentProps {
   travel: Travel
   reservation: TravelReservation
   online: boolean
   onOpenDocument(document: TravelDocument): void
-  compact?: boolean
   excludedDocumentIds?: ReadonlySet<string>
-}) {
+}
+
+function ReservationBody({
+  travel,
+  reservation,
+  online,
+  onOpenDocument,
+  excludedDocumentIds = new Set<string>(),
+}: ReservationContentProps) {
   const reservationDocuments = documentsById(
     travel,
     reservation.documentIds.filter((id) => !excludedDocumentIds.has(id)),
   )
-  const content = (
+  return (
     <>
       <dl className="reservation-metadata">
         {reservation.reference && <><dt>Référence</dt><dd>{reservation.reference}</dd></>}
@@ -607,6 +620,14 @@ function ReservationDetails({
       )}
     </>
   )
+}
+
+function ReservationDetails({
+  compact = false,
+  ...props
+}: ReservationContentProps & { compact?: boolean }) {
+  const { reservation } = props
+  const content = <ReservationBody {...props} />
 
   if (compact) {
     return (
@@ -1820,6 +1841,194 @@ function AccommodationDetails({
   )
 }
 
+function pieceAttachmentText(
+  attachment: TravelPieceAttachment,
+  groupDayId: string | undefined,
+  locale: string,
+) {
+  const date = attachment.day.id === groupDayId
+    ? ''
+    : ` · ${formatCompactDate(attachment.day.date, locale)}`
+  if (attachment.type === 'day') return `Toute la journée${date}`
+  const time = attachment.step.startsAt ? `${attachment.step.startsAt} · ` : ''
+  return `Étape ${time}${attachment.step.title}${date}`
+}
+
+interface PieceRowProps {
+  piece: TravelPiece
+  groupDayId?: string
+  locale: string
+  missingLocally: boolean
+}
+
+function pieceAttachmentsText({ piece, groupDayId, locale }: PieceRowProps) {
+  return piece.attachments.length === 0
+    ? 'Tout le voyage'
+    : piece.attachments
+      .map((attachment) => pieceAttachmentText(attachment, groupDayId, locale))
+      .join(' ; ')
+}
+
+/** Nom accessible ponctué : les fragments visuels ne sont pas collés entre eux. */
+function pieceRowLabel(props: PieceRowProps) {
+  const { piece, missingLocally } = props
+  const action = piece.kind === 'document' ? 'Ouvrir le document' : 'Voir la réservation'
+  const format = piece.kind === 'document' ? 'PDF' : 'Réservation'
+  return [
+    `${action} ${piece.label}`,
+    pieceAttachmentsText(props),
+    `${format}, Dossier${missingLocally ? ', absent de cet appareil' : ''}`,
+  ].join(' — ')
+}
+
+function PieceRowContent(props: PieceRowProps) {
+  const { piece, missingLocally } = props
+  const isDocument = piece.kind === 'document'
+  return (
+    <>
+      <span
+        className={isDocument ? 'piece-icon piece-icon-document' : 'piece-icon piece-icon-reservation'}
+        aria-hidden="true"
+      >
+        {isDocument ? <FileIcon size={22} /> : <TicketIcon size={22} />}
+      </span>
+      <span className="piece-text">
+        <span className="piece-title">{piece.label}</span>
+        <span className="piece-attachments">{pieceAttachmentsText(props)}</span>
+        <span className="piece-badges">
+          <span className="piece-badge">{isDocument ? 'PDF' : 'Réservation'}</span>
+          <span className="piece-badge">Dossier</span>
+          {missingLocally && (
+            <span className="piece-badge piece-badge-warning">Absent de cet appareil</span>
+          )}
+        </span>
+      </span>
+      <ChevronRightIcon size={20} className="piece-chevron" />
+    </>
+  )
+}
+
+function PiecesView({
+  travel,
+  online,
+  onOpenDocument,
+  onListLocalResourceIds,
+}: {
+  travel: Travel
+  online: boolean
+  onOpenDocument(document: TravelDocument): void
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
+}) {
+  const [localResourceIds, setLocalResourceIds] = useState<ReadonlySet<string>>()
+  const pieces = listTravelPieces(travel)
+  const groups = groupTravelPiecesByDay(travel, pieces)
+
+  useEffect(() => {
+    let active = true
+    void onListLocalResourceIds(travel.id).then((ids) => {
+      if (active) setLocalResourceIds(ids ? new Set(ids) : undefined)
+    })
+    return () => {
+      active = false
+    }
+  }, [onListLocalResourceIds, travel.id])
+
+  const allStoredLocally = localResourceIds !== undefined
+    && allDocumentsStoredLocally(travel, localResourceIds)
+
+  return (
+    <div className="consultation-view pieces-view" aria-labelledby="pieces-title">
+      <header className="section-heading">
+        <p className="section-label">Pièces</p>
+        <h2 id="pieces-title">Pièces du voyage</h2>
+        <p>
+          {pieces.length === 0
+            ? 'Aucune pièce'
+            : `${pieces.length} ${pieces.length > 1 ? 'pièces' : 'pièce'}`}
+        </p>
+      </header>
+      {pieces.length === 0 && (
+        <p className="empty-state">
+          Ce voyage ne contient aucun document ni aucune réservation. Les billets,
+          confirmations et autres pièces du dossier apparaîtront ici.
+        </p>
+      )}
+      {allStoredLocally && (
+        <p className="pieces-offline-badge">
+          <DownloadIcon size={16} />
+          <span>Toutes disponibles hors connexion</span>
+        </p>
+      )}
+      {groups.map((group) => {
+        const groupDayId = group.type === 'day' ? group.day.id : undefined
+        const titleId = group.type === 'day'
+          ? `pieces-group-${group.day.id}`
+          : 'pieces-group-travel'
+        return (
+          <section className="pieces-group" key={titleId} aria-labelledby={titleId}>
+            <h3 className="pieces-group-title" id={titleId}>
+              {group.type === 'travel'
+                ? 'Tout le voyage'
+                : (
+                    <>
+                      <time dateTime={group.day.date}>
+                        {formatCompactDate(group.day.date, travel.locale)}
+                      </time>{' '}
+                      <span className="pieces-group-day">{group.day.title}</span>
+                    </>
+                  )}
+            </h3>
+            <ul className="pieces-list">
+              {group.pieces.map((piece) => {
+                const missingLocally = piece.kind === 'document'
+                  && localResourceIds !== undefined
+                  && !localResourceIds.has(piece.document.resourceId)
+                const rowProps = {
+                  piece,
+                  groupDayId,
+                  locale: travel.locale,
+                  missingLocally,
+                }
+                const content = <PieceRowContent {...rowProps} />
+                return (
+                  <li key={`${piece.kind}:${piece.id}`}>
+                    {piece.kind === 'document'
+                      ? (
+                          <button
+                            className="piece-row"
+                            type="button"
+                            aria-label={pieceRowLabel(rowProps)}
+                            onClick={() => onOpenDocument(piece.document)}
+                          >
+                            {content}
+                          </button>
+                        )
+                      : (
+                          <details className="piece-disclosure">
+                            <summary className="piece-row" aria-label={pieceRowLabel(rowProps)}>
+                              {content}
+                            </summary>
+                            <div className="piece-reservation">
+                              <ReservationBody
+                                travel={travel}
+                                reservation={piece.reservation}
+                                online={online}
+                                onOpenDocument={onOpenDocument}
+                              />
+                            </div>
+                          </details>
+                        )}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
 function PracticalView({
   travel,
   online,
@@ -2063,6 +2272,7 @@ function PreparationView({
 
 function viewLabel(view: TravelView, travel: Travel) {
   if (view.kind === 'summary') return 'Aperçu'
+  if (view.kind === 'pieces') return 'Pièces'
   if (view.kind === 'practical') return 'Pratique'
   if (view.kind === 'preparation') return 'Préparation'
   if (view.kind === 'today') return 'Programme d’aujourd’hui'
@@ -2083,6 +2293,7 @@ export function TravelConsultation({
   onCopyAddress,
   onOpenDocument,
   onLoadIllustrationResource,
+  onListLocalResourceIds,
   onSetChecklistItemChecked,
   onSaveNote,
 }: TravelConsultationProps) {
@@ -2172,6 +2383,7 @@ export function TravelConsultation({
   }[] = [
     { label: 'Aperçu', icon: CompassIcon, active: safeView.kind === 'summary', target: () => ({ kind: 'summary' }) },
     { label: 'Programme', icon: ListIcon, active: programActive, target: () => programTarget(travel, clock) },
+    { label: 'Pièces', icon: PaperclipIcon, active: safeView.kind === 'pieces', target: () => ({ kind: 'pieces' }) },
     { label: 'Pratique', icon: InfoIcon, active: safeView.kind === 'practical', target: () => ({ kind: 'practical' }) },
     { label: 'Préparation', icon: ChecklistIcon, active: safeView.kind === 'preparation', target: () => ({ kind: 'preparation' }) },
   ]
@@ -2222,6 +2434,14 @@ export function TravelConsultation({
           personalState={checklistState}
           onNavigate={onNavigate}
           {...actions}
+        />
+      )}
+      {safeView.kind === 'pieces' && (
+        <PiecesView
+          travel={travel}
+          online={online}
+          onOpenDocument={onOpenDocument}
+          onListLocalResourceIds={onListLocalResourceIds}
         />
       )}
       {safeView.kind === 'practical' && (

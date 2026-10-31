@@ -78,6 +78,7 @@ beforeEach(() => {
       value: { metadata: entry, travel },
     }),
     getResource: vi.fn(),
+    listResourceIds: vi.fn().mockResolvedValue({ ok: true, value: [] }),
     getPersonalState: vi.fn().mockResolvedValue({
       ok: true,
       value: { checkedItemKeys: [], note: '' },

@@ -2420,6 +2420,180 @@ main > * {
   overflow-wrap: anywhere;
 }
 
+/* Espace « Pièces » : vue dérivée des documents et réservations du dossier. */
+.pieces-view {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.pieces-view > .section-heading {
+  margin-bottom: 0;
+}
+
+.pieces-offline-badge {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-sage);
+  background: var(--color-sage-soft);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+
+.pieces-group {
+  min-width: 0;
+  max-width: 48rem;
+}
+
+.pieces-group-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin: 0 0 var(--space-3);
+  color: var(--color-terracotta);
+  font-family: var(--font-body);
+  font-size: var(--font-size-caption);
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.pieces-group-day {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pieces-list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0.0625rem solid var(--color-line);
+  border-radius: var(--radius-card-sm);
+  background: var(--color-paper);
+  list-style: none;
+}
+
+.pieces-list > li + li {
+  border-top: 0.0625rem solid var(--color-line);
+}
+
+.piece-row {
+  width: 100%;
+  min-height: 4.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: var(--space-3) 0.875rem;
+  border: 0;
+  color: var(--color-ink);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.piece-row:hover {
+  background: var(--color-bg);
+}
+
+.piece-row:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+.piece-disclosure > summary {
+  list-style: none;
+}
+
+.piece-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.piece-disclosure[open] .piece-chevron {
+  transform: rotate(90deg);
+}
+
+.piece-icon {
+  width: var(--tap-target);
+  height: var(--tap-target);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-button);
+}
+
+.piece-icon-document {
+  color: var(--color-sage);
+  background: var(--color-sage-soft);
+}
+
+.piece-icon-reservation {
+  color: var(--color-warning-ink);
+  background: var(--color-sun-soft);
+}
+
+.piece-text {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 0.125rem;
+}
+
+.piece-title {
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.piece-attachments {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  overflow-wrap: anywhere;
+}
+
+.piece-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.3rem;
+}
+
+.piece-badge {
+  display: inline-flex;
+  padding: 0.125rem 0.55rem;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  background: var(--color-sand);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.piece-badge-warning {
+  color: var(--color-warning-ink);
+  background: var(--color-sun-soft);
+}
+
+.piece-chevron {
+  flex: none;
+  color: var(--color-text-muted);
+  transition: transform 150ms ease;
+}
+
+.piece-reservation {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0.875rem var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-sun-soft);
+}
+
 .travel-bottom-nav {
   position: fixed;
   z-index: 20;
@@ -2466,7 +2640,7 @@ main > * {
 }
 
 .travel-nav-icon {
-  width: 3.5rem;
+  width: min(3.5rem, 100%);
   height: 1.875rem;
   display: grid;
   place-items: center;
@@ -2484,6 +2658,19 @@ main > * {
 
 .travel-nav-button:focus-visible {
   outline-offset: -0.1875rem;
+}
+
+/* Cinq sections : les libellés restent lisibles sur les plus petits écrans. */
+.travel-nav-button > span:last-child {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+@media (width < 24rem) {
+  .travel-nav-button {
+    font-size: 0.6875rem;
+  }
 }
 
 @media (width >= 36rem) {

@@ -292,6 +292,11 @@ export function App({
     return { ok: true, resource: loaded.value }
   }, [])
 
+  const listLocalResourceIds = useCallback(async (travelId: string) => {
+    const listed = await repositoryRef.current?.listResourceIds(travelId)
+    return listed?.ok ? listed.value : undefined
+  }, [])
+
   const loadLibraryCover = useCallback(async (
     travelId: string,
   ): Promise<TravelCoverLoadResult> => {
@@ -412,6 +417,7 @@ export function App({
             onCopyAddress={copyAddress}
             onOpenDocument={(document) => void openDocument(document)}
             onLoadIllustrationResource={loadIllustrationResource}
+            onListLocalResourceIds={listLocalResourceIds}
             onSetChecklistItemChecked={setChecklistItemChecked}
             onSaveNote={saveTravelNote}
           />

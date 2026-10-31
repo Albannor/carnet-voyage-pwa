@@ -368,6 +368,29 @@ describe('IndexedDbTravelRepository', () => {
     )
   })
 
+  it('liste les ressources présentes d’un seul voyage sans lire leurs octets', async () => {
+    const repository = await openRepository()
+    await repository.importPackage(await validatedIllustratedPackage('alpha'))
+    await repository.importPackage(await validatedIllustratedPackage('beta'))
+    await repository.importPackage(await validatedPackageV1_1())
+
+    const alpha = await repository.listResourceIds('illustrated-alpha')
+    const coastal = await repository.listResourceIds(validTravelDocumentV1_1.id)
+    const missing = await repository.listResourceIds('travel-missing')
+
+    expect(alpha.ok && alpha.value).toContain('image-day')
+    expect(coastal.ok && coastal.value).toEqual(['pdf-ferry-ticket'])
+    expect(missing).toEqual({ ok: true, value: [] })
+
+    await repository.deleteTravel('illustrated-alpha')
+    expect(await repository.listResourceIds('illustrated-alpha')).toEqual({
+      ok: true,
+      value: [],
+    })
+    const beta = await repository.listResourceIds('illustrated-beta')
+    expect(beta.ok && beta.value).toContain('image-day')
+  })
+
   it('stocke et relit une illustration locale isolée par voyage', async () => {
     const repository = await openRepository()
     await repository.importPackage(await validatedIllustratedPackage('alpha'))

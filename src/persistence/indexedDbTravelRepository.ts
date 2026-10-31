@@ -500,6 +500,29 @@ class IndexedDbTravelRepository implements TravelLibraryRepository {
     }
   }
 
+  async listResourceIds(
+    travelId: string,
+  ): Promise<PersistenceResult<readonly string[]>> {
+    try {
+      const transaction = this.database.transaction(TRAVEL_STORES.resources, 'readonly')
+      const completion = transactionCompletion(transaction)
+      const keys = await requestResult(
+        transaction
+          .objectStore(TRAVEL_STORES.resources)
+          .index(TRAVEL_INDEXES.resourcesByTravel)
+          .getAllKeys(IDBKeyRange.only(travelId)),
+      )
+      await completion
+      return success(keys.flatMap((key) => (
+        Array.isArray(key) && key[0] === travelId && typeof key[1] === 'string'
+          ? [key[1]]
+          : []
+      )))
+    } catch {
+      return failure(readFailure(travelId))
+    }
+  }
+
   async getPersonalState(
     travelId: string,
   ): Promise<PersistenceResult<TravelPersonalState>> {

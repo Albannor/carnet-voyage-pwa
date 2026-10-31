@@ -16,6 +16,7 @@ export function readTravelLocation(search: string): TravelLocation | undefined {
   if (view === 'day' && dayId) {
     return { travelId, view: { kind: 'day', dayId } }
   }
+  if (view === 'pieces') return { travelId, view: { kind: 'pieces' } }
   if (view === 'practical') return { travelId, view: { kind: 'practical' } }
   if (view === 'preparation') return { travelId, view: { kind: 'preparation' } }
   return { travelId, view: { kind: 'summary' } }
