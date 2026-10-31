@@ -7,7 +7,7 @@ Le build de production est une PWA statique. `vite-plugin-pwa` `1.3.0` et Workbo
 Les deux stockages du navigateur restent strictement séparés :
 
 - **Cache Storage** reçoit uniquement le shell versionné : `index.html`, JavaScript, CSS, polices embarquées (Fraunces et Inter, sous-ensembles latins), manifeste, favicon et icônes ;
-- **IndexedDB** reste la source de vérité pour les voyages normalisés, illustrations, PDF, checklists et notes.
+- **IndexedDB** reste la source de vérité pour les voyages normalisés, illustrations, PDF, checklists, notes et pièces ajoutées par l’utilisateur.
 
 Le service worker ne contient aucune logique d’import, n’accède pas à IndexedDB et ne duplique pas les ressources d’un voyage. Les images et PDF importés sont toujours relus avec la clé du voyage courant, puis exposés temporairement par une URL d’objet révoquée par l’application.
 
@@ -19,7 +19,7 @@ Un hébergement de production doit servir le dossier `dist/` en HTTPS. Les chemi
 
 Le dépôt prévoit GitHub Pages comme hébergement statique à l’adresse attendue `https://albannor.github.io/carnet-voyage-pwa/`. Le workflow `.github/workflows/deploy-pages.yml` exécute `npm ci`, les quatre contrôles du projet, configure Pages, téléverse uniquement `dist/`, puis déploie cet artefact dans l’environnement `github-pages`. Il se déclenche sur `main` et manuellement. La source Pages doit être configurée sur **GitHub Actions** dans les paramètres du dépôt.
 
-Le shell servi par GitHub Pages est public, même si le dépôt source est privé. Aucun ZIP de voyage, PDF importé, fichier Madrid ou contenu IndexedDB n’est intégré à `dist/`. Chaque appareil crée sa propre bibliothèque locale dans IndexedDB après ouverture du site et import explicite d’un paquet.
+Le shell servi par GitHub Pages est public, même si le dépôt source est privé. Aucun ZIP de voyage, PDF importé, pièce ajoutée, fichier Madrid ou contenu IndexedDB n’est intégré à `dist/`. Les pièces ajoutées, potentiellement sensibles, ne sont jamais journalisées, envoyées sur le réseau ni mises en cache par le service worker ; `scripts/verify-pwa-build.mjs` échoue si le service worker généré mentionne leurs object stores. Chaque appareil crée sa propre bibliothèque locale dans IndexedDB après ouverture du site et import explicite d’un paquet.
 
 Sur iPhone, la procédure prévue est :
 

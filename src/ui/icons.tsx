@@ -189,6 +189,30 @@ export function FileIcon(props: IconProps) {
   )
 }
 
+export function PaperclipIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 12l-8.5 8.5a5 5 0 01-7-7L14 5a3.3 3.3 0 014.7 4.7L10 18.4a1.7 1.7 0 01-2.4-2.4L15 8.6" />
+    </Icon>
+  )
+}
+
+export function TicketIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 8a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2a2 2 0 000-4V8zM14 6v12" />
+    </Icon>
+  )
+}
+
+export function ImageIcon(props: IconProps) {
+  return <Icon {...props}><path d="M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5" /></Icon>
+}
+
+export function DownloadIcon(props: IconProps) {
+  return <Icon {...props}><path d="M12 4v10M8 10l4 4 4-4M5 20h14" /></Icon>
+}
+
 export function ExternalLinkIcon(props: IconProps) {
   return (
     <Icon {...props}>

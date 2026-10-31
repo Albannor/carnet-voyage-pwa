@@ -133,7 +133,7 @@ for (const font of [
 if (serviceWorker.includes('url:"guide-standalone.html"')) {
   fail('guide-standalone.html ne doit pas appartenir au précache')
 }
-if (/indexedDB|travelResources|personalStates/.test(serviceWorker)) {
+if (/indexedDB|travelResources|personalStates|userPieces|userPieceFiles/.test(serviceWorker)) {
   fail('le service worker ne doit pas manipuler les données IndexedDB')
 }
 

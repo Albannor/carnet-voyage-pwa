@@ -72,13 +72,14 @@ IndexedDB est la source de vérité locale pour :
 - le contenu normalisé des voyages ;
 - les ressources importées qui doivent être disponibles hors ligne ;
 - les états personnels, notamment checklists et notes ;
+- les pièces ajoutées par l’utilisateur, séparées du contenu importé ;
 - la version interne utilisée pour les migrations.
 
 Le contenu importé et l'état personnel sont séparés logiquement. Une mise à jour ou une réimportation ne doit pas écraser silencieusement les notes ou les cases cochées. Les identifiants stables permettent de rattacher ces états au bon voyage et au bon élément.
 
 Les écritures importantes sont transactionnelles. La suppression d'un voyage efface son contenu et ses états associés uniquement après une action explicite de l'utilisateur.
 
-La base IndexedDB initiale porte la version `1` et sépare quatre object stores : `travelMetadata`, `travelContents`, `travelResources` et `personalStates`. Les ressources et états personnels sont indexés par `travelId` ; leurs clés composites commencent par cet identifiant. La politique initiale refuse tout doublon au lieu d'écraser un voyage existant. Le détail des clés, transactions et erreurs figure dans `PERSISTENCE.md`.
+La base IndexedDB porte la version `2`. La version `1` sépare quatre object stores : `travelMetadata`, `travelContents`, `travelResources` et `personalStates`. La version `2` ajoute, par une migration ordonnée qui conserve les données existantes, `userPieces` (métadonnées des pièces ajoutées) et `userPieceFiles` (leurs octets). Les ressources, états personnels et pièces ajoutées sont indexés par `travelId` ; leurs clés composites commencent par cet identifiant. Aucune écriture utilisateur ne touche `travelContents` ni `travelResources`. La politique initiale refuse tout doublon au lieu d'écraser un voyage existant. Le détail des clés, transactions et erreurs figure dans `PERSISTENCE.md`.
 
 Le `localStorage` n'est pas utilisé pour les voyages, les notes ou les checklists. Les paramètres d’URL restent limités au contexte de navigation.
 
@@ -91,7 +92,7 @@ Depuis l’étape 9, `vite-plugin-pwa` génère ce service worker avec Workbox p
 Cache Storage et IndexedDB ont des responsabilités disjointes :
 
 - **Cache Storage** contient une révision cohérente et remplaçable du shell ; Workbox supprime ses anciens précaches devenus inutiles ;
-- **IndexedDB** conserve la bibliothèque, le contenu normalisé, les images, les PDF, les notes et les états de checklist ; ni l’installation ni l’activation du service worker ne modifient ces object stores.
+- **IndexedDB** conserve la bibliothèque, le contenu normalisé, les images, les PDF, les notes, les états de checklist et les pièces ajoutées ; ni l’installation ni l’activation du service worker ne modifient ces object stores.
 
 La nouvelle version du shell reste en attente. L’application annonce sa disponibilité et ne demande son activation avec rechargement qu’après une action explicite de l’utilisateur. Ce mécanisme ne force donc pas de rechargement au milieu d’une interaction. Un adaptateur de connectivité limité à `navigator.onLine` et aux événements `online`/`offline` pilote l’indication locale : il signale une absence de réseau, mais un état « en ligne » ne constitue jamais une preuve qu’un service distant répond.
 

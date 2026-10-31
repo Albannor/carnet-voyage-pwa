@@ -76,7 +76,7 @@ npm run build
 - [Contrat `voyage.json` 1.3.0](contracts/voyage/1.3.0/README.md) : illustrations locales, associations explicites et provenances.
 - [Import sécurisé](docs/IMPORT.md) : format ZIP, manifest, ressources, limites, erreurs et normalisation.
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
-- [Consultation](docs/CONSULTATION.md) : quatre sections de consultation, vue « Aujourd’hui », programme chronologique, infos pratiques et préparation.
+- [Consultation](docs/CONSULTATION.md) : cinq sections de consultation, vue « Aujourd’hui », programme chronologique, pièces du voyage, infos pratiques et préparation.
 - [Installation et hors ligne](docs/OFFLINE.md) : installation, cache du shell, mises à jour, recette locale et procédure iPhone.
 - [Outils de la Fabrique](tools/fabrique/README.md) : production et validation hors application des paquets ZIP importables, images Wikimedia Commons comprises.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.

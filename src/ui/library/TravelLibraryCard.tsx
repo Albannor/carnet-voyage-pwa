@@ -260,7 +260,7 @@ function OptionsPanel({
               Supprimer « {entry.title} » ?
             </p>
             <p id={descriptionId}>
-              Ses notes et checklists seront aussi supprimées de cet appareil.
+              Ses notes, checklists et pièces ajoutées seront aussi supprimées de cet appareil.
               Cette action est définitive.
             </p>
             <div className="delete-confirmation-actions">

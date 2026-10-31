@@ -30,3 +30,13 @@ export function travelDurationLabel(startDate: string, endDate: string) {
   const days = daysBetween(startDate, endDate) + 1
   return days > 1 ? `${days} jours` : '1 jour'
 }
+
+/** Date courte d’une journée, par exemple « mar. 14 juil. ». */
+export function formatCompactDate(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(`${date}T12:00:00Z`))
+}

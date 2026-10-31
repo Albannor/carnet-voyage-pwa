@@ -1,8 +1,10 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type ChangeEvent,
+  type FormEvent,
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
@@ -13,6 +15,19 @@ import {
   getTodayState,
   type Clock,
 } from '../../application/travelConsultation'
+import {
+  allDocumentsStoredLocally,
+  filePiecesForStep,
+  findStepWithDay,
+  findTravelPiece,
+  groupTravelPiecesByDay,
+  listTravelPieces,
+  piecesForDay,
+  type TravelPiece,
+  type TravelPieceAttachment,
+  type TravelPieceKind,
+} from '../../application/travelPieces'
+import { USER_PIECE_KIND_LABELS, userPieceFormatLabel } from '../../application/userPieces'
 import type {
   Travel,
   TravelAccommodation,
@@ -22,16 +37,24 @@ import type {
   TravelIllustration,
   TravelLink,
   TravelReservation,
+  TravelStep,
   TravelVariant,
   TravelVariantKind,
 } from '../../domain/voyage/model'
 import {
   MAX_TRAVEL_NOTE_LENGTH,
+  MAX_USER_PIECE_TITLE_LENGTH,
   checklistItemStateKey,
+  isValidUserPieceTitle,
+  type NewUserPiece,
   type PersistedTravel,
   type PersistedTravelResource,
+  type PersistedUserPieceFile,
   type TravelPersonalState,
+  type UserPieceAttachment,
+  type UserPieceMetadata,
 } from '../../persistence/model'
+import type { RequestScreenWakeLock } from '../../services/screenWakeLock'
 import { safeExternalHttpsUrl } from '../../services/travelActions'
 import {
   CalendarIcon,
@@ -42,16 +65,30 @@ import {
   ClockIcon,
   CompassIcon,
   CopyIcon,
+  DownloadIcon,
   ExternalLinkIcon,
   FileIcon,
   HomeIcon,
+  ImageIcon,
   InfoIcon,
   ListIcon,
   MapPinIcon,
+  PaperclipIcon,
+  PlusIcon,
+  ShieldIcon,
   SwapIcon,
+  TicketIcon,
+  TrashIcon,
 } from '../icons'
-import { daysBetween, formatTravelDates, travelDurationLabel } from '../travelDates'
+import {
+  daysBetween,
+  formatCompactDate,
+  formatTravelDates,
+  travelDurationLabel,
+} from '../travelDates'
 import { localTimeInTimeZone, stepProgress, type StepProgress } from './stepProgress'
+import { AddPieceView, type UserPieceSaveResult } from './AddPieceView'
+import { PiecePresentation } from './PiecePresentation'
 import {
   linksNotCarriedByIllustration,
   stepIllustrationLink,
@@ -62,6 +99,14 @@ export type TravelView =
   | { readonly kind: 'summary' }
   | { readonly kind: 'today' }
   | { readonly kind: 'day'; readonly dayId: string }
+  | { readonly kind: 'step'; readonly stepId: string }
+  | { readonly kind: 'pieces' }
+  | { readonly kind: 'add-piece'; readonly attachment?: UserPieceAttachment }
+  | {
+      readonly kind: 'piece'
+      readonly pieceKind: TravelPieceKind
+      readonly pieceId: string
+    }
   | { readonly kind: 'practical' }
   | { readonly kind: 'preparation' }
 
@@ -73,6 +118,12 @@ export interface ContextActionFeedback {
 export type PersonalSaveResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly message: string }
+
+export type UserPieceFileLoadResult =
+  | { readonly ok: true; readonly file: PersistedUserPieceFile }
+  | { readonly ok: false; readonly message: string }
+
+export type { UserPieceSaveResult }
 
 export type IllustrationResourceLoadResult =
   | { readonly ok: true; readonly resource: PersistedTravelResource }
@@ -95,12 +146,23 @@ interface TravelConsultationProps {
     travelId: string,
     resourceId: string,
   ): Promise<IllustrationResourceLoadResult>
+  /** Résout à `undefined` lorsque le stockage local ne peut pas être lu. */
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
   onSetChecklistItemChecked(
     checklistId: string,
     itemId: string,
     checked: boolean,
   ): Promise<PersonalSaveResult>
   onSaveNote(text: string): Promise<PersonalSaveResult>
+  /** Pièces ajoutées sur l’appareil pour ce voyage, sans leurs octets. */
+  userPieces: readonly UserPieceMetadata[]
+  onAddUserPiece(piece: NewUserPiece): Promise<UserPieceSaveResult>
+  onRenameUserPiece(pieceId: string, title: string): Promise<PersonalSaveResult>
+  onDeleteUserPiece(pieceId: string): Promise<PersonalSaveResult>
+  onOpenUserPiece(piece: UserPieceMetadata): void
+  onLoadUserPieceFile(travelId: string, pieceId: string): Promise<UserPieceFileLoadResult>
+  /** Injectable pour les tests ; par défaut, l’API Screen Wake Lock du navigateur. */
+  requestWakeLock?: RequestScreenWakeLock
 }
 
 interface ActionProps {
@@ -135,15 +197,6 @@ function formatDate(date: string, locale: string) {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${date}T12:00:00Z`))
-}
-
-function formatCompactDate(date: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
     timeZone: 'UTC',
   }).format(new Date(`${date}T12:00:00Z`))
 }
@@ -552,26 +605,26 @@ function CopyAddressButton({
   )
 }
 
-function ReservationDetails({
-  travel,
-  reservation,
-  online,
-  onOpenDocument,
-  compact = false,
-  excludedDocumentIds = new Set<string>(),
-}: {
+interface ReservationContentProps {
   travel: Travel
   reservation: TravelReservation
   online: boolean
   onOpenDocument(document: TravelDocument): void
-  compact?: boolean
   excludedDocumentIds?: ReadonlySet<string>
-}) {
+}
+
+function ReservationBody({
+  travel,
+  reservation,
+  online,
+  onOpenDocument,
+  excludedDocumentIds = new Set<string>(),
+}: ReservationContentProps) {
   const reservationDocuments = documentsById(
     travel,
     reservation.documentIds.filter((id) => !excludedDocumentIds.has(id)),
   )
-  const content = (
+  return (
     <>
       <dl className="reservation-metadata">
         {reservation.reference && <><dt>Référence</dt><dd>{reservation.reference}</dd></>}
@@ -607,6 +660,14 @@ function ReservationDetails({
       )}
     </>
   )
+}
+
+function ReservationDetails({
+  compact = false,
+  ...props
+}: ReservationContentProps & { compact?: boolean }) {
+  const { reservation } = props
+  const content = <ReservationBody {...props} />
 
   if (compact) {
     return (
@@ -1355,6 +1416,7 @@ function Timeline({
             )
             const stepState = progress?.[index] ?? 'upcoming'
             const badge = STEP_PROGRESS_BADGES[stepState]
+            const openStep = () => onNavigate({ kind: 'step', stepId: step.id })
             return (
               <li key={step.id} className={`timeline-step timeline-step-${stepState}`}>
                 <span className="timeline-dot" aria-hidden="true">
@@ -1363,30 +1425,40 @@ function Timeline({
                 <article className="step-content" aria-labelledby={`step-${step.id}`}>
                   {badge && <p className="step-badge">{badge}</p>}
                   {stepState === 'done' && <p className="visually-hidden">Étape passée</p>}
-                  <p className="step-time">
-                    {step.startsAt ? (
-                      <>
-                        <time dateTime={step.startsAt}>{step.startsAt}</time>
-                        {step.endsAt && (
-                          <>
-                            <span aria-hidden="true">–</span>
-                            <time dateTime={step.endsAt}>{step.endsAt}</time>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      'Sans horaire'
-                    )}
-                  </p>
-                  <h4 id={`step-${step.id}`}>{step.title}</h4>
-                  {step.description && <p className="step-description">{step.description}</p>}
-                  {place && (
-                    <p className="step-place">
-                      <MapPinIcon size={16} />
-                      <span className="visually-hidden">Lieu : </span>
-                      <span>{place.label}</span>
+                  <div className="step-heading">
+                    <p className="step-time">
+                      {step.startsAt ? (
+                        <>
+                          <time dateTime={step.startsAt}>{step.startsAt}</time>
+                          {step.endsAt && (
+                            <>
+                              <span aria-hidden="true">–</span>
+                              <time dateTime={step.endsAt}>{step.endsAt}</time>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        'Sans horaire'
+                      )}
                     </p>
-                  )}
+                    <h4 id={`step-${step.id}`}>{step.title}</h4>
+                    {place && (
+                      <p className="step-place">
+                        <MapPinIcon size={16} />
+                        <span className="visually-hidden">Lieu : </span>
+                        <span>{place.label}</span>
+                      </p>
+                    )}
+                    <button
+                      className="step-open-button"
+                      type="button"
+                      aria-label={`Ouvrir l’étape ${step.title}`}
+                      onClick={openStep}
+                    >
+                      <ChevronRightIcon size={20} />
+                    </button>
+                  </div>
+                  {step.description && <p className="step-description">{step.description}</p>}
                   <IllustrationCollection
                     travel={travel}
                     illustrationIds={step.illustrationIds}
@@ -1476,26 +1548,20 @@ function DayComplements({
   travel,
   day,
   personalState,
-  ...actions
 }: {
   travel: Travel
   day: TravelDay
   personalState: PersonalStateProps
-} & ActionProps) {
+}) {
   const dayChecklists = travel.checklists.filter(
     (checklist) => checklist.target.type === 'day'
       && checklist.target.dayId === day.id,
   )
-  const documents = documentsById(travel, day.documentIds)
-  const reservations = reservationsById(travel, day.reservationIds)
   const hasVariants = dayVariants(travel, day).length > 0
-  const hasDirectDetails = documents.length > 0 || reservations.length > 0
 
-  if (
-    dayChecklists.length === 0
-    && !hasVariants
-    && !hasDirectDetails
-  ) return null
+  // Les documents et réservations de la journée sont présentés une seule fois,
+  // dans la bande « Pièces du jour ».
+  if (dayChecklists.length === 0 && !hasVariants) return null
 
   return (
     <aside className="day-sidebar" aria-label="Compléments de la journée">
@@ -1505,33 +1571,6 @@ function DayComplements({
           <h3 id={`day-checklists-${day.id}`}>Checklist de la journée</h3>
           <ChecklistCollection checklists={dayChecklists} {...personalState} />
         </section>
-      )}
-      {hasDirectDetails && (
-        <details className="day-complement">
-          <summary>Informations associées à la journée</summary>
-          <ul className="compact-action-list">
-            {documents.map((document) => (
-              <li key={document.id}>
-                <DocumentButton
-                  document={document}
-                  context={day.title}
-                  onOpenDocument={actions.onOpenDocument}
-                />
-              </li>
-            ))}
-          </ul>
-          {reservations.map((reservation) => (
-            <ReservationDetails
-              key={reservation.id}
-              travel={travel}
-              reservation={reservation}
-              online={actions.online}
-              onOpenDocument={actions.onOpenDocument}
-              compact
-              excludedDocumentIds={new Set(day.documentIds)}
-            />
-          ))}
-        </details>
       )}
     </aside>
   )
@@ -1577,6 +1616,7 @@ function DayDetail({
   isToday,
   progress,
   personalState,
+  userPieces,
   onNavigate,
   ...actions
 }: {
@@ -1585,6 +1625,7 @@ function DayDetail({
   isToday: boolean
   progress?: readonly StepProgress[]
   personalState: PersonalStateProps
+  userPieces: readonly UserPieceMetadata[]
   onNavigate(view: TravelView): void
 } & ActionProps) {
   const dayLevelVariants = travel.variants.filter(
@@ -1620,6 +1661,7 @@ function DayDetail({
             onLoadResource={actions.onLoadIllustrationResource}
           />
         </header>
+        <DayPieces travel={travel} day={day} userPieces={userPieces} onNavigate={onNavigate} />
         <Timeline
           travel={travel}
           day={day}
@@ -1634,7 +1676,6 @@ function DayDetail({
         travel={travel}
         day={day}
         personalState={personalState}
-        {...actions}
       />
     </div>
   )
@@ -1645,6 +1686,7 @@ function ProgramView({
   view,
   clock,
   personalState,
+  userPieces,
   onNavigate,
   ...actions
 }: {
@@ -1652,6 +1694,7 @@ function ProgramView({
   view: Extract<TravelView, { kind: 'day' | 'today' }>
   clock: Clock
   personalState: PersonalStateProps
+  userPieces: readonly UserPieceMetadata[]
   onNavigate(view: TravelView): void
 } & ActionProps) {
   const today = getTodayState(travel, clock)
@@ -1707,6 +1750,7 @@ function ProgramView({
               isToday={isToday}
               progress={progress}
               personalState={personalState}
+              userPieces={userPieces}
               onNavigate={onNavigate}
               {...actions}
             />
@@ -1817,6 +1861,920 @@ function AccommodationDetails({
         </section>
       )}
     </article>
+  )
+}
+
+function pieceAttachmentText(
+  attachment: TravelPieceAttachment,
+  groupDayId: string | undefined,
+  locale: string,
+) {
+  const date = attachment.day.id === groupDayId
+    ? ''
+    : ` · ${formatCompactDate(attachment.day.date, locale)}`
+  if (attachment.type === 'day') return `Toute la journée${date}`
+  const time = attachment.step.startsAt ? `${attachment.step.startsAt} · ` : ''
+  return `Étape ${time}${attachment.step.title}${date}`
+}
+
+function pieceFormat(piece: TravelPiece) {
+  if (piece.kind === 'document') return 'PDF'
+  if (piece.kind === 'reservation') return 'Réservation'
+  return userPieceFormatLabel(piece.added.mediaType)
+}
+
+function pieceOrigin(piece: TravelPiece) {
+  return piece.origin === 'user' ? 'Ajoutée' : 'Dossier'
+}
+
+function isImagePiece(piece: TravelPiece) {
+  return piece.kind === 'added' && piece.added.mediaType !== 'application/pdf'
+}
+
+function PieceIcon({ piece, size = 22 }: { piece: TravelPiece; size?: number }) {
+  const className = piece.kind === 'reservation'
+    ? 'piece-icon piece-icon-reservation'
+    : piece.kind === 'added'
+      ? 'piece-icon piece-icon-added'
+      : 'piece-icon piece-icon-document'
+  return (
+    <span className={className} aria-hidden="true">
+      {piece.kind === 'reservation'
+        ? <TicketIcon size={size} />
+        : isImagePiece(piece)
+          ? <ImageIcon size={size} />
+          : <FileIcon size={size} />}
+    </span>
+  )
+}
+
+function OriginBadge({ piece }: { piece: TravelPiece }) {
+  return (
+    <span className={piece.origin === 'user' ? 'piece-badge piece-badge-added' : 'piece-badge'}>
+      {pieceOrigin(piece)}
+    </span>
+  )
+}
+
+interface PieceRowProps {
+  piece: TravelPiece
+  groupDayId?: string
+  locale: string
+  missingLocally: boolean
+  /** Remplace la liste des rattachements lorsque le contexte la rend redondante. */
+  detail?: string
+}
+
+function pieceAttachmentsText({ piece, groupDayId, locale, detail }: PieceRowProps) {
+  if (detail) return detail
+  return piece.attachments.length === 0
+    ? 'Tout le voyage'
+    : piece.attachments
+      .map((attachment) => pieceAttachmentText(attachment, groupDayId, locale))
+      .join(' ; ')
+}
+
+function pieceView(piece: TravelPiece): TravelView {
+  return { kind: 'piece', pieceKind: piece.kind, pieceId: piece.id }
+}
+
+/** Nom accessible ponctué : les fragments visuels ne sont pas collés entre eux. */
+function pieceRowLabel(props: PieceRowProps) {
+  const { piece, missingLocally } = props
+  return [
+    `Voir la fiche ${piece.label}`,
+    pieceAttachmentsText(props),
+    `${pieceFormat(piece)}, ${pieceOrigin(piece)}${missingLocally ? ', absent de cet appareil' : ''}`,
+  ].join(' — ')
+}
+
+function PieceRowContent(props: PieceRowProps) {
+  const { piece, missingLocally } = props
+  return (
+    <>
+      <PieceIcon piece={piece} />
+      <span className="piece-text">
+        <span className="piece-title">{piece.label}</span>
+        <span className="piece-attachments">{pieceAttachmentsText(props)}</span>
+        <span className="piece-badges">
+          <span className="piece-badge">{pieceFormat(piece)}</span>
+          <OriginBadge piece={piece} />
+          {missingLocally && (
+            <span className="piece-badge piece-badge-warning">Absent de cet appareil</span>
+          )}
+        </span>
+      </span>
+      <ChevronRightIcon size={20} className="piece-chevron" />
+    </>
+  )
+}
+
+/** Ressources réellement présentes sur l’appareil ; `undefined` tant qu’elles sont inconnues. */
+function useLocalResourceIds(
+  travelId: string,
+  onListLocalResourceIds: (travelId: string) => Promise<readonly string[] | undefined>,
+) {
+  const [localResourceIds, setLocalResourceIds] = useState<ReadonlySet<string>>()
+
+  useEffect(() => {
+    let active = true
+    void onListLocalResourceIds(travelId).then((ids) => {
+      if (active) setLocalResourceIds(ids ? new Set(ids) : undefined)
+    })
+    return () => {
+      active = false
+    }
+  }, [onListLocalResourceIds, travelId])
+
+  return localResourceIds
+}
+
+function AddPieceButton({
+  label,
+  onClick,
+}: {
+  label: string
+  onClick(): void
+}) {
+  return (
+    <button className="add-piece-button" type="button" onClick={onClick}>
+      <PlusIcon size={20} />
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function PiecesView({
+  travel,
+  userPieces,
+  onNavigate,
+  onListLocalResourceIds,
+}: {
+  travel: Travel
+  userPieces: readonly UserPieceMetadata[]
+  onNavigate(view: TravelView): void
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
+}) {
+  const localResourceIds = useLocalResourceIds(travel.id, onListLocalResourceIds)
+  const pieces = listTravelPieces(travel, userPieces)
+  const groups = groupTravelPiecesByDay(travel, pieces)
+
+  // Les pièces ajoutées sont relues depuis IndexedDB : elles sont présentes par construction.
+  const allStoredLocally = localResourceIds !== undefined
+    && (travel.documents.length > 0 || userPieces.length > 0)
+    && (travel.documents.length === 0 || allDocumentsStoredLocally(travel, localResourceIds))
+
+  return (
+    <div className="consultation-view pieces-view" aria-labelledby="pieces-title">
+      <header className="section-heading pieces-heading">
+        <div>
+          <p className="section-label">Pièces</p>
+          <h2 id="pieces-title">Pièces du voyage</h2>
+          <p>
+            {pieces.length === 0
+              ? 'Aucune pièce'
+              : `${pieces.length} ${pieces.length > 1 ? 'pièces' : 'pièce'}`}
+          </p>
+        </div>
+        <AddPieceButton
+          label="Ajouter une pièce"
+          onClick={() => onNavigate({ kind: 'add-piece' })}
+        />
+      </header>
+      {pieces.length === 0 && (
+        <p className="empty-state">
+          Ce voyage ne contient aucun document ni aucune réservation. Les billets,
+          confirmations et autres pièces du dossier apparaîtront ici, comme celles
+          que vous ajoutez sur cet appareil.
+        </p>
+      )}
+      {allStoredLocally && (
+        <p className="pieces-offline-badge">
+          <DownloadIcon size={16} />
+          <span>Toutes disponibles hors connexion</span>
+        </p>
+      )}
+      {groups.map((group) => {
+        const groupDayId = group.type === 'day' ? group.day.id : undefined
+        const titleId = group.type === 'day'
+          ? `pieces-group-${group.day.id}`
+          : 'pieces-group-travel'
+        return (
+          <section className="pieces-group" key={titleId} aria-labelledby={titleId}>
+            <h3 className="pieces-group-title" id={titleId}>
+              {group.type === 'travel'
+                ? 'Tout le voyage'
+                : (
+                    <>
+                      <time dateTime={group.day.date}>
+                        {formatCompactDate(group.day.date, travel.locale)}
+                      </time>{' '}
+                      <span className="pieces-group-day">{group.day.title}</span>
+                    </>
+                  )}
+            </h3>
+            <ul className="pieces-list">
+              {group.pieces.map((piece) => {
+                const missingLocally = piece.kind === 'document'
+                  && localResourceIds !== undefined
+                  && !localResourceIds.has(piece.document.resourceId)
+                const rowProps = {
+                  piece,
+                  groupDayId,
+                  locale: travel.locale,
+                  missingLocally,
+                }
+                return (
+                  <li key={`${piece.kind}:${piece.id}`}>
+                    <button
+                      className="piece-row"
+                      type="button"
+                      aria-label={pieceRowLabel(rowProps)}
+                      onClick={() => onNavigate(pieceView(piece))}
+                    >
+                      <PieceRowContent {...rowProps} />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Rattachements d’une pièce limités à la journée affichée. */
+function dayAttachmentsText(piece: TravelPiece, day: TravelDay, locale: string) {
+  return piece.attachments
+    .filter((attachment) => attachment.day.id === day.id)
+    .map((attachment) => pieceAttachmentText(attachment, day.id, locale))
+    .join(' ; ')
+}
+
+/** Bande « Pièces du jour » : accès rapide aux fiches des pièces de la journée. */
+function DayPieces({
+  travel,
+  day,
+  userPieces,
+  onNavigate,
+}: {
+  travel: Travel
+  day: TravelDay
+  userPieces: readonly UserPieceMetadata[]
+  onNavigate(view: TravelView): void
+}) {
+  const pieces = piecesForDay(listTravelPieces(travel, userPieces), day.id)
+  if (pieces.length === 0) return null
+  const titleId = `day-pieces-${day.id}`
+
+  return (
+    <section className="day-pieces" aria-labelledby={titleId}>
+      <div className="day-pieces-heading">
+        <h3 id={titleId}>Pièces du jour · {pieces.length}</h3>
+        <button
+          className="text-button"
+          type="button"
+          onClick={() => onNavigate({ kind: 'pieces' })}
+        >
+          Toutes les pièces
+        </button>
+      </div>
+      <ul className="day-pieces-list">
+        {pieces.map((piece) => {
+          const detail = dayAttachmentsText(piece, day, travel.locale)
+          const format = pieceFormat(piece)
+          return (
+            <li key={`${piece.kind}:${piece.id}`}>
+              <button
+                className="day-piece-card"
+                type="button"
+                aria-label={[
+                  `Voir la fiche ${piece.label}`,
+                  detail,
+                  `${format}, ${pieceOrigin(piece)}`,
+                ].join(' — ')}
+                onClick={() => onNavigate(pieceView(piece))}
+              >
+                <PieceIcon piece={piece} />
+                <span className="piece-text">
+                  <span className="piece-title">{piece.label}</span>
+                  <span className="piece-attachments">{detail}</span>
+                </span>
+                <span className="day-piece-footer">
+                  <span className="day-piece-format">
+                    {format}
+                    {piece.origin === 'user' && ' · Ajoutée'}
+                  </span>
+                  <ChevronRightIcon size={18} />
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+/** Espace d’une étape : son horaire, ses réservations, ses pièces et ses liens. */
+function StepView({
+  travel,
+  day,
+  step,
+  userPieces,
+  online,
+  onNavigate,
+  onOpenDocument,
+}: {
+  travel: Travel
+  day: TravelDay
+  step: TravelStep
+  userPieces: readonly UserPieceMetadata[]
+  online: boolean
+  onNavigate(view: TravelView): void
+  onOpenDocument(document: TravelDocument): void
+}) {
+  const place = findPlace(travel, step.placeId)
+  const links = uniqueContextualLinks(step.links, place?.links)
+  const reservations = reservationsById(travel, step.reservationIds)
+  const filePieces = filePiecesForStep(listTravelPieces(travel, userPieces), step.id)
+  // Les documents de l’étape sont listés une fois, dans « Pièces de cette étape ».
+  const listedDocumentIds = new Set(
+    filePieces.flatMap((piece) => (piece.kind === 'document' ? [piece.id] : [])),
+  )
+
+  return (
+    <div className="consultation-view step-view" aria-labelledby="step-view-title">
+      <button
+        className="back-button"
+        type="button"
+        aria-label={`Retour à la journée : ${day.title}`}
+        onClick={() => onNavigate({ kind: 'day', dayId: day.id })}
+      >
+        <ChevronLeftIcon size={20} />
+        <span>
+          <time dateTime={day.date}>{formatCompactDate(day.date, travel.locale)}</time>
+          {' · '}
+          {day.title}
+        </span>
+      </button>
+      <header className="step-view-header">
+        <p className="step-time">
+          {step.startsAt ? (
+            <>
+              <time dateTime={step.startsAt}>{step.startsAt}</time>
+              {step.endsAt && (
+                <>
+                  <span aria-hidden="true">–</span>
+                  <time dateTime={step.endsAt}>{step.endsAt}</time>
+                </>
+              )}
+            </>
+          ) : (
+            'Sans horaire'
+          )}
+        </p>
+        <h2 id="step-view-title" className="step-view-title">{step.title}</h2>
+        {place && (
+          <p className="step-place">
+            <MapPinIcon size={18} />
+            <span className="visually-hidden">Lieu : </span>
+            <span>{place.label}</span>
+          </p>
+        )}
+        {step.description && <p className="step-description">{step.description}</p>}
+      </header>
+      {reservations.map((reservation) => (
+        <ReservationDetails
+          key={reservation.id}
+          travel={travel}
+          reservation={reservation}
+          online={online}
+          onOpenDocument={onOpenDocument}
+          excludedDocumentIds={listedDocumentIds}
+        />
+      ))}
+      <section className="pieces-group" aria-labelledby="step-pieces-title">
+        <h3 className="pieces-group-title" id="step-pieces-title">
+          Pièces de cette étape{filePieces.length > 0 ? ` · ${filePieces.length}` : ''}
+        </h3>
+        {filePieces.length > 0 && (
+          <ul className="pieces-list">
+            {filePieces.map((piece) => {
+              const rowProps = {
+                piece,
+                locale: travel.locale,
+                missingLocally: false,
+                detail: piece.origin === 'user'
+                  ? 'Ajoutée sur cet appareil'
+                  : 'Document du dossier',
+              }
+              return (
+                <li key={`${piece.kind}:${piece.id}`}>
+                  <button
+                    className="piece-row"
+                    type="button"
+                    aria-label={pieceRowLabel(rowProps)}
+                    onClick={() => onNavigate(pieceView(piece))}
+                  >
+                    <PieceRowContent {...rowProps} />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <AddPieceButton
+          label="Ajouter une pièce à cette étape"
+          onClick={() => onNavigate({
+            kind: 'add-piece',
+            attachment: { type: 'step', stepId: step.id },
+          })}
+        />
+      </section>
+      {links.length > 0 && (
+        <section className="step-view-links" aria-labelledby="step-links-title">
+          <h3 className="pieces-group-title" id="step-links-title">Liens utiles</h3>
+          <ContextualLinkList links={links} online={online} context={step.title} />
+        </section>
+      )}
+      {step.accommodationId && (
+        <button
+          className="text-button"
+          type="button"
+          aria-label={`Voir l’hébergement associé à ${step.title}`}
+          onClick={() => onNavigate({ kind: 'practical' })}
+        >
+          Voir l’hébergement
+        </button>
+      )}
+    </div>
+  )
+}
+
+function attachmentTarget(attachment: TravelPieceAttachment): TravelView {
+  return attachment.type === 'day'
+    ? { kind: 'day', dayId: attachment.day.id }
+    : { kind: 'step', stepId: attachment.step.id }
+}
+
+function documentStorageText(present: boolean | undefined) {
+  if (present === undefined) return 'Stockage local du voyage, non vérifié'
+  return present
+    ? 'Sur cet appareil, disponible hors connexion'
+    : 'Absent de cet appareil'
+}
+
+type UserPieceImageState =
+  | { readonly key: string; readonly status: 'ready'; readonly source: string }
+  | { readonly key: string; readonly status: 'failed' }
+
+/** Charge une image ajoutée et révoque son URL d’objet au démontage. */
+function useUserPieceImage(
+  travelId: string,
+  piece: UserPieceMetadata | undefined,
+  onLoadUserPieceFile: TravelConsultationProps['onLoadUserPieceFile'],
+) {
+  const pieceId = piece && piece.mediaType !== 'application/pdf' ? piece.pieceId : undefined
+  const key = `${travelId}/${pieceId ?? ''}`
+  const [state, setState] = useState<UserPieceImageState>()
+
+  useEffect(() => {
+    if (!pieceId) return
+    let active = true
+    let objectUrl: string | undefined
+    void onLoadUserPieceFile(travelId, pieceId).then((result) => {
+      if (!active) return
+      if (!result.ok || result.file.mediaType === 'application/pdf') {
+        setState({ key, status: 'failed' })
+        return
+      }
+      try {
+        objectUrl = URL.createObjectURL(new Blob(
+          [Uint8Array.from(result.file.bytes).buffer],
+          { type: result.file.mediaType },
+        ))
+        setState({ key, status: 'ready', source: objectUrl })
+      } catch {
+        setState({ key, status: 'failed' })
+      }
+    })
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [key, onLoadUserPieceFile, pieceId, travelId])
+
+  return state?.key === key ? state : undefined
+}
+
+function RenameUserPieceForm({
+  piece,
+  onRename,
+  onDone,
+}: {
+  piece: UserPieceMetadata
+  onRename(title: string): Promise<PersonalSaveResult>
+  onDone(message?: string): void
+}) {
+  const fieldId = useId()
+  const [title, setTitle] = useState(piece.title)
+  const [error, setError] = useState<string>()
+  const [saving, setSaving] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!isValidUserPieceTitle(title)) {
+      setError('Donnez un titre à cette pièce.')
+      return
+    }
+    setSaving(true)
+    const result = await onRename(title)
+    setSaving(false)
+    if (result.ok) onDone('Pièce renommée.')
+    else setError(result.message)
+  }
+
+  return (
+    <form className="piece-rename-form" noValidate onSubmit={(event) => void submit(event)}>
+      <div className="form-field">
+        <label htmlFor={`${fieldId}-title`}>Nouveau titre</label>
+        <input
+          id={`${fieldId}-title`}
+          type="text"
+          value={title}
+          maxLength={MAX_USER_PIECE_TITLE_LENGTH}
+          required
+          autoFocus
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${fieldId}-error` : undefined}
+          onChange={(event) => setTitle(event.currentTarget.value)}
+        />
+        {error && <p id={`${fieldId}-error`} className="field-error" role="alert">{error}</p>}
+      </div>
+      <div className="add-piece-actions">
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? 'Enregistrement…' : 'Enregistrer le titre'}
+        </button>
+        <button className="secondary-button" type="button" onClick={() => onDone()}>
+          Annuler
+        </button>
+      </div>
+    </form>
+  )
+}
+
+/** Actions propres aux pièces ajoutées : jamais proposées pour une pièce du dossier. */
+function UserPieceActions({
+  piece,
+  onRename,
+  onDelete,
+}: {
+  piece: UserPieceMetadata
+  onRename(title: string): Promise<PersonalSaveResult>
+  onDelete(): Promise<PersonalSaveResult>
+}) {
+  const [mode, setMode] = useState<'idle' | 'rename' | 'confirm'>('idle')
+  const [message, setMessage] = useState<string>()
+  const [error, setError] = useState<string>()
+  const confirmationRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  const descriptionId = useId()
+
+  useEffect(() => {
+    if (mode === 'confirm') confirmationRef.current?.focus()
+  }, [mode])
+
+  async function confirmDelete() {
+    const result = await onDelete()
+    if (!result.ok) {
+      setError(result.message)
+      setMode('idle')
+    }
+  }
+
+  return (
+    <section className="piece-sheet-actions" aria-label="Gérer cette pièce ajoutée">
+      {mode === 'idle' && (
+        <div className="add-piece-actions">
+          <button className="secondary-button" type="button" onClick={() => {
+            setMessage(undefined)
+            setError(undefined)
+            setMode('rename')
+          }}
+          >
+            Renommer
+          </button>
+          <button className="secondary-button piece-delete-button" type="button" onClick={() => {
+            setMessage(undefined)
+            setError(undefined)
+            setMode('confirm')
+          }}
+          >
+            <TrashIcon size={18} />
+            Supprimer
+          </button>
+        </div>
+      )}
+      {mode === 'rename' && (
+        <RenameUserPieceForm
+          piece={piece}
+          onRename={onRename}
+          onDone={(done) => {
+            setMessage(done)
+            setMode('idle')
+          }}
+        />
+      )}
+      {mode === 'confirm' && (
+        <div
+          ref={confirmationRef}
+          className="delete-confirmation"
+          role="group"
+          tabIndex={-1}
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+        >
+          <TrashIcon className="delete-confirmation-icon" />
+          <div className="delete-confirmation-content">
+            <p id={titleId} className="delete-confirmation-title">
+              Supprimer « {piece.title} » ?
+            </p>
+            <p id={descriptionId}>
+              Cette pièce sera supprimée de cet appareil. Cette action est définitive.
+            </p>
+            <div className="delete-confirmation-actions">
+              <button className="danger-button" type="button" onClick={() => void confirmDelete()}>
+                Supprimer définitivement
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setMode('idle')}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <p className="visually-hidden" role="status">{message}</p>
+      {error && <p className="notice notice-error" role="alert">{error}</p>}
+    </section>
+  )
+}
+
+function formatAddedDate(timestamp: string, locale: string) {
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime())
+    ? undefined
+    : new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' })
+      .format(date)
+}
+
+/**
+ * Fiche d’une pièce. Une pièce du dossier est en lecture seule et n’a pas
+ * d’aperçu : l’application n’embarque pas de lecteur PDF et n’affiche pas
+ * d’aperçu factice. Une image ajoutée est affichée et peut être présentée.
+ */
+function PieceSheetView({
+  travel,
+  piece,
+  online,
+  onNavigate,
+  onOpenDocument,
+  onListLocalResourceIds,
+  onOpenUserPiece,
+  onLoadUserPieceFile,
+  onRenameUserPiece,
+  onDeleteUserPiece,
+  requestWakeLock,
+}: {
+  travel: Travel
+  piece: TravelPiece
+  online: boolean
+  onNavigate(view: TravelView): void
+  onOpenDocument(document: TravelDocument): void
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
+  onOpenUserPiece(piece: UserPieceMetadata): void
+  onLoadUserPieceFile: TravelConsultationProps['onLoadUserPieceFile']
+  onRenameUserPiece(pieceId: string, title: string): Promise<PersonalSaveResult>
+  onDeleteUserPiece(pieceId: string): Promise<PersonalSaveResult>
+  requestWakeLock?: RequestScreenWakeLock
+}) {
+  const localResourceIds = useLocalResourceIds(travel.id, onListLocalResourceIds)
+  const added = piece.kind === 'added' ? piece.added : undefined
+  const image = useUserPieceImage(travel.id, added, onLoadUserPieceFile)
+  const [presenting, setPresenting] = useState(false)
+  const presentButtonRef = useRef<HTMLButtonElement>(null)
+  const present = piece.kind === 'document' && localResourceIds
+    ? localResourceIds.has(piece.document.resourceId)
+    : undefined
+  const attachmentsDetail = piece.attachments.length === 0
+    ? 'Tout le voyage'
+    : piece.attachments
+      .map((attachment) => pieceAttachmentText(attachment, undefined, travel.locale))
+      .join(' ; ')
+
+  function closePresentation() {
+    setPresenting(false)
+    window.requestAnimationFrame(() => presentButtonRef.current?.focus())
+  }
+
+  return (
+    <div className="consultation-view piece-sheet" aria-labelledby="piece-sheet-title">
+      <button
+        className="back-button"
+        type="button"
+        aria-label="Retour aux pièces du voyage"
+        onClick={() => onNavigate({ kind: 'pieces' })}
+      >
+        <ChevronLeftIcon size={20} />
+        <span>Pièces du voyage</span>
+      </button>
+      <header className="piece-sheet-header">
+        <PieceIcon piece={piece} size={24} />
+        <div className="piece-sheet-heading">
+          <h2 id="piece-sheet-title" className="piece-sheet-title">{piece.label}</h2>
+          <p className="piece-badges">
+            <span className="piece-badge">{pieceFormat(piece)}</span>
+            <OriginBadge piece={piece} />
+          </p>
+        </div>
+      </header>
+      {piece.kind === 'document' && (
+        <>
+          {piece.document.description && (
+            <p className="piece-sheet-description">{piece.document.description}</p>
+          )}
+          <button
+            className="document-button piece-sheet-open"
+            type="button"
+            aria-label={`Ouvrir le PDF ${piece.label}`}
+            onClick={() => onOpenDocument(piece.document)}
+          >
+            <FileIcon size={20} />
+            <span>Ouvrir le PDF</span>
+          </button>
+        </>
+      )}
+      {piece.kind === 'reservation' && (
+        <div className="piece-reservation">
+          <ReservationBody
+            travel={travel}
+            reservation={piece.reservation}
+            online={online}
+            onOpenDocument={onOpenDocument}
+          />
+        </div>
+      )}
+      {added && added.mediaType === 'application/pdf' && (
+        <button
+          className="document-button piece-sheet-open"
+          type="button"
+          aria-label={`Ouvrir le PDF ${piece.label}`}
+          onClick={() => onOpenUserPiece(added)}
+        >
+          <FileIcon size={20} />
+          <span>Ouvrir le PDF</span>
+        </button>
+      )}
+      {added && added.mediaType !== 'application/pdf' && (
+        <>
+          {image?.status === 'ready' && (
+            <figure className="piece-sheet-preview">
+              <img src={image.source} alt={piece.label} />
+            </figure>
+          )}
+          {image?.status === 'failed' && (
+            <p className="notice notice-error" role="alert">
+              Cette image n’a pas pu être relue sur cet appareil.
+            </p>
+          )}
+          <button
+            ref={presentButtonRef}
+            className="document-button piece-sheet-open"
+            type="button"
+            aria-label={`Présenter ${piece.label} en plein écran`}
+            disabled={image?.status !== 'ready'}
+            onClick={() => setPresenting(true)}
+          >
+            <ImageIcon size={20} />
+            <span>Présenter</span>
+          </button>
+          {presenting && image?.status === 'ready' && (
+            <PiecePresentation
+              title={piece.label}
+              detail={attachmentsDetail}
+              source={image.source}
+              onClose={closePresentation}
+              requestWakeLock={requestWakeLock}
+            />
+          )}
+        </>
+      )}
+      <dl className="piece-sheet-metadata">
+        <div>
+          <dt>Format</dt>
+          <dd>{pieceFormat(piece)}</dd>
+        </div>
+        {added && (
+          <div>
+            <dt>Type</dt>
+            <dd>{USER_PIECE_KIND_LABELS[added.kind]}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Stockage</dt>
+          <dd>
+            {piece.kind === 'document' && documentStorageText(present)}
+            {piece.kind === 'reservation' && 'Enregistrée avec le voyage sur cet appareil'}
+            {piece.kind === 'added' && 'Sur cet appareil, disponible hors connexion'}
+          </dd>
+        </div>
+        <div>
+          <dt>Origine</dt>
+          <dd>
+            {added
+              ? `Ajoutée sur cet appareil${formatAddedDate(added.createdAt, travel.locale)
+                ? ` le ${formatAddedDate(added.createdAt, travel.locale)}`
+                : ''}`
+              : 'Fournie avec le dossier du voyage'}
+          </dd>
+        </div>
+      </dl>
+      <section className="pieces-group" aria-labelledby="piece-attachments-title">
+        <h3 className="pieces-group-title" id="piece-attachments-title">Rattachée à</h3>
+        <ul className="pieces-list piece-sheet-links">
+          {piece.attachments.length === 0 && (
+            <li className="piece-sheet-link piece-sheet-link-static">
+              <PaperclipIcon size={22} />
+              <span className="piece-text">
+                <span className="piece-title">Tout le voyage</span>
+                <span className="piece-attachments">Aucune journée ni étape associée</span>
+              </span>
+            </li>
+          )}
+          {piece.attachments.map((attachment) => {
+            const date = formatCompactDate(attachment.day.date, travel.locale)
+            const title = attachment.type === 'day'
+              ? capitalize(date)
+              : `Étape ${attachment.step.startsAt ? `${attachment.step.startsAt} · ` : ''}${attachment.step.title}`
+            const detail = attachment.type === 'day'
+              ? attachment.day.title
+              : `${capitalize(date)} · ${attachment.day.title}`
+            return (
+              <li
+                key={attachment.type === 'day' ? `day:${attachment.day.id}` : `step:${attachment.step.id}`}
+              >
+                <button
+                  className="piece-sheet-link"
+                  type="button"
+                  aria-label={`${attachment.type === 'day' ? 'Voir la journée' : 'Voir l’étape'} ${title} — ${detail}`}
+                  onClick={() => onNavigate(attachmentTarget(attachment))}
+                >
+                  {attachment.type === 'day'
+                    ? <CalendarIcon size={22} />
+                    : <ClockIcon size={22} />}
+                  <span className="piece-text">
+                    <span className="piece-title">{title}</span>
+                    <span className="piece-attachments">{detail}</span>
+                  </span>
+                  <ChevronRightIcon size={20} className="piece-chevron" />
+                </button>
+              </li>
+            )
+          })}
+          <li>
+            <button
+              className="piece-sheet-link"
+              type="button"
+              onClick={() => onNavigate({ kind: 'pieces' })}
+            >
+              <PaperclipIcon size={22} />
+              <span className="piece-text">
+                <span className="piece-title">Toutes les pièces du voyage</span>
+              </span>
+              <ChevronRightIcon size={20} className="piece-chevron" />
+            </button>
+          </li>
+        </ul>
+      </section>
+      {added && (
+        <UserPieceActions
+          key={added.pieceId}
+          piece={added}
+          onRename={(title) => onRenameUserPiece(added.pieceId, title)}
+          onDelete={() => onDeleteUserPiece(added.pieceId)}
+        />
+      )}
+      <p className="piece-sheet-note">
+        <ShieldIcon size={18} />
+        <span>
+          {added
+            ? 'Pièce ajoutée : elle reste sur cet appareil, comme vos notes et vos checklists.'
+            : 'Pièce du dossier : en lecture seule. Les pièces que vous ajoutez vous-même peuvent être renommées ou supprimées.'}
+        </span>
+      </p>
+    </div>
   )
 }
 
@@ -2061,8 +3019,22 @@ function PreparationView({
   )
 }
 
-function viewLabel(view: TravelView, travel: Travel) {
+function viewLabel(
+  view: TravelView,
+  travel: Travel,
+  userPieces: readonly UserPieceMetadata[],
+) {
   if (view.kind === 'summary') return 'Aperçu'
+  if (view.kind === 'pieces') return 'Pièces'
+  if (view.kind === 'piece') {
+    const label = findTravelPiece(travel, view.pieceKind, view.pieceId, userPieces)?.label
+    return label ? `Pièce — ${label}` : 'Pièce'
+  }
+  if (view.kind === 'add-piece') return 'Ajouter une pièce'
+  if (view.kind === 'step') {
+    const stepTitle = findStepWithDay(travel, view.stepId)?.step.title
+    return stepTitle ? `Étape — ${stepTitle}` : 'Étape'
+  }
   if (view.kind === 'practical') return 'Pratique'
   if (view.kind === 'preparation') return 'Préparation'
   if (view.kind === 'today') return 'Programme d’aujourd’hui'
@@ -2083,8 +3055,16 @@ export function TravelConsultation({
   onCopyAddress,
   onOpenDocument,
   onLoadIllustrationResource,
+  onListLocalResourceIds,
   onSetChecklistItemChecked,
   onSaveNote,
+  userPieces,
+  onAddUserPiece,
+  onRenameUserPiece,
+  onDeleteUserPiece,
+  onOpenUserPiece,
+  onLoadUserPieceFile,
+  requestWakeLock,
 }: TravelConsultationProps) {
   const { travel } = persistedTravel
   const [checkedItemKeys, setCheckedItemKeys] = useState(
@@ -2096,19 +3076,39 @@ export function TravelConsultation({
   const selectedDay = view.kind === 'day'
     ? travel.days.find((day) => day.id === view.dayId)
     : undefined
-  const safeView = view.kind === 'day' && !selectedDay
+  const selectedStep = view.kind === 'step'
+    ? findStepWithDay(travel, view.stepId)
+    : undefined
+  const selectedPiece = view.kind === 'piece'
+    ? findTravelPiece(travel, view.pieceKind, view.pieceId, userPieces)
+    : undefined
+  const safeView = (view.kind === 'day' && !selectedDay)
+    || (view.kind === 'step' && !selectedStep)
+    || (view.kind === 'piece' && !selectedPiece)
     ? { kind: 'summary' } as const
     : view
-  const programActive = safeView.kind === 'day' || safeView.kind === 'today'
+  const programActive = safeView.kind === 'day'
+    || safeView.kind === 'today'
+    || safeView.kind === 'step'
   const workspaceRef = useRef<HTMLElement>(null)
   const todayState = getTodayState(travel, clock)
   const programDay = safeView.kind === 'day'
     ? selectedDay
-    : safeView.kind === 'today' && todayState.status === 'day'
-      ? todayState.day
-      : undefined
+    : safeView.kind === 'step'
+      ? selectedStep?.day
+      : safeView.kind === 'today' && todayState.status === 'day'
+        ? todayState.day
+        : undefined
   const programDayIndex = programDay ? travel.days.indexOf(programDay) : -1
-  const viewKey = safeView.kind === 'day' ? `day:${safeView.dayId}` : safeView.kind
+  const viewKey = safeView.kind === 'day'
+    ? `day:${safeView.dayId}`
+    : safeView.kind === 'step'
+      ? `step:${safeView.stepId}`
+      : safeView.kind === 'piece'
+        ? `piece:${safeView.pieceKind}:${safeView.pieceId}`
+        : safeView.kind === 'add-piece'
+          ? `add-piece:${JSON.stringify(safeView.attachment ?? null)}`
+          : safeView.kind
   const previousViewKey = useRef(viewKey)
 
   useEffect(() => {
@@ -2172,6 +3172,9 @@ export function TravelConsultation({
   }[] = [
     { label: 'Aperçu', icon: CompassIcon, active: safeView.kind === 'summary', target: () => ({ kind: 'summary' }) },
     { label: 'Programme', icon: ListIcon, active: programActive, target: () => programTarget(travel, clock) },
+    { label: 'Pièces', icon: PaperclipIcon, active: safeView.kind === 'pieces'
+      || safeView.kind === 'piece'
+      || safeView.kind === 'add-piece', target: () => ({ kind: 'pieces' }) },
     { label: 'Pratique', icon: InfoIcon, active: safeView.kind === 'practical', target: () => ({ kind: 'practical' }) },
     { label: 'Préparation', icon: ChecklistIcon, active: safeView.kind === 'preparation', target: () => ({ kind: 'preparation' }) },
   ]
@@ -2192,7 +3195,7 @@ export function TravelConsultation({
         </header>
       )}
       <p className="visually-hidden" role="status" aria-live="polite">
-        Section active : {viewLabel(safeView, travel)}
+        Section active : {viewLabel(safeView, travel, userPieces)}
       </p>
       {actionFeedback && (
         <p
@@ -2220,8 +3223,64 @@ export function TravelConsultation({
           view={safeView}
           clock={clock}
           personalState={checklistState}
+          userPieces={userPieces}
           onNavigate={onNavigate}
           {...actions}
+        />
+      )}
+      {safeView.kind === 'step' && selectedStep && (
+        <StepView
+          travel={travel}
+          day={selectedStep.day}
+          step={selectedStep.step}
+          userPieces={userPieces}
+          online={online}
+          onNavigate={onNavigate}
+          onOpenDocument={onOpenDocument}
+        />
+      )}
+      {safeView.kind === 'pieces' && (
+        <PiecesView
+          travel={travel}
+          userPieces={userPieces}
+          onNavigate={onNavigate}
+          onListLocalResourceIds={onListLocalResourceIds}
+        />
+      )}
+      {safeView.kind === 'piece' && selectedPiece && (
+        <PieceSheetView
+          travel={travel}
+          piece={selectedPiece}
+          online={online}
+          onNavigate={onNavigate}
+          onOpenDocument={onOpenDocument}
+          onListLocalResourceIds={onListLocalResourceIds}
+          onOpenUserPiece={onOpenUserPiece}
+          onLoadUserPieceFile={onLoadUserPieceFile}
+          onRenameUserPiece={onRenameUserPiece}
+          onDeleteUserPiece={async (pieceId) => {
+            const result = await onDeleteUserPiece(pieceId)
+            if (result.ok) onNavigate({ kind: 'pieces' })
+            return result
+          }}
+          requestWakeLock={requestWakeLock}
+        />
+      )}
+      {safeView.kind === 'add-piece' && (
+        <AddPieceView
+          travel={travel}
+          initialAttachment={safeView.attachment}
+          onSave={onAddUserPiece}
+          onSaved={(piece) => onNavigate({
+            kind: 'piece',
+            pieceKind: 'added',
+            pieceId: piece.pieceId,
+          })}
+          onCancel={() => onNavigate(
+            safeView.attachment?.type === 'step'
+              ? { kind: 'step', stepId: safeView.attachment.stepId }
+              : { kind: 'pieces' },
+          )}
         />
       )}
       {safeView.kind === 'practical' && (
