@@ -49,7 +49,7 @@ function ConsultationHarness({
   instant = '2026-07-15T10:00:00Z',
   onBack = vi.fn(),
   online = true,
-  onCopyAddress = vi.fn(),
+  onCopyAddress = vi.fn().mockResolvedValue(true),
   onOpenDocument = vi.fn(),
   onLoadIllustrationResource = vi.fn().mockResolvedValue({
     ok: true,
@@ -72,7 +72,7 @@ function ConsultationHarness({
   instant?: string
   onBack?: () => void
   online?: boolean
-  onCopyAddress?: (address: string, label: string) => void
+  onCopyAddress?: (address: string, label: string) => Promise<boolean>
   onOpenDocument?: (document: typeof consultationTravel.documents[number]) => void
   onLoadIllustrationResource?: (
     travelId: string,
@@ -124,7 +124,7 @@ function persistedWith(overrides: Partial<typeof consultationTravel>): Persisted
   }
 }
 
-function openSection(name: 'Vue d’ensemble' | 'Programme' | 'Infos pratiques' | 'Préparation') {
+function openSection(name: 'Aperçu' | 'Programme' | 'Pratique' | 'Préparation') {
   fireEvent.click(screen.getByRole('button', { name }))
 }
 
@@ -218,19 +218,19 @@ describe('navigation structurée du voyage', () => {
 
     const navigation = screen.getByRole('navigation', { name: 'Sections du voyage' })
     expect(within(navigation).getAllByRole('button').map((button) => button.textContent)).toEqual([
-      'Vue d’ensemble',
+      'Aperçu',
       'Programme',
-      'Infos pratiques',
+      'Pratique',
       'Préparation',
     ])
-    expect(within(navigation).getByRole('button', { name: 'Vue d’ensemble' }))
+    expect(within(navigation).getByRole('button', { name: 'Aperçu' }))
       .toHaveAttribute('aria-current', 'page')
   })
 
   it('limite la vue d’ensemble aux informations essentielles et aux réservations datées', () => {
     render(<ConsultationHarness />)
 
-    expect(screen.getByRole('heading', { level: 2, name: consultationTravel.title })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: consultationTravel.title })).toBeInTheDocument()
     expect(screen.getByText(consultationTravel.destination.label)).toBeInTheDocument()
     expect(screen.getByText(consultationTravel.summary)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'À retenir' })).toBeInTheDocument()
@@ -262,12 +262,12 @@ describe('navigation structurée du voyage', () => {
 
     openSection('Programme')
     expect(screen.getByText(/Section active : Programme — Autour du port/)).toBeInTheDocument()
-    openSection('Infos pratiques')
-    expect(screen.getByText('Section active : Infos pratiques')).toBeInTheDocument()
+    openSection('Pratique')
+    expect(screen.getByText('Section active : Pratique')).toBeInTheDocument()
     openSection('Préparation')
     expect(screen.getByText('Section active : Préparation')).toBeInTheDocument()
-    openSection('Vue d’ensemble')
-    expect(screen.getByText('Section active : Vue d’ensemble')).toBeInTheDocument()
+    openSection('Aperçu')
+    expect(screen.getByText('Section active : Aperçu')).toBeInTheDocument()
   })
 
   it('revient à la bibliothèque avec un contrôle explicite', () => {
@@ -381,7 +381,8 @@ describe('déroulé, actions et compléments', () => {
     const relatedContent = installation.querySelector('.step-related-content') as HTMLElement
     expect(relatedContent).toBeInTheDocument()
     expect(within(installation).getAllByRole('button', { name: /Ouvrir le document/ })).toHaveLength(1)
-    expect(within(installation).getByText(/Ouvrir · Confirmation d’hébergement/)).toBeInTheDocument()
+    expect(within(installation).getByRole('button', { name: /Ouvrir le document/ }))
+      .toHaveTextContent(/^Confirmation d’hébergement$/)
     expect(within(installation).getByText('Voir la réservation')).toBeInTheDocument()
     expect(within(installation).queryByText('Quai du Carénage')).not.toBeInTheDocument()
   })
@@ -658,7 +659,7 @@ describe('liens pratiques au fil du programme', () => {
     expect(screen.getByRole('link', { name: /Informations pratiques du marché central.*Passage au marché/ }))
       .toHaveAttribute('href', link.href)
 
-    openSection('Infos pratiques')
+    openSection('Pratique')
     expect(screen.getByRole('link', { name: /Informations pratiques du marché central.*Marché central/ }))
       .toHaveAttribute('href', link.href)
   })
@@ -703,7 +704,7 @@ describe('infos pratiques centralisées', () => {
   })
 
   it('copie l’adresse depuis la fiche centralisée uniquement', () => {
-    const onCopyAddress = vi.fn()
+    const onCopyAddress = vi.fn().mockResolvedValue(true)
     render(<ConsultationHarness initialView={{ kind: 'practical' }} onCopyAddress={onCopyAddress} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
@@ -844,7 +845,7 @@ describe('illustrations et robustesse responsive', () => {
     expect(await screen.findByAltText('Promenade illustrée')).toHaveAttribute('loading', 'lazy')
   })
 
-  it('centralise les crédits photographiques dans Infos pratiques', () => {
+  it('centralise les crédits photographiques dans Pratique', () => {
     render(<ConsultationHarness travel={illustratedTravel} initialView={{ kind: 'practical' }} />)
 
     expect(screen.getByRole('heading', { name: 'Crédits photographiques' })).toBeInTheDocument()
@@ -874,7 +875,12 @@ describe('illustrations et robustesse responsive', () => {
 
   it('protège le rendu mobile contre les débordements et maintient des cibles tactiles', () => {
     expect(consultationStyles).toMatch(
-      /\.travel-section-navigation \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+      /\.travel-bottom-nav \{[^}]*position: fixed;[^}]*env\(safe-area-inset-bottom\)/,
+    )
+    expect(consultationStyles).toMatch(/\.travel-bottom-nav li \{[^}]*min-width: 0;[^}]*flex: 1 1 0;/)
+    expect(consultationStyles).toMatch(/\.travel-nav-button \{[^}]*min-height: 3\.5rem;/)
+    expect(consultationStyles).toMatch(
+      /\.travel-workspace \{[^}]*padding-bottom: calc\(6rem \+ env\(safe-area-inset-bottom\)\);/,
     )
     expect(consultationStyles).toMatch(
       /\.day-selector \{[^}]*max-width: 100%;[^}]*overflow-x: auto;/,
@@ -949,7 +955,7 @@ describe('associations sans répétition', () => {
     render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
     const controls = [
       screen.getByRole('button', { name: 'Retour à la bibliothèque' }),
-      screen.getByRole('button', { name: 'Vue d’ensemble' }),
+      screen.getByRole('button', { name: 'Aperçu' }),
       screen.getByRole('button', { name: 'Programme' }),
       screen.getByRole('button', { name: /Arrivée au port/ }),
       screen.getByRole('button', { name: /Journée suivante/ }),
@@ -1050,5 +1056,134 @@ describe('associations sans répétition', () => {
       },
     }))
     await waitFor(() => expect(screen.getByAltText('Vue panoramique du port')).toBeInTheDocument())
+  })
+})
+
+describe('aperçu du voyage', () => {
+  it('superpose le retour à la couverture puis le place dans la barre des autres sections', () => {
+    const onBack = vi.fn()
+    render(<ConsultationHarness onBack={onBack} />)
+
+    expect(screen.getByRole('heading', { level: 1, name: consultationTravel.title }))
+      .toHaveClass('travel-title')
+    openSection('Pratique')
+    expect(screen.getByRole('heading', { level: 1, name: consultationTravel.title }))
+      .toHaveClass('travel-topbar-title')
+    fireEvent.click(screen.getByRole('button', { name: 'Retour à la bibliothèque' }))
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
+  it('présente la journée du jour pendant le voyage', () => {
+    render(<ConsultationHarness />)
+
+    const card = screen.getByRole('region', { name: 'Aujourd’hui' })
+    expect(card).toHaveTextContent('Mercredi 15 juillet · Autour du port')
+    fireEvent.click(within(card).getByRole('button', { name: 'Voir la journée' }))
+    expect(screen.getByText('Section active : Programme d’aujourd’hui')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Autour du port' })).toBeInTheDocument()
+  })
+
+  it('annonce le départ avant le voyage et mène à la première journée', () => {
+    render(<ConsultationHarness instant="2026-07-01T10:00:00Z" />)
+
+    const card = screen.getByRole('region', { name: 'Départ dans 13 jours' })
+    expect(card).toHaveTextContent('Mardi 14 juillet · Arrivée au port')
+    fireEvent.click(within(card).getByRole('button', { name: 'Voir le programme' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Arrivée au port' })).toBeInTheDocument()
+  })
+
+  it('reste utile après le voyage', () => {
+    render(<ConsultationHarness instant="2026-08-01T10:00:00Z" />)
+
+    const card = screen.getByRole('region', { name: 'Voyage terminé' })
+    expect(within(card).getByRole('button', { name: 'Revoir le programme' })).toBeInTheDocument()
+  })
+
+  it('liste les journées et ouvre celle choisie', () => {
+    render(<ConsultationHarness />)
+
+    const days = screen.getByRole('region', { name: 'Les 3 journées' })
+    const buttons = within(days).getAllByRole('button')
+    expect(buttons).toHaveLength(3)
+    expect(buttons[0]).toHaveTextContent('Arrivée au port')
+    fireEvent.click(within(days).getByRole('button', { name: /Cap sur l’île/ }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Cap sur l’île' })).toBeInTheDocument()
+  })
+
+  it('ancre l’hébergement du moment et confirme la copie de son adresse', async () => {
+    const onCopyAddress = vi.fn().mockResolvedValue(true)
+    render(<ConsultationHarness onCopyAddress={onCopyAddress} />)
+
+    const stay = screen.getByRole('region', { name: 'Maison du port' })
+    expect(stay).toHaveTextContent('Vieux-Port')
+    expect(stay).not.toHaveTextContent('Quai du Carénage')
+    fireEvent.click(within(stay).getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
+
+    expect(onCopyAddress).toHaveBeenCalledWith('Quai du Carénage', 'Vieux-Port')
+    expect(await within(stay).findByRole('status')).toHaveTextContent('Adresse copiée')
+  })
+
+  it('n’annonce pas de copie lorsque le presse-papiers refuse', async () => {
+    const onCopyAddress = vi.fn().mockResolvedValue(false)
+    render(<ConsultationHarness initialView={{ kind: 'practical' }} onCopyAddress={onCopyAddress} />)
+
+    const button = screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' })
+    fireEvent.click(button)
+
+    expect(await screen.findByText('Copie impossible sur cet appareil')).toBeInTheDocument()
+    expect(button).toHaveTextContent('Copier l’adresse')
+    expect(screen.queryByText('Adresse copiée')).not.toBeInTheDocument()
+  })
+})
+
+describe('navigation du bas', () => {
+  it('associe une icône et un libellé à chaque section et marque la section active', () => {
+    render(<ConsultationHarness initialView={{ kind: 'day', dayId: 'day-arrival' }} />)
+
+    const navigation = screen.getByRole('navigation', { name: 'Sections du voyage' })
+    for (const button of within(navigation).getAllByRole('button')) {
+      expect(button.querySelector('svg')).toBeInTheDocument()
+    }
+    expect(within(navigation).getByRole('button', { name: 'Programme' }))
+      .toHaveAttribute('aria-current', 'page')
+    expect(within(navigation).getByRole('button', { name: 'Aperçu' }))
+      .not.toHaveAttribute('aria-current')
+  })
+
+  it('ramène le haut de la section à l’écran lors d’un changement de section', () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      render(<ConsultationHarness />)
+      expect(scrollIntoView).not.toHaveBeenCalled()
+
+      openSection('Préparation')
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
+  })
+})
+
+describe('quatre types d’actions', () => {
+  it('distingue lien externe, copie, document local et réservation', () => {
+    render(<ConsultationHarness initialView={{ kind: 'practical' }} />)
+
+    const link = screen.getAllByRole('link', { name: /service externe/ })[0]
+    expect(link).toHaveClass('contextual-link')
+    expect(link.querySelector('svg')).toBeInTheDocument()
+    expect(link).not.toHaveTextContent('↗')
+    expect(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
+      .toHaveClass('copy-button')
+    const documentButton = screen.getAllByRole('button', { name: /Ouvrir le document/ })[0]
+    expect(documentButton).toHaveClass('document-button')
+    expect(documentButton.querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Réservation Maison du port' })
+      .closest('.reservation-card')).toBeInTheDocument()
+
+    expect(consultationStyles).toMatch(/\.contextual-link \{[^}]*text-decoration: underline;/)
+    expect(consultationStyles).toMatch(/\.copy-button \{[^}]*border: 0\.09375rem solid var\(--color-line-strong\);[^}]*background: var\(--color-paper\);/)
+    expect(consultationStyles).toMatch(/\.document-button \{[^}]*color: var\(--color-sage\);[^}]*background: var\(--color-sage-soft\);/)
+    expect(consultationStyles).toMatch(/\.reservation-card \{[^}]*border: 0\.0625rem solid var\(--color-sun\);[^}]*background: var\(--color-sun-soft\);/)
   })
 })

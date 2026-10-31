@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TravelLibraryEntry } from '../../persistence/model'
-import {
-  arrangeLibrary,
-  formatTravelDates,
-  localIsoDate,
-  travelDurationLabel,
-  travelTiming,
-} from './libraryArrangement'
+import { formatTravelDates, travelDurationLabel } from '../travelDates'
+import { arrangeLibrary, localIsoDate, travelTiming } from './libraryArrangement'
 
 function entry(travelId: string, startDate: string, endDate: string): TravelLibraryEntry {
   return {

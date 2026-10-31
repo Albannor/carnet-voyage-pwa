@@ -250,11 +250,9 @@ export function App({
     setContextActionFeedback(undefined)
   }
 
-  async function copyAddress(address: string, placeLabel: string) {
-    const copied = await platformActions.copyText(address)
-    setContextActionFeedback(copied
-      ? { status: 'success', message: `Adresse de ${placeLabel} copiée.` }
-      : { status: 'error', message: 'La copie de l’adresse n’est pas disponible sur cet appareil.' })
+  /** Le bouton de copie affiche lui-même le résultat, à côté de l’action. */
+  function copyAddress(address: string) {
+    return platformActions.copyText(address)
   }
 
   async function openDocument(document: TravelDocument) {
@@ -362,14 +360,20 @@ export function App({
         Aller au contenu
       </a>
 
-      <AppHeader
-        online={online}
-        pwaStatus={pwaState.status}
-        onImport={inLibrary && libraryHasTravels ? () => fileInputRef.current?.click() : undefined}
-        importDisabled={importState.status === 'processing'}
-      />
+      {consultationState.status !== 'ready' && (
+        <AppHeader
+          online={online}
+          pwaStatus={pwaState.status}
+          onImport={inLibrary && libraryHasTravels ? () => fileInputRef.current?.click() : undefined}
+          importDisabled={importState.status === 'processing'}
+        />
+      )}
 
-      <main id="contenu-principal" tabIndex={-1}>
+      <main
+        id="contenu-principal"
+        className={consultationState.status === 'ready' ? 'main-travel' : undefined}
+        tabIndex={-1}
+      >
         <PwaStatusPanel
           online={online}
           pwaStatus={pwaState.status}
@@ -405,7 +409,7 @@ export function App({
             personalState={consultationState.personalState}
             onNavigate={navigateTravel}
             onBackToLibrary={backToLibrary}
-            onCopyAddress={(address, label) => void copyAddress(address, label)}
+            onCopyAddress={copyAddress}
             onOpenDocument={(document) => void openDocument(document)}
             onLoadIllustrationResource={loadIllustrationResource}
             onSetChecklistItemChecked={setChecklistItemChecked}

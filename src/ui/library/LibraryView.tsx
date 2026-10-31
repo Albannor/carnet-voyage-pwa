@@ -10,7 +10,8 @@ import {
   ShieldIcon,
   UploadIcon,
 } from '../icons'
-import { arrangeLibrary, formatTravelDates, type TravelTiming } from './libraryArrangement'
+import { formatTravelDates } from '../travelDates'
+import { arrangeLibrary, type TravelTiming } from './libraryArrangement'
 import { CompactTravelItem, FeaturedTravelCard } from './TravelLibraryCard'
 
 export type ImportUiState =

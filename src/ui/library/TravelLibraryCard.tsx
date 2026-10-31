@@ -16,11 +16,8 @@ import {
   MoreIcon,
   TrashIcon,
 } from '../icons'
-import {
-  formatTravelDates,
-  travelDurationLabel,
-  type TravelTiming,
-} from './libraryArrangement'
+import { formatTravelDates, travelDurationLabel } from '../travelDates'
+import type { TravelTiming } from './libraryArrangement'
 
 type LoadCover = (travelId: string) => Promise<TravelCoverLoadResult>
 

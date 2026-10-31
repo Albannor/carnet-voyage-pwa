@@ -8,13 +8,15 @@ Le parcours de consultation est structuré autour de quatre sections :
 
 ```text
 Bibliothèque
-  └─ Vue d’ensemble
+  └─ Aperçu
   └─ Programme → journée / Aujourd’hui
-  └─ Infos pratiques
+  └─ Pratique
   └─ Préparation
 ```
 
-La **Vue d’ensemble** reste volontairement concise : couverture éventuelle, titre, destination, dates, résumé et réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. Les **Infos pratiques** centralisent les hébergements, lieux, réservations, documents et crédits photographiques. La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
+Ces quatre sections sont accessibles depuis une barre de navigation fixée en bas de l’écran, chaque entrée associant une icône et un libellé ; la section active est signalée par `aria-current` et par une pastille, jamais par la seule couleur. La barre respecte les marges de sécurité des écrans à encoche (`env(safe-area-inset-*)`). Le retour à la bibliothèque est un bouton rond nommé « Retour à la bibliothèque », posé sur la couverture dans l’Aperçu et dans la barre de titre des autres sections. Changer de section ramène le haut de la section à l’écran.
+
+L’**Aperçu** reste volontairement concis : couverture éventuelle en pleine largeur, titre, destination, dates et durée, résumé, puis un encart temporel qui dépend de la date du jour (« Départ dans N jours », « Aujourd’hui » ou « Voyage terminé ») et mène au programme pertinent. Suivent la liste des journées, l’hébergement correspondant à la date de référence avec la copie de son adresse — l’adresse complète restant affichée dans Pratique — et les réservations datées à retenir. Le **Programme** porte la navigation par journées et le déroulé chronologique. **Pratique** centralise les hébergements, lieux, réservations, documents et crédits photographiques. La **Préparation** regroupe les checklists par cible, les réservations à confirmer et la note personnelle.
 
 ## Navigation et rechargement
 
@@ -23,7 +25,7 @@ L’état de consultation distingue la bibliothèque, le chargement, l’erreur 
 - `summary` pour la synthèse ;
 - `today` pour « Aujourd’hui » ;
 - `day` avec un identifiant stable de journée ;
-- `practical` pour les infos pratiques ;
+- `practical` pour la section Pratique ;
 - `preparation` pour les checklists, confirmations et notes.
 
 L’identifiant du voyage et cette vue sont reflétés dans les paramètres `travel`, `view` et `day` de l’URL. Ils ne constituent pas des données métier et ne contiennent aucun contenu du voyage. Après un rechargement, l’application relit le voyage correspondant dans IndexedDB. Un identifiant absent ou une erreur de lecture produit un état explicite avec un retour vers la bibliothèque. Aucun état métier n’est écrit dans `localStorage`.
@@ -55,12 +57,12 @@ Dans le programme, une étape liée à un hébergement conserve son titre édito
 
 ## Actions contextuelles et documents
 
-Les actions sont distinguées par leur libellé et leur comportement :
+Les actions sont distinguées par leur libellé, leur comportement et une apparence propre à chaque type, afin qu’elles ne soient jamais interchangeables :
 
-- un **lien pratique ordinaire** conserve le libellé éditorial importé et apparaît comme un lien compact auprès de l’étape ;
-- une **action locale** telle que la copie d’une adresse reste un bouton de type lien et fonctionne sans réseau ;
-- un **document local** récupère uniquement le PDF rattaché au voyage courant dans IndexedDB ;
-- une **réservation** conserve sa structure et ses références propres ;
+- un **lien pratique ordinaire** conserve le libellé éditorial importé et apparaît comme un texte souligné suivi d’une icône de sortie, auprès de l’étape ;
+- une **copie d’adresse** est un bouton compact à contour avec une icône de copie ; elle fonctionne sans réseau et affiche à côté du bouton « Adresse copiée » ou « Copie impossible sur cet appareil » ;
+- un **document local** est un bouton sur fond sauge avec une icône de fichier ; il récupère uniquement le PDF rattaché au voyage courant dans IndexedDB ;
+- une **réservation** conserve son bloc structuré sur fond soleil clair et ses références propres ;
 - un **service externe** ouvre un lien HTTPS dans un nouvel onglet avec `noopener noreferrer` et indique de manière accessible qu'une connexion est requise.
 
 Hors connexion, les liens externes sont désactivés mais le programme, les réservations et les PDF déjà importés restent consultables. Une seconde vérification d'URL à l'affichage neutralise toute valeur non HTTPS, en complément du schéma et de la validation métier. Aucun HTML importé, SVG actif ou document exécutable n'est rendu.

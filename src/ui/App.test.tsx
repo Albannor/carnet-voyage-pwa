@@ -264,7 +264,7 @@ describe('App', () => {
     fireEvent.click(openButton)
 
     expect(await screen.findByText(travel.summary)).toBeInTheDocument()
-    expect(screen.getByText('Section active : Vue d’ensemble')).toBeInTheDocument()
+    expect(screen.getByText('Section active : Aperçu')).toBeInTheDocument()
     expect(window.location.search).toContain('travel=travel-alpha')
     fireEvent.click(
       screen.getByRole('button', { name: 'Retour à la bibliothèque' }),
@@ -395,6 +395,30 @@ describe('App', () => {
       'Confirmation d’hébergement',
     )
     expect(await screen.findByText(/Ouverture du document local/)).toBeInTheDocument()
+  })
+
+  it('signale à côté du bouton une copie d’adresse impossible', async () => {
+    vi.mocked(repository.listTravels).mockResolvedValue({
+      ok: true,
+      value: [persistedConsultationTravel.metadata],
+    })
+    vi.mocked(repository.getTravel).mockResolvedValue({
+      ok: true,
+      value: persistedConsultationTravel,
+    })
+    const platformActions = {
+      copyText: vi.fn().mockResolvedValue(false),
+      openLocalPdf: vi.fn(),
+    }
+    render(<App repositoryFactory={repositoryFactory} platformActions={platformActions} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Ouvrir Escapade Atlantique/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pratique' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copier l’adresse de Maison du port' }))
+
+    expect(await screen.findByText('Copie impossible sur cet appareil')).toBeInTheDocument()
+    expect(platformActions.copyText).toHaveBeenCalledWith('Quai du Carénage')
+    expect(screen.queryByText('Adresse copiée')).not.toBeInTheDocument()
   })
 
   it('relie les checklists et la note au dépôt du voyage courant', async () => {
