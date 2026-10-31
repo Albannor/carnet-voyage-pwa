@@ -17,11 +17,13 @@ import {
   allDocumentsStoredLocally,
   documentPiecesForStep,
   findStepWithDay,
+  findTravelPiece,
   groupTravelPiecesByDay,
   listTravelPieces,
   piecesForDay,
   type TravelPiece,
   type TravelPieceAttachment,
+  type TravelPieceKind,
 } from '../../application/travelPieces'
 import type {
   Travel,
@@ -61,6 +63,7 @@ import {
   ListIcon,
   MapPinIcon,
   PaperclipIcon,
+  ShieldIcon,
   SwapIcon,
   TicketIcon,
 } from '../icons'
@@ -78,6 +81,11 @@ export type TravelView =
   | { readonly kind: 'day'; readonly dayId: string }
   | { readonly kind: 'step'; readonly stepId: string }
   | { readonly kind: 'pieces' }
+  | {
+      readonly kind: 'piece'
+      readonly pieceKind: TravelPieceKind
+      readonly pieceId: string
+    }
   | { readonly kind: 'practical' }
   | { readonly kind: 'preparation' }
 
@@ -1624,12 +1632,7 @@ function DayDetail({
             onLoadResource={actions.onLoadIllustrationResource}
           />
         </header>
-        <DayPieces
-          travel={travel}
-          day={day}
-          onNavigate={onNavigate}
-          onOpenDocument={actions.onOpenDocument}
-        />
+        <DayPieces travel={travel} day={day} onNavigate={onNavigate} />
         <Timeline
           travel={travel}
           day={day}
@@ -1860,13 +1863,16 @@ function pieceAttachmentsText({ piece, groupDayId, locale, detail }: PieceRowPro
       .join(' ; ')
 }
 
+function pieceView(piece: TravelPiece): TravelView {
+  return { kind: 'piece', pieceKind: piece.kind, pieceId: piece.id }
+}
+
 /** Nom accessible ponctué : les fragments visuels ne sont pas collés entre eux. */
 function pieceRowLabel(props: PieceRowProps) {
   const { piece, missingLocally } = props
-  const action = piece.kind === 'document' ? 'Ouvrir le document' : 'Voir la réservation'
   const format = piece.kind === 'document' ? 'PDF' : 'Réservation'
   return [
-    `${action} ${piece.label}`,
+    `Voir la fiche ${piece.label}`,
     pieceAttachmentsText(props),
     `${format}, Dossier${missingLocally ? ', absent de cet appareil' : ''}`,
   ].join(' — ')
@@ -1899,30 +1905,38 @@ function PieceRowContent(props: PieceRowProps) {
   )
 }
 
-function PiecesView({
-  travel,
-  online,
-  onOpenDocument,
-  onListLocalResourceIds,
-}: {
-  travel: Travel
-  online: boolean
-  onOpenDocument(document: TravelDocument): void
-  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
-}) {
+/** Ressources réellement présentes sur l’appareil ; `undefined` tant qu’elles sont inconnues. */
+function useLocalResourceIds(
+  travelId: string,
+  onListLocalResourceIds: (travelId: string) => Promise<readonly string[] | undefined>,
+) {
   const [localResourceIds, setLocalResourceIds] = useState<ReadonlySet<string>>()
-  const pieces = listTravelPieces(travel)
-  const groups = groupTravelPiecesByDay(travel, pieces)
 
   useEffect(() => {
     let active = true
-    void onListLocalResourceIds(travel.id).then((ids) => {
+    void onListLocalResourceIds(travelId).then((ids) => {
       if (active) setLocalResourceIds(ids ? new Set(ids) : undefined)
     })
     return () => {
       active = false
     }
-  }, [onListLocalResourceIds, travel.id])
+  }, [onListLocalResourceIds, travelId])
+
+  return localResourceIds
+}
+
+function PiecesView({
+  travel,
+  onNavigate,
+  onListLocalResourceIds,
+}: {
+  travel: Travel
+  onNavigate(view: TravelView): void
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
+}) {
+  const localResourceIds = useLocalResourceIds(travel.id, onListLocalResourceIds)
+  const pieces = listTravelPieces(travel)
+  const groups = groupTravelPiecesByDay(travel, pieces)
 
   const allStoredLocally = localResourceIds !== undefined
     && allDocumentsStoredLocally(travel, localResourceIds)
@@ -1980,35 +1994,16 @@ function PiecesView({
                   locale: travel.locale,
                   missingLocally,
                 }
-                const content = <PieceRowContent {...rowProps} />
                 return (
                   <li key={`${piece.kind}:${piece.id}`}>
-                    {piece.kind === 'document'
-                      ? (
-                          <button
-                            className="piece-row"
-                            type="button"
-                            aria-label={pieceRowLabel(rowProps)}
-                            onClick={() => onOpenDocument(piece.document)}
-                          >
-                            {content}
-                          </button>
-                        )
-                      : (
-                          <details className="piece-disclosure">
-                            <summary className="piece-row" aria-label={pieceRowLabel(rowProps)}>
-                              {content}
-                            </summary>
-                            <div className="piece-reservation">
-                              <ReservationBody
-                                travel={travel}
-                                reservation={piece.reservation}
-                                online={online}
-                                onOpenDocument={onOpenDocument}
-                              />
-                            </div>
-                          </details>
-                        )}
+                    <button
+                      className="piece-row"
+                      type="button"
+                      aria-label={pieceRowLabel(rowProps)}
+                      onClick={() => onNavigate(pieceView(piece))}
+                    >
+                      <PieceRowContent {...rowProps} />
+                    </button>
                   </li>
                 )
               })}
@@ -2028,21 +2023,15 @@ function dayAttachmentsText(piece: TravelPiece, day: TravelDay, locale: string) 
     .join(' ; ')
 }
 
-/**
- * Bande « Pièces du jour » : accès rapide aux pièces rattachées à la journée.
- * Dans ce lot, un document ouvre son PDF local ; une réservation mène à son
- * étape, ou à l’espace Pièces lorsqu’elle ne vise que la journée.
- */
+/** Bande « Pièces du jour » : accès rapide aux fiches des pièces de la journée. */
 function DayPieces({
   travel,
   day,
   onNavigate,
-  onOpenDocument,
 }: {
   travel: Travel
   day: TravelDay
   onNavigate(view: TravelView): void
-  onOpenDocument(document: TravelDocument): void
 }) {
   const pieces = piecesForDay(listTravelPieces(travel), day.id)
   if (pieces.length === 0) return null
@@ -2065,26 +2054,13 @@ function DayPieces({
           const isDocument = piece.kind === 'document'
           const detail = dayAttachmentsText(piece, day, travel.locale)
           const format = isDocument ? 'PDF' : 'Réservation'
-          const stepAttachment = piece.attachments.find(
-            (attachment) => attachment.type === 'step' && attachment.day.id === day.id,
-          )
-          const open = () => {
-            if (piece.kind === 'document') onOpenDocument(piece.document)
-            else if (stepAttachment?.type === 'step') {
-              onNavigate({ kind: 'step', stepId: stepAttachment.step.id })
-            } else onNavigate({ kind: 'pieces' })
-          }
           return (
             <li key={`${piece.kind}:${piece.id}`}>
               <button
                 className="day-piece-card"
                 type="button"
-                aria-label={[
-                  `${isDocument ? 'Ouvrir le document' : 'Voir la réservation'} ${piece.label}`,
-                  detail,
-                  format,
-                ].join(' — ')}
-                onClick={open}
+                aria-label={[`Voir la fiche ${piece.label}`, detail, format].join(' — ')}
+                onClick={() => onNavigate(pieceView(piece))}
               >
                 <span
                   className={isDocument ? 'piece-icon piece-icon-document' : 'piece-icon piece-icon-reservation'}
@@ -2202,7 +2178,7 @@ function StepView({
                     className="piece-row"
                     type="button"
                     aria-label={pieceRowLabel(rowProps)}
-                    onClick={() => onOpenDocument(piece.document)}
+                    onClick={() => onNavigate(pieceView(piece))}
                   >
                     <PieceRowContent {...rowProps} />
                   </button>
@@ -2228,6 +2204,179 @@ function StepView({
           Voir l’hébergement
         </button>
       )}
+    </div>
+  )
+}
+
+function attachmentTarget(attachment: TravelPieceAttachment): TravelView {
+  return attachment.type === 'day'
+    ? { kind: 'day', dayId: attachment.day.id }
+    : { kind: 'step', stepId: attachment.step.id }
+}
+
+function documentStorageText(present: boolean | undefined) {
+  if (present === undefined) return 'Stockage local du voyage, non vérifié'
+  return present
+    ? 'Sur cet appareil, disponible hors connexion'
+    : 'Absent de cet appareil'
+}
+
+/**
+ * Fiche d’une pièce du dossier, en lecture seule. Aucun aperçu n’est rendu :
+ * l’application n’embarque pas de lecteur PDF et n’affiche pas d’aperçu factice.
+ */
+function PieceSheetView({
+  travel,
+  piece,
+  online,
+  onNavigate,
+  onOpenDocument,
+  onListLocalResourceIds,
+}: {
+  travel: Travel
+  piece: TravelPiece
+  online: boolean
+  onNavigate(view: TravelView): void
+  onOpenDocument(document: TravelDocument): void
+  onListLocalResourceIds(travelId: string): Promise<readonly string[] | undefined>
+}) {
+  const localResourceIds = useLocalResourceIds(travel.id, onListLocalResourceIds)
+  const isDocument = piece.kind === 'document'
+  const present = piece.kind === 'document' && localResourceIds
+    ? localResourceIds.has(piece.document.resourceId)
+    : undefined
+
+  return (
+    <div className="consultation-view piece-sheet" aria-labelledby="piece-sheet-title">
+      <button
+        className="back-button"
+        type="button"
+        aria-label="Retour aux pièces du voyage"
+        onClick={() => onNavigate({ kind: 'pieces' })}
+      >
+        <ChevronLeftIcon size={20} />
+        <span>Pièces du voyage</span>
+      </button>
+      <header className="piece-sheet-header">
+        <span
+          className={isDocument ? 'piece-icon piece-icon-document' : 'piece-icon piece-icon-reservation'}
+          aria-hidden="true"
+        >
+          {isDocument ? <FileIcon size={24} /> : <TicketIcon size={24} />}
+        </span>
+        <div className="piece-sheet-heading">
+          <h2 id="piece-sheet-title" className="piece-sheet-title">{piece.label}</h2>
+          <p className="piece-badges">
+            <span className="piece-badge">{isDocument ? 'PDF' : 'Réservation'}</span>
+            <span className="piece-badge">Dossier</span>
+          </p>
+        </div>
+      </header>
+      {piece.kind === 'document' && (
+        <>
+          {piece.document.description && (
+            <p className="piece-sheet-description">{piece.document.description}</p>
+          )}
+          <button
+            className="document-button piece-sheet-open"
+            type="button"
+            aria-label={`Ouvrir le PDF ${piece.label}`}
+            onClick={() => onOpenDocument(piece.document)}
+          >
+            <FileIcon size={20} />
+            <span>Ouvrir le PDF</span>
+          </button>
+        </>
+      )}
+      {piece.kind === 'reservation' && (
+        <div className="piece-reservation">
+          <ReservationBody
+            travel={travel}
+            reservation={piece.reservation}
+            online={online}
+            onOpenDocument={onOpenDocument}
+          />
+        </div>
+      )}
+      <dl className="piece-sheet-metadata">
+        <div>
+          <dt>Format</dt>
+          <dd>{isDocument ? 'PDF' : 'Réservation'}</dd>
+        </div>
+        <div>
+          <dt>Stockage</dt>
+          <dd>
+            {isDocument
+              ? documentStorageText(present)
+              : 'Enregistrée avec le voyage sur cet appareil'}
+          </dd>
+        </div>
+        <div>
+          <dt>Origine</dt>
+          <dd>Fournie avec le dossier du voyage</dd>
+        </div>
+      </dl>
+      <section className="pieces-group" aria-labelledby="piece-attachments-title">
+        <h3 className="pieces-group-title" id="piece-attachments-title">Rattachée à</h3>
+        <ul className="pieces-list piece-sheet-links">
+          {piece.attachments.length === 0 && (
+            <li className="piece-sheet-link piece-sheet-link-static">
+              <PaperclipIcon size={22} />
+              <span className="piece-text">
+                <span className="piece-title">Tout le voyage</span>
+                <span className="piece-attachments">Aucune journée ni étape associée</span>
+              </span>
+            </li>
+          )}
+          {piece.attachments.map((attachment) => {
+            const date = formatCompactDate(attachment.day.date, travel.locale)
+            const title = attachment.type === 'day'
+              ? capitalize(date)
+              : `Étape ${attachment.step.startsAt ? `${attachment.step.startsAt} · ` : ''}${attachment.step.title}`
+            const detail = attachment.type === 'day'
+              ? attachment.day.title
+              : `${capitalize(date)} · ${attachment.day.title}`
+            return (
+              <li
+                key={attachment.type === 'day' ? `day:${attachment.day.id}` : `step:${attachment.step.id}`}
+              >
+                <button
+                  className="piece-sheet-link"
+                  type="button"
+                  aria-label={`${attachment.type === 'day' ? 'Voir la journée' : 'Voir l’étape'} ${title} — ${detail}`}
+                  onClick={() => onNavigate(attachmentTarget(attachment))}
+                >
+                  {attachment.type === 'day'
+                    ? <CalendarIcon size={22} />
+                    : <ClockIcon size={22} />}
+                  <span className="piece-text">
+                    <span className="piece-title">{title}</span>
+                    <span className="piece-attachments">{detail}</span>
+                  </span>
+                  <ChevronRightIcon size={20} className="piece-chevron" />
+                </button>
+              </li>
+            )
+          })}
+          <li>
+            <button
+              className="piece-sheet-link"
+              type="button"
+              onClick={() => onNavigate({ kind: 'pieces' })}
+            >
+              <PaperclipIcon size={22} />
+              <span className="piece-text">
+                <span className="piece-title">Toutes les pièces du voyage</span>
+              </span>
+              <ChevronRightIcon size={20} className="piece-chevron" />
+            </button>
+          </li>
+        </ul>
+      </section>
+      <p className="piece-sheet-note">
+        <ShieldIcon size={18} />
+        <span>Pièce du dossier : en lecture seule.</span>
+      </p>
     </div>
   )
 }
@@ -2476,6 +2625,10 @@ function PreparationView({
 function viewLabel(view: TravelView, travel: Travel) {
   if (view.kind === 'summary') return 'Aperçu'
   if (view.kind === 'pieces') return 'Pièces'
+  if (view.kind === 'piece') {
+    const label = findTravelPiece(travel, view.pieceKind, view.pieceId)?.label
+    return label ? `Pièce — ${label}` : 'Pièce'
+  }
   if (view.kind === 'step') {
     const stepTitle = findStepWithDay(travel, view.stepId)?.step.title
     return stepTitle ? `Étape — ${stepTitle}` : 'Étape'
@@ -2517,8 +2670,12 @@ export function TravelConsultation({
   const selectedStep = view.kind === 'step'
     ? findStepWithDay(travel, view.stepId)
     : undefined
+  const selectedPiece = view.kind === 'piece'
+    ? findTravelPiece(travel, view.pieceKind, view.pieceId)
+    : undefined
   const safeView = (view.kind === 'day' && !selectedDay)
     || (view.kind === 'step' && !selectedStep)
+    || (view.kind === 'piece' && !selectedPiece)
     ? { kind: 'summary' } as const
     : view
   const programActive = safeView.kind === 'day'
@@ -2538,7 +2695,9 @@ export function TravelConsultation({
     ? `day:${safeView.dayId}`
     : safeView.kind === 'step'
       ? `step:${safeView.stepId}`
-      : safeView.kind
+      : safeView.kind === 'piece'
+        ? `piece:${safeView.pieceKind}:${safeView.pieceId}`
+        : safeView.kind
   const previousViewKey = useRef(viewKey)
 
   useEffect(() => {
@@ -2602,7 +2761,7 @@ export function TravelConsultation({
   }[] = [
     { label: 'Aperçu', icon: CompassIcon, active: safeView.kind === 'summary', target: () => ({ kind: 'summary' }) },
     { label: 'Programme', icon: ListIcon, active: programActive, target: () => programTarget(travel, clock) },
-    { label: 'Pièces', icon: PaperclipIcon, active: safeView.kind === 'pieces', target: () => ({ kind: 'pieces' }) },
+    { label: 'Pièces', icon: PaperclipIcon, active: safeView.kind === 'pieces' || safeView.kind === 'piece', target: () => ({ kind: 'pieces' }) },
     { label: 'Pratique', icon: InfoIcon, active: safeView.kind === 'practical', target: () => ({ kind: 'practical' }) },
     { label: 'Préparation', icon: ChecklistIcon, active: safeView.kind === 'preparation', target: () => ({ kind: 'preparation' }) },
   ]
@@ -2668,7 +2827,16 @@ export function TravelConsultation({
       {safeView.kind === 'pieces' && (
         <PiecesView
           travel={travel}
+          onNavigate={onNavigate}
+          onListLocalResourceIds={onListLocalResourceIds}
+        />
+      )}
+      {safeView.kind === 'piece' && selectedPiece && (
+        <PieceSheetView
+          travel={travel}
+          piece={selectedPiece}
           online={online}
+          onNavigate={onNavigate}
           onOpenDocument={onOpenDocument}
           onListLocalResourceIds={onListLocalResourceIds}
         />

@@ -20,6 +20,19 @@ export function readTravelLocation(search: string): TravelLocation | undefined {
   if (view === 'step' && stepId) {
     return { travelId, view: { kind: 'step', stepId } }
   }
+  if (view === 'piece') {
+    const documentId = parameters.get('document')?.trim()
+    const reservationId = parameters.get('reservation')?.trim()
+    if (documentId) {
+      return { travelId, view: { kind: 'piece', pieceKind: 'document', pieceId: documentId } }
+    }
+    if (reservationId) {
+      return {
+        travelId,
+        view: { kind: 'piece', pieceKind: 'reservation', pieceId: reservationId },
+      }
+    }
+  }
   if (view === 'pieces') return { travelId, view: { kind: 'pieces' } }
   if (view === 'practical') return { travelId, view: { kind: 'practical' } }
   if (view === 'preparation') return { travelId, view: { kind: 'preparation' } }
@@ -35,6 +48,8 @@ export function writeTravelLocation(
   url.searchParams.delete('view')
   url.searchParams.delete('day')
   url.searchParams.delete('step')
+  url.searchParams.delete('document')
+  url.searchParams.delete('reservation')
 
   if (location) {
     url.searchParams.set('travel', location.travelId)
@@ -44,6 +59,9 @@ export function writeTravelLocation(
     }
     if (location.view.kind === 'step') {
       url.searchParams.set('step', location.view.stepId)
+    }
+    if (location.view.kind === 'piece') {
+      url.searchParams.set(location.view.pieceKind, location.view.pieceId)
     }
   }
 

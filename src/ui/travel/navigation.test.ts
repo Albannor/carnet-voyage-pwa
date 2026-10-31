@@ -59,6 +59,31 @@ describe('navigation de consultation dans l’URL', () => {
     })
   })
 
+  it.each(['document', 'reservation'] as const)(
+    'écrit puis relit la fiche d’une pièce de type %s',
+    (pieceKind) => {
+      writeTravelLocation({
+        travelId: 'travel-test',
+        view: { kind: 'piece', pieceKind, pieceId: 'piece-1' },
+      })
+      expect(window.location.search).toBe(`?travel=travel-test&view=piece&${pieceKind}=piece-1`)
+      expect(readTravelLocation(window.location.search)).toEqual({
+        travelId: 'travel-test',
+        view: { kind: 'piece', pieceKind, pieceId: 'piece-1' },
+      })
+
+      writeTravelLocation({ travelId: 'travel-test', view: { kind: 'pieces' } })
+      expect(window.location.search).toBe('?travel=travel-test&view=pieces')
+    },
+  )
+
+  it('revient à l’aperçu pour une fiche sans pièce identifiée', () => {
+    expect(readTravelLocation('?travel=travel-test&view=piece')).toEqual({
+      travelId: 'travel-test',
+      view: { kind: 'summary' },
+    })
+  })
+
   it('écrit puis relit l’espace Pièces pour préserver le retour d’un service externe', () => {
     writeTravelLocation({ travelId: 'travel-test', view: { kind: 'pieces' } })
     expect(window.location.search).toBe('?travel=travel-test&view=pieces')

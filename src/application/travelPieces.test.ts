@@ -5,6 +5,7 @@ import {
   allDocumentsStoredLocally,
   documentPiecesForStep,
   findStepWithDay,
+  findTravelPiece,
   groupTravelPiecesByDay,
   listTravelPieces,
   piecesForDay,
@@ -171,5 +172,12 @@ describe('pièces du voyage', () => {
       step: { id: 'step-ferry' },
     })
     expect(findStepWithDay(consultationTravel, 'step-missing')).toBeUndefined()
+  })
+
+  it('retrouve une pièce par sa nature et son identifiant', () => {
+    expect(findTravelPiece(consultationTravel, 'document', 'document-booking'))
+      .toMatchObject({ kind: 'document', label: 'Confirmation d’hébergement' })
+    expect(findTravelPiece(consultationTravel, 'reservation', 'document-booking'))
+      .toBeUndefined()
   })
 })

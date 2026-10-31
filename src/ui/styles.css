@@ -2586,6 +2586,124 @@ main > * {
   min-width: 0;
 }
 
+/* Fiche d’une pièce. */
+.piece-sheet {
+  max-width: 48rem;
+  display: grid;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+}
+
+.piece-sheet-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.piece-sheet-header .piece-icon {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.piece-sheet-heading {
+  min-width: 0;
+}
+
+.piece-sheet-heading .piece-badges {
+  margin-bottom: 0;
+}
+
+.piece-sheet-title {
+  margin: 0;
+  font-size: 1.625rem;
+  line-height: var(--line-height-title);
+  overflow-wrap: anywhere;
+}
+
+.piece-sheet-description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.piece-sheet-open {
+  width: 100%;
+  min-height: 3.25rem;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.piece-sheet-metadata {
+  margin: 0;
+  border-bottom: 0.0625rem solid var(--color-line);
+}
+
+.piece-sheet-metadata > div {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: 0.625rem 0;
+  border-top: 0.0625rem solid var(--color-line);
+}
+
+.piece-sheet-metadata dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.piece-sheet-metadata dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.piece-sheet-link {
+  width: 100%;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.625rem 0.875rem;
+  border: 0;
+  color: var(--color-ink);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.piece-sheet-link > .icon:first-child {
+  flex: none;
+  color: var(--color-terracotta);
+}
+
+.piece-sheet-link:hover:not(.piece-sheet-link-static) {
+  background: var(--color-bg);
+}
+
+.piece-sheet-link:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+.piece-sheet-link-static {
+  cursor: default;
+}
+
+.piece-sheet-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.piece-sheet-note > .icon {
+  flex: none;
+  color: var(--color-sage);
+}
+
 /* Espace « Pièces » : vue dérivée des documents et réservations du dossier. */
 .pieces-view {
   display: grid;
@@ -2673,18 +2791,6 @@ main > * {
   outline-offset: -0.1875rem;
 }
 
-.piece-disclosure > summary {
-  list-style: none;
-}
-
-.piece-disclosure > summary::-webkit-details-marker {
-  display: none;
-}
-
-.piece-disclosure[open] .piece-chevron {
-  transform: rotate(90deg);
-}
-
 .piece-icon {
   width: var(--tap-target);
   height: var(--tap-target);
@@ -2748,7 +2854,6 @@ main > * {
 .piece-chevron {
   flex: none;
   color: var(--color-text-muted);
-  transition: transform 150ms ease;
 }
 
 .piece-reservation {

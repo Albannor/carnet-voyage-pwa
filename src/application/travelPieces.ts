@@ -228,3 +228,14 @@ export function findStepWithDay(
   }
   return undefined
 }
+
+export type TravelPieceKind = TravelPiece['kind']
+
+/** Retrouve une pièce par sa nature et son identifiant stable. */
+export function findTravelPiece(
+  travel: Travel,
+  kind: TravelPieceKind,
+  id: EntityId,
+): TravelPiece | undefined {
+  return listTravelPieces(travel).find((piece) => piece.kind === kind && piece.id === id)
+}
