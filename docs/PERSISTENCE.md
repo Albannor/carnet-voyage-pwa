@@ -67,7 +67,7 @@ L'interface de consultation relit le voyage normalisé et récupère chaque PDF 
 
 ## Suppression
 
-La suppression est précédée d'une confirmation qui nomme le voyage. Une transaction unique couvre les quatre object stores :
+La suppression, proposée dans le menu « Plus d’options » de chaque voyage de la bibliothèque, est précédée d'une confirmation explicite qui nomme le voyage. Une transaction unique couvre les quatre object stores :
 
 - les ressources sont sélectionnées par l'index `byTravelId` ;
 - les notes et états de checklist sont sélectionnés par leur propre index `byTravelId` ;

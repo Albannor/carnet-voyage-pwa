@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './ui/App'
 import { startBrowserPwa } from './services/browserPwa'
+import './ui/fonts.css'
 import './ui/styles.css'
 
 startBrowserPwa()
