@@ -78,6 +78,7 @@ npm run build
 - [Persistance locale](docs/PERSISTENCE.md) : base IndexedDB, object stores, transactions, isolation et erreurs.
 - [Consultation](docs/CONSULTATION.md) : quatre sections de consultation, vue « Aujourd’hui », programme chronologique, infos pratiques et préparation.
 - [Installation et hors ligne](docs/OFFLINE.md) : installation, cache du shell, mises à jour, recette locale et procédure iPhone.
+- [Outils de la Fabrique](tools/fabrique/README.md) : production et validation hors application des paquets ZIP importables, images Wikimedia Commons comprises.
 - [Règles UX](docs/UX-RULES.md) : principes d'expérience réutilisables extraits de la référence Madrid.
 - [Feuille de route](docs/ROADMAP.md) : étapes de développement courtes, ordonnées et vérifiables.
 - [Règles de contribution pour Codex](AGENTS.md) : contraintes permanentes de travail dans ce dépôt.
