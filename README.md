@@ -37,7 +37,7 @@ npm run preview
 
 ## Déploiement GitHub Pages
 
-Le workflow `.github/workflows/deploy-pages.yml` construit et vérifie l’application lors d’un push sur `main` ou d’un déclenchement manuel, puis téléverse uniquement `dist/` vers l’environnement `github-pages`. La source Pages du dépôt doit être réglée sur **GitHub Actions**.
+Le workflow `.github/workflows/deploy-pages.yml` construit et vérifie l’application lors d’un push sur `main` ou d’un déclenchement manuel, puis téléverse uniquement `dist/` vers l’environnement `github-pages`. La source Pages du dépôt doit être réglée sur **GitHub Actions**. Le workflow `.github/workflows/ci.yml` exécute les mêmes contrôles et un audit des dépendances d’exécution sur chaque pull request, sans déployer.
 
 Le shell publié est public, y compris lorsque le dépôt source est privé. Il ne contient aucun voyage personnel : les voyages importés, images, PDF, checklists et notes sont créés ou conservés dans IndexedDB, localement sur chaque appareil. L’exécution et le résultat d’un déploiement se contrôlent dans l’onglet **Actions** du dépôt, dans le workflow **Deploy application to GitHub Pages**.
 
@@ -90,6 +90,7 @@ npm run build
 .
 ├── .github/
 │   └── workflows/
+│       ├── ci.yml
 │       └── deploy-pages.yml
 ├── .gitignore
 ├── AGENTS.md

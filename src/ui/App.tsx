@@ -58,6 +58,10 @@ import {
   browserPwaLifecycle,
 } from '../services/browserPwa'
 import type { PwaLifecycleController } from '../services/pwaLifecycle'
+import {
+  requestPersistentStorage,
+  type RequestPersistentStorage,
+} from '../services/persistentStorage'
 import { PwaStatusPanel } from './system/PwaStatusPanel'
 import { AppHeader } from './system/AppHeader'
 
@@ -67,6 +71,7 @@ interface AppProps {
   platformActions?: TravelPlatformActions
   connectivity?: ConnectivityAdapter
   pwaLifecycle?: PwaLifecycleController
+  requestStorage?: RequestPersistentStorage
 }
 
 type ConsultationUiState =
@@ -87,6 +92,7 @@ export function App({
   platformActions = browserTravelPlatformActions,
   connectivity = browserConnectivity,
   pwaLifecycle = browserPwaLifecycle,
+  requestStorage = requestPersistentStorage,
 }: AppProps) {
   const repositoryRef = useRef<TravelLibraryRepository | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -161,6 +167,8 @@ export function App({
           ? { status: 'ready', entries: listed.value }
           : { status: 'error', error: listed.error },
       )
+      // Une bibliothèque déjà remplie est protégée contre l’éviction dès l’ouverture.
+      if (listed.ok && listed.value.length > 0) void requestStorage()
 
       const location = readTravelLocation(window.location.search)
       if (location) {
@@ -186,7 +194,7 @@ export function App({
       repositoryRef.current?.close()
       repositoryRef.current = null
     }
-  }, [loadTravel, repositoryFactory])
+  }, [loadTravel, repositoryFactory, requestStorage])
 
   useEffect(
     () => connectivity.subscribe(setOnline),
@@ -246,6 +254,7 @@ export function App({
       fileName: file.name,
       entry: result.entry,
     })
+    void requestStorage()
     await refreshLibrary(repository)
   }
 
@@ -341,6 +350,7 @@ export function App({
     const added = await repository.addUserPiece(travelId, piece)
     if (!added.ok) return { ok: false, message: `${added.error.message} ${added.error.hint}` }
     updateUserPieces(travelId, (pieces) => [...pieces, added.value])
+    void requestStorage()
     return { ok: true, piece: added.value }
   }
 

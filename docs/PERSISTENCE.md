@@ -82,6 +82,12 @@ La liste charge seulement `travelMetadata`. L'ouverture récupère les métadonn
 
 L'interface de consultation relit le voyage normalisé et récupère chaque PDF ou image avec la clé composite du voyage courant. `listResourceIds(travelId)` lit uniquement les clés de l’index `byTravelId` (`getAllKeys`) pour savoir quelles ressources sont présentes sur l’appareil, sans charger leurs octets ; l’espace Pièces s’en sert pour n’annoncer la disponibilité hors connexion que lorsqu’elle est vérifiée. Les anciens contenus internes v3 sont adaptés en mémoire vers la version 4 en ajoutant des collections d’illustrations vides, sans modifier la version 1 de la structure IndexedDB. Une image reste stockée avec son type MIME validé et ses octets ; aucune URL d’objet n’est persistée. Un ancien voyage sans état personnel retourne une note vide et aucune case cochée.
 
+## Protection contre l’éviction
+
+Sans backend ni sauvegarde, IndexedDB est l’unique exemplaire des voyages, notes, cases cochées et pièces ajoutées. Par défaut, le navigateur peut évincer ce stockage lorsque l’appareil manque d’espace ; Safari peut aussi l’effacer après plusieurs jours sans visite lorsque l’application n’est pas installée sur l’écran d’accueil.
+
+L’adaptateur `src/services/persistentStorage.ts` demande donc un stockage persistant par `navigator.storage.persist()`, après avoir vérifié `persisted()`. L’application l’appelle à l’ouverture lorsque la bibliothèque contient au moins un voyage, après chaque import réussi et après chaque pièce ajoutée ; une bibliothèque vide ne déclenche aucune demande. Le navigateur reste seul juge : un refus ou une API absente est silencieux et ne bloque aucun parcours. Cette demande réduit le risque d’éviction mais ne remplace pas une sauvegarde, qui n’existe pas dans le MVP.
+
 ## Suppression
 
 La suppression, proposée dans le menu « Plus d’options » de chaque voyage de la bibliothèque, est précédée d'une confirmation explicite qui nomme le voyage. Une transaction unique couvre les six object stores :

@@ -81,6 +81,8 @@ Les écritures importantes sont transactionnelles. La suppression d'un voyage ef
 
 La base IndexedDB porte la version `2`. La version `1` sépare quatre object stores : `travelMetadata`, `travelContents`, `travelResources` et `personalStates`. La version `2` ajoute, par une migration ordonnée qui conserve les données existantes, `userPieces` (métadonnées des pièces ajoutées) et `userPieceFiles` (leurs octets). Les ressources, états personnels et pièces ajoutées sont indexés par `travelId` ; leurs clés composites commencent par cet identifiant. Aucune écriture utilisateur ne touche `travelContents` ni `travelResources`. La politique initiale refuse tout doublon au lieu d'écraser un voyage existant. Le détail des clés, transactions et erreurs figure dans `PERSISTENCE.md`.
 
+IndexedDB étant l’unique exemplaire des données, l’application demande au navigateur un stockage persistant (`navigator.storage.persist()`) dès qu’il contient un voyage ou une pièce ajoutée, afin de limiter les évictions automatiques. Un refus est silencieux ; le détail figure dans `PERSISTENCE.md`.
+
 Le `localStorage` n'est pas utilisé pour les voyages, les notes ou les checklists. Les paramètres d’URL restent limités au contexte de navigation.
 
 ## Fonctionnement hors ligne

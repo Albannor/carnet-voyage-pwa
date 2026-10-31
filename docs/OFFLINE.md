@@ -17,7 +17,7 @@ Le premier chargement doit réussir en ligne afin que le navigateur télécharge
 
 Un hébergement de production doit servir le dossier `dist/` en HTTPS. Les chemins du build sont relatifs : le même résultat peut être publié à la racine d’un domaine ou sous un répertoire, sans URL de production codée dans le dépôt.
 
-Le dépôt prévoit GitHub Pages comme hébergement statique à l’adresse attendue `https://albannor.github.io/carnet-voyage-pwa/`. Le workflow `.github/workflows/deploy-pages.yml` exécute `npm ci`, les quatre contrôles du projet, configure Pages, téléverse uniquement `dist/`, puis déploie cet artefact dans l’environnement `github-pages`. Il se déclenche sur `main` et manuellement. La source Pages doit être configurée sur **GitHub Actions** dans les paramètres du dépôt.
+Le dépôt prévoit GitHub Pages comme hébergement statique à l’adresse attendue `https://albannor.github.io/carnet-voyage-pwa/`. Le workflow `.github/workflows/deploy-pages.yml` exécute `npm ci`, les quatre contrôles du projet, configure Pages, téléverse uniquement `dist/`, puis déploie cet artefact dans l’environnement `github-pages`. Il se déclenche sur `main` et manuellement. Le workflow `.github/workflows/ci.yml` exécute les mêmes quatre contrôles, ainsi qu’un audit des dépendances d’exécution, sur chaque pull request, sans rien publier. La source Pages doit être configurée sur **GitHub Actions** dans les paramètres du dépôt.
 
 Le shell servi par GitHub Pages est public, même si le dépôt source est privé. Aucun ZIP de voyage, PDF importé, pièce ajoutée, fichier Madrid ou contenu IndexedDB n’est intégré à `dist/`. Les pièces ajoutées, potentiellement sensibles, ne sont jamais journalisées, envoyées sur le réseau ni mises en cache par le service worker ; `scripts/verify-pwa-build.mjs` échoue si le service worker généré mentionne leurs object stores. Chaque appareil crée sa propre bibliothèque locale dans IndexedDB après ouverture du site et import explicite d’un paquet.
 
@@ -73,4 +73,5 @@ L’implémentation est prête pour une publication statique. Restent à effectu
 - suivre les jobs `build` et `deploy` dans l’onglet **Actions**, puis confirmer l’adresse HTTPS publiée ;
 - exécuter la recette avec l’adresse réelle ;
 - installer l’application depuis Safari et valider le redémarrage hors ligne sur un iPhone physique ;
+- après un premier import, vérifier dans la console du navigateur que `navigator.storage.persisted()` renvoie `true`, dans Safari puis dans l’application installée ;
 - vérifier le cycle de mise à jour après une seconde publication.
